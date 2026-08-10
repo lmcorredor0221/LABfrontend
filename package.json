@@ -1,0 +1,48 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack --hostname 127.0.0.1 --port 3200",
+    "dev:turbo": "next dev --turbopack --hostname 127.0.0.1 --port 3200",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:e2e": "python ../tmp/phase9_browser_check.py",
+    "test:e2e:ci13": "..\\backend\\.venv\\Scripts\\python.exe ../tmp/ci13_browser_check.py",
+    "test:e2e:ht7": "python ../tmp/ht7_tools_memory_browser_check.py",
+    "test:e2e:rt8": "..\\backend\\.venv\\Scripts\\python.exe ../tmp/rt8_runtime_multitenant_smoke.py",
+    "test:e2e:uxa0": "python tests/e2e/ux-baseline-smoke.py",
+    "test:e2e:uxa12": "python tests/e2e/uxa12_cutover_smoke.py",
+    "test:uxa12": "node scripts/uxa12_cutover_audit.mjs",
+    "audit:enterprise-theme": "node scripts/enterprise-theme-audit.mjs",
+    "audit:enterprise-theme:report": "node scripts/enterprise-theme-audit.mjs --report-only",
+    "test:enterprise-theme": "node scripts/enterprise-theme-audit.mjs && python tests/e2e/enterprise-corporate-theme-smoke.py"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.24.0",
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.9.2",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "axe-core": "^4.12.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "jsdom": "^26.1.0",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  }
+}
