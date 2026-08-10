@@ -14,6 +14,8 @@
 /coverage
 /test-results
 /playwright-report
+__pycache__/
+*.py[cod]
 
 # next.js
 /.next/
@@ -38,6 +40,7 @@ yarn-error.log*
 # local runtime/temp
 /tmp
 /runtime
+tmp-*
 
 # env files (can opt-in for committing if needed)
 .env*
