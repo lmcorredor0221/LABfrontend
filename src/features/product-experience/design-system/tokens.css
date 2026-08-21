@@ -255,6 +255,43 @@
   white-space: nowrap;
 }
 
+.uxa-button.uxa-button--wrap {
+  line-height: 1.18;
+  min-width: 0;
+  padding-bottom: 8px;
+  padding-top: 8px;
+}
+
+.uxa-button.uxa-button--wrap > span {
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
+}
+
+.uxa-button.uxa-button--table-cta {
+  font-size: 11px;
+  justify-content: space-between;
+  max-width: 190px;
+  text-align: left;
+  width: 100%;
+}
+
+.uxa-button.uxa-button--table-cta > span {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  width: 100%;
+}
+
+.uxa-button__clamped-label {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .uxa-button svg {
   flex: 0 0 auto;
 }

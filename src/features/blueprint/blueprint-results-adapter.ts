@@ -251,7 +251,7 @@ export function buildBlueprintComparisonSummary(
   const fallbackTraditional: EstimationConstructionScenario = {
     automation_leverage_percent: 0,
     cost_savings_vs_traditional: 0,
-    description: "Equipo humano construye usando el Blueprint como referencia funcional y tecnica.",
+    description: "Equipo humano construye de forma tradicional; sirve como linea base de comparacion.",
     effort_reduction_vs_traditional_percent: 0,
     estimated_cost: report.traditional.estimated_cost,
     estimated_duration_weeks: report.traditional.estimated_duration_weeks,

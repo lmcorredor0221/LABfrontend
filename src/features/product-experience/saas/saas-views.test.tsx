@@ -1,14 +1,71 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { vi } from "vitest";
+import { LanguageProvider } from "@/core/i18n/language-context";
+import { deliverableCatalogApi } from "@/features/deliverables/infrastructure/deliverable-catalog-api";
 import { getConstructionScenarios } from "@/features/product-experience/saas/saas-product-model";
+import {
+  premiumEnrichmentApi,
+  type PremiumEnrichmentWorkspace,
+} from "@/features/product-experience/saas/premium-enrichment-api";
 import { ProductSaasView } from "@/features/product-experience/saas/saas-product-views";
 import {
   EstimateStageView,
   PackageStageView,
   ValidateStageView,
 } from "@/features/product-experience/saas/saas-stage-views";
-import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
+import type {
+  ProductExperienceRouteSnapshot,
+  ProductExperienceStageOperation,
+} from "@/features/product-experience/core/server-state";
+import type { ProductStageActions } from "@/features/product-experience/shell/use-product-experience-route";
 import type { AttentionResponseV2 } from "@/features/attention/attention-contracts";
 import type { SessionCommercialAccess, SessionSnapshot } from "@/features/sessions/types";
+
+const mockPush = vi.fn();
+const mockUseSearchParams = vi.fn(() => new URLSearchParams());
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+  useSearchParams: () => mockUseSearchParams(),
+}));
+
+vi.mock("@/features/product-experience/saas/premium-enrichment-api", () => ({
+  premiumEnrichmentApi: {
+    getWorkspace: vi.fn(() => new Promise(() => undefined)),
+    resolveItem: vi.fn(),
+  },
+}));
+
+vi.mock("@/features/product-experience/saas/acp-direct-api", () => ({
+  acpDirectApi: {
+    getResolution: vi.fn(() => new Promise(() => undefined)),
+  },
+}));
+
+vi.mock("@/features/deliverables/infrastructure/deliverable-catalog-api", () => ({
+  deliverableCatalogApi: {
+    list: vi.fn(() => new Promise(() => undefined)),
+  },
+}));
+
+vi.mock("@/features/product-experience/saas/use-product-build-status", () => ({
+  useProductBuildStatus: vi.fn(() => ({
+    data: null,
+    error: null,
+    isEmpty: true,
+    isError: false,
+    isFetching: false,
+    isFinal: false,
+    isLoading: false,
+    isStale: false,
+    refresh: vi.fn(async () => null),
+    status: "empty",
+    updatedAt: null,
+  })),
+}));
 
 function resource<T>(data: T) {
   return {
@@ -538,17 +595,155 @@ function createRoute(tier: SessionCommercialAccess["tier"] = "blueprint"): Produ
   return route as unknown as ProductExperienceRouteSnapshot;
 }
 
+function renderWithLanguage(ui: ReactElement) {
+  return render(<LanguageProvider>{ui}</LanguageProvider>);
+}
+
+function createStageOperation(overrides: Partial<ProductExperienceStageOperation> = {}): ProductExperienceStageOperation {
+  return {
+    action: "generate_estimation_report",
+    attempt_count: 1,
+    can_cancel: true,
+    can_retry: false,
+    cancel_requested_at: null,
+    cancel_url: "/api/v1/sessions/session-uxa11/stage-operations/operation-estimate/cancel",
+    completed_at: null,
+    created_at: "2026-08-16T10:00:00Z",
+    current_step: "queued",
+    detail: "Solicitud recibida.",
+    error_message: "",
+    expires_at: "2026-08-16T10:30:00Z",
+    heartbeat_at: "2026-08-16T10:00:00Z",
+    id: "operation-estimate",
+    idempotency_key: "estimate-once",
+    is_stale: false,
+    recover_url: "/api/v1/sessions/session-uxa11/stage-operations/operation-estimate/recover",
+    result: null,
+    result_artifact_id: null,
+    retry_url: "",
+    session_id: "session-uxa11",
+    stage_key: "estimate",
+    status: "queued",
+    steps: [],
+    technical_detail: "",
+    updated_at: "2026-08-16T10:00:00Z",
+    workspace_id: "workspace-1",
+    ...overrides,
+  };
+}
+
+function createPremiumWorkspace(): PremiumEnrichmentWorkspace {
+  return {
+    contract_version: "premium-enrichment-workspace.v1",
+    current_tier: "blueprint_pro",
+    deferred_count: 0,
+    items: [
+      {
+        affected_deliverable_keys: ["blueprint_doc"],
+        changed_dependency_keys: ["compliance_scope"],
+        entry: {
+          affected_deliverable_keys: ["blueprint_doc"],
+          answer_options: [
+            {
+              confidence: 0.91,
+              description: "Resume el marco regulatorio principal que debemos reflejar en el blueprint.",
+              impact: "Aclara restricciones críticas para el documento profesional.",
+              key: "regulatory-summary",
+              label: "Resumen regulatorio",
+              recommended: true,
+            },
+          ],
+          assumed_answer: "",
+          confidence: 0.91,
+          cost_to_resolve_units: 2,
+          created_from: "premium_enrichment",
+          dependency_keys: ["compliance_scope"],
+          disposition: "infer",
+          id: "uncertainty-1",
+          impact: "Puede cambiar el blueprint profesional final.",
+          kind: "question",
+          product_mode: "premium_enrichment",
+          reason: "Falta contexto sobre las restricciones regulatorias del cliente.",
+          session_id: "session-uxa11",
+          source_refs: ["brief.md#regulacion"],
+          source_stage: "blueprint",
+          status: "open",
+          suggested_answer: "Cliente regulado por norma financiera local y controles de auditoria trimestral.",
+          target_stage: "blueprint_pro",
+          title: "Precisar restricciones regulatorias",
+          uncertainty_key: "compliance_scope",
+          workspace_id: "workspace-1",
+        },
+        ordered_regeneration_keys: ["blueprint_doc"],
+        priority_reason: "Tiene alto impacto en el Blueprint profesional.",
+        priority_score: 92,
+        unaffected_deliverable_count: 2,
+      },
+    ],
+    prioritized_count: 1,
+    processing_guidance: "Resuelve primero las dependencias con mayor impacto en el documento profesional.",
+    product_mode: "premium_enrichment",
+    resolved_count: 0,
+    selectable_limit: 6,
+    session_id: "session-uxa11",
+    total_uncertainties: 1,
+    value_summary: "Una sola aclaración desbloquea el blueprint profesional.",
+    workspace_id: "workspace-1",
+  };
+}
+
+beforeEach(() => {
+  mockPush.mockClear();
+  mockUseSearchParams.mockReturnValue(new URLSearchParams());
+});
+
 describe("UXA11 SaaS stage views", () => {
   it("renders Estimate with construction scenarios and commercial readiness", () => {
-    render(<EstimateStageView activeRoute={createRoute()} />);
+    renderWithLanguage(<EstimateStageView activeRoute={createRoute()} />);
 
-    expect(screen.getByRole("heading", { name: "Estimar valor, costo y ROI" })).toBeInTheDocument();
-    expect(screen.getByText("ACP agentico")).toBeInTheDocument();
-    expect(screen.getByText("Blueprint comercial")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "LAB encontro una oportunidad concreta de ahorro" })).toBeInTheDocument();
+    expect(screen.getAllByText("ACP agentico").length).toBeGreaterThan(0);
+    expect(screen.getByText("Comparacion base")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Estimar valor, costo y ROI" })).not.toBeInTheDocument();
+  });
+
+  it("treats a missing estimate as a generation task instead of an Attention blocker", async () => {
+    const route = createRoute();
+    route.snapshot.data = {
+      ...route.snapshot.data!,
+      estimation_report: null,
+    } as SessionSnapshot;
+    const actions = {
+      generateEstimationReport: vi.fn(async () => createStageOperation()),
+    } as unknown as ProductStageActions;
+
+    renderWithLanguage(<EstimateStageView actionState={{ status: "idle" }} actions={actions} activeRoute={route} />);
+
+    expect(screen.getByText("Sin estimacion")).toBeInTheDocument();
+    expect(screen.getByText("Sin bloqueos operativos")).toBeInTheDocument();
+    expect(screen.queryByText(/bloqueo\(s\)/i)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Generar estimacion/i }));
+
+    await waitFor(() => expect(actions.generateEstimationReport).toHaveBeenCalledTimes(1));
+  });
+
+  it("prepares Blueprint Basic deliverables before opening the commercial result", async () => {
+    const route = createRoute();
+    const actions = {
+      prepareBlueprintCommercialResult: vi.fn(async () => route.snapshot.data!),
+    } as unknown as ProductStageActions;
+
+    renderWithLanguage(<EstimateStageView actionState={{ status: "idle" }} actions={actions} activeRoute={route} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Ver Blueprint Basico/i })[0]);
+
+    await waitFor(() => expect(actions.prepareBlueprintCommercialResult).toHaveBeenCalledTimes(1));
+    expect(mockPush).toHaveBeenCalledWith("/projects/session-uxa11/blueprint?surface=commercial");
   });
 
   it("renders Validate with test suite, rubric and simulation state", () => {
-    render(<ValidateStageView activeRoute={createRoute()} />);
+    renderWithLanguage(<ValidateStageView activeRoute={createRoute()} />);
 
     expect(screen.getByRole("heading", { name: "Validar Blueprint antes del ACP" })).toBeInTheDocument();
     expect(screen.getAllByText("Respuesta con evidencia").length).toBeGreaterThan(0);
@@ -556,7 +751,7 @@ describe("UXA11 SaaS stage views", () => {
   });
 
   it("renders Package as gated ACP when entitlement is not active", () => {
-    render(<PackageStageView activeRoute={createRoute("blueprint_pro")} />);
+    renderWithLanguage(<PackageStageView activeRoute={createRoute("blueprint_pro")} />);
 
     expect(screen.getByRole("heading", { name: "Package portable y desacoplado" })).toBeInTheDocument();
     expect(screen.getByText("Upsell ACP")).toBeInTheDocument();
@@ -566,18 +761,114 @@ describe("UXA11 SaaS stage views", () => {
 
 describe("UXA11 SaaS product views", () => {
   it("routes diagram discovery to the independent Diagram Center", () => {
-    render(<ProductSaasView activeRoute={createRoute("blueprint")} section="diagrams" />);
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="diagrams" />);
 
-    expect(screen.getByRole("heading", { name: "Todos los diagramas de la solución, en un solo lugar" })).toBeInTheDocument();
-    expect(screen.getByText("Diagram Center · Motor gobernado")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Diagramas de la solución" })).toBeInTheDocument();
+    expect(screen.getByText("Motor gobernado")).toBeInTheDocument();
   });
 
-  it("renders Blueprint Pro and ACP as separate SaaS moments", () => {
-    render(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_pro" />);
-    expect(screen.getByRole("heading", { name: "Desbloquea el Blueprint Profesional" })).toBeInTheDocument();
+  it("renders Blueprint Basic executive overview as a separate product entry", () => {
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_overview" />);
 
-    render(<ProductSaasView activeRoute={createRoute("blueprint")} section="acp" />);
-    expect(screen.getByRole("heading", { name: "Adquiere ACP para pasar de diseno a construccion" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "De una necesidad ambigua a una propuesta clara" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "5 Artefactos Clave del Blueprint Básico" })).toBeInTheDocument();
+  });
+
+  it("renders Blueprint Basic with the executive overview inside the product tabs", () => {
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint" />);
+
+    expect(screen.getByRole("heading", { name: "Resultado del Blueprint" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Resumen Blueprint/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Diagramas de Blueprint/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "De una necesidad ambigua a una propuesta clara" })).toBeInTheDocument();
+  });
+
+  it("renders Blueprint Pro executive overview inside the Blueprint Pro tabs", () => {
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
+
+    expect(screen.getByRole("heading", { name: "Resultado del Blueprint" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Enriquecimiento Pro/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Resumen Pro/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Diagramas de Blueprint Pro/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Resuelve solo lo que mejora el Blueprint profesional" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Resumen Pro/ }));
+    expect(screen.getByRole("heading", { name: "De una propuesta clara a un Blueprint defendible" })).toBeInTheDocument();
+  });
+
+  it("renders the direct suggestion accelerator when premium enrichment returns a suggested answer", async () => {
+    vi.mocked(premiumEnrichmentApi.getWorkspace).mockResolvedValueOnce(createPremiumWorkspace());
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
+
+    expect(await screen.findByRole("button", { name: /Usar sugerencia directa/i })).toBeInTheDocument();
+    expect(screen.getByText("Cliente regulado por norma financiera local y controles de auditoria trimestral.")).toBeInTheDocument();
+  });
+
+  it("requests governed Blueprint Pro artifacts with cumulative package stage", async () => {
+    vi.mocked(deliverableCatalogApi.list).mockResolvedValueOnce({
+      contract_version: "deliverable-catalog-response.v1",
+      current_stage: "package",
+      entries: [],
+      registry_version: "v1",
+      tier: "blueprint_pro",
+    });
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Artefactos gobernados/i }));
+
+    await waitFor(() =>
+      expect(deliverableCatalogApi.list).toHaveBeenCalledWith({
+        currentStage: "package",
+        sessionId: "session-uxa11",
+        tier: "blueprint_pro",
+      }),
+    );
+  });
+
+  it("renders ACP executive overview inside the ACP Premium tabs", () => {
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    expect(screen.getByRole("heading", { name: "Resultado del Blueprint" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Resumen ACP/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Validar Blueprint/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Empaquetar ACP/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Diagramas de ACP/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Del diseno aprobado a una construccion gobernada" })).toBeInTheDocument();
+  });
+
+  it("keeps Validate and Package as internal ACP Premium sections", () => {
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /Validar Blueprint/ }));
+    expect(screen.getByRole("heading", { name: "Validar Blueprint antes del ACP" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Empaquetar ACP/ }));
+    expect(screen.getByRole("heading", { name: "Package portable y desacoplado" })).toBeInTheDocument();
+  });
+
+  it("renders Blueprint Pro and ACP executive overviews as separate SaaS moments", () => {
+    const pro = renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_pro_overview" />);
+    expect(screen.getByRole("heading", { name: "De una propuesta clara a un Blueprint defendible" })).toBeInTheDocument();
+    pro.unmount();
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="acp_overview" />);
+    expect(screen.getByRole("heading", { name: "Del diseno aprobado a una construccion gobernada" })).toBeInTheDocument();
+  });
+
+  it("renders canonical Entregables and Diagrams Hub with filters and deep links", async () => {
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="artifacts" />);
+
+    expect(screen.getByRole("heading", { name: "Hub de Entregables y Diagramas" })).toBeInTheDocument();
+    expect(screen.getByText("Hub Canónico de Entregables")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Filtrar por título, key, descripción...")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por tipo" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por tier" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por etapa" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Filtrar por disponibilidad" })).toBeInTheDocument();
   });
 
   it("preserves the ACP agentic scenario for downstream package value", () => {

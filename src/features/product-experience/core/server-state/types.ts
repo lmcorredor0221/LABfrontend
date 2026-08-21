@@ -18,6 +18,7 @@ import type {
   JourneyStageArtifactRejectionRequest,
   JourneyStageKey,
   MemoryRecommendationRequest,
+  EstimationEnvelope,
   ToolRecommendationEnvelope,
   ToolRecommendationRequest,
 } from "@/features/sessions/session-contracts";
@@ -50,9 +51,55 @@ export type ProductServerResourceState<T> = {
   version: string;
 };
 
+export type ProductExperienceStageOperationStatus =
+  | "queued"
+  | "running"
+  | "waiting_for_user"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type ProductExperienceStageOperationStep = {
+  detail: string;
+  key: string;
+  label: string;
+  status: string;
+};
+
+export type ProductExperienceStageOperation = {
+  action: string;
+  attempt_count: number;
+  can_cancel: boolean;
+  can_retry: boolean;
+  cancel_requested_at: string | null;
+  cancel_url: string;
+  completed_at: string | null;
+  created_at: string;
+  current_step: string;
+  detail: string;
+  error_message: string;
+  expires_at: string | null;
+  heartbeat_at: string | null;
+  id: string;
+  idempotency_key: string;
+  is_stale: boolean;
+  recover_url: string;
+  result: JourneyStageArtifactEntry | null;
+  result_artifact_id: string | null;
+  retry_url: string;
+  session_id: string;
+  stage_key: string;
+  status: ProductExperienceStageOperationStatus;
+  steps: ProductExperienceStageOperationStep[];
+  technical_detail: string;
+  updated_at: string;
+  workspace_id: string;
+};
+
 export type ProductExperienceOperationState = {
   activity: ActivityResponse | null;
   overview: ProductOverviewResponse | null;
+  stageOperation: ProductExperienceStageOperation | null;
 };
 
 export type ProductExperienceRouteSnapshot = {
@@ -98,6 +145,16 @@ export type ProductExperienceApi = {
   ): Promise<JourneyStageArtifactEntry>;
   buildCanvas(sessionId: string, options?: ProductExperienceApiRequestOptions): Promise<CanvasEnvelope>;
   defineRequirements(sessionId: string, options?: ProductExperienceApiRequestOptions): Promise<JourneyStageArtifactEntry>;
+  getCurrentStageOperation(
+    sessionId: string,
+    params?: ProductExperienceStageOperationParams,
+    options?: ProductExperienceApiRequestOptions,
+  ): Promise<ProductExperienceStageOperation | null>;
+  getStageOperation(
+    sessionId: string,
+    operationId: string,
+    options?: ProductExperienceApiRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
   normalizeDiscovery(
     sessionId: string,
     payload: DiscoveryInput,
@@ -108,6 +165,49 @@ export type ProductExperienceApi = {
     payload: DesignProposalRequest,
     options?: ProductExperienceApiRequestOptions,
   ): Promise<JourneyStageArtifactEntry>;
+  startProposeDesign(
+    sessionId: string,
+    payload: DesignProposalRequest,
+    options?: ProductExperienceMutationRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
+  startAnalyzeDiscovery(
+    sessionId: string,
+    payload: DiscoveryInput,
+    options?: ProductExperienceMutationRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
+  startDefineRequirements(
+    sessionId: string,
+    options?: ProductExperienceMutationRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
+  startRecommendTools(
+    sessionId: string,
+    payload: ToolRecommendationRequest,
+    options?: ProductExperienceMutationRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
+  startRecommendMemory(
+    sessionId: string,
+    payload: MemoryRecommendationRequest,
+    options?: ProductExperienceMutationRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
+  startGenerateEstimationReport(
+    sessionId: string,
+    options?: ProductExperienceMutationRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
+  retryStageOperation(
+    sessionId: string,
+    operationId: string,
+    options?: ProductExperienceApiRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
+  cancelStageOperation(
+    sessionId: string,
+    operationId: string,
+    options?: ProductExperienceApiRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
+  recoverStageOperation(
+    sessionId: string,
+    operationId: string,
+    options?: ProductExperienceApiRequestOptions,
+  ): Promise<ProductExperienceStageOperation>;
   recommendTools(
     sessionId: string,
     payload: ToolRecommendationRequest,
@@ -118,6 +218,14 @@ export type ProductExperienceApi = {
     payload: MemoryRecommendationRequest,
     options?: ProductExperienceApiRequestOptions,
   ): Promise<JourneyStageArtifactEntry>;
+  generateEstimationReport(
+    sessionId: string,
+    options?: ProductExperienceApiRequestOptions,
+  ): Promise<EstimationEnvelope>;
+  prepareBlueprintCommercialResult(
+    sessionId: string,
+    options?: ProductExperienceApiRequestOptions,
+  ): Promise<SessionSnapshot>;
   approveToolsSelection(
     sessionId: string,
     payload: ApproveToolsSelectionRequest,
@@ -161,6 +269,10 @@ export type ProductExperienceApiRequestOptions = {
   signal?: AbortSignal | null;
 };
 
+export type ProductExperienceMutationRequestOptions = ProductExperienceApiRequestOptions & {
+  idempotencyKey?: string;
+};
+
 export type ProductExperienceAttentionParams = {
   current_stage?: string;
   cursor?: string | null;
@@ -170,6 +282,11 @@ export type ProductExperienceAttentionParams = {
   stage?: string | null;
   status?: string | null;
   type?: string | null;
+};
+
+export type ProductExperienceStageOperationParams = {
+  action?: string | null;
+  stage_key?: string | null;
 };
 
 export type ProductExperienceStoreSnapshot = {

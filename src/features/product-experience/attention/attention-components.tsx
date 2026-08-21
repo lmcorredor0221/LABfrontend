@@ -42,6 +42,7 @@ import type { ProductAttentionActionState } from "@/features/product-experience/
 import {
   DEFAULT_ATTENTION_FILTERS,
   buildAttentionResolutionPayload,
+  categorizeAttentionItems,
   filterAttentionItems,
   getAttentionFilterOptions,
   getAttentionItemTone,
@@ -246,6 +247,10 @@ function AttentionActionControls({ actionState, compact = false, item, onResolve
   const [usedSuggestedAnswer, setUsedSuggestedAnswer] = useState(Boolean(item.suggested_answer));
   const isResolving = actionState?.status === "submitting" && actionState.itemKey === item.key;
   const canResolveInline = item.action.can_resolve_inline && item.action.kind !== "navigate" && onResolveItem;
+  const expectsTextResolution = item.action.kind === "answer" || item.action.kind === "confirm" || item.type === "question" || item.type === "gap";
+  const suggestedLabel = item.type === "runtime_error"
+    ? t("attention.suggestedRecovery", "Recuperacion sugerida")
+    : t("attention.suggestedAnswer", "Respuesta sugerida");
 
   async function resolveInline() {
     if (!onResolveItem || !canResolveInline) {
@@ -275,7 +280,7 @@ function AttentionActionControls({ actionState, compact = false, item, onResolve
     <div className="space-y-3">
       {item.suggested_answer ? (
         <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-brand)]/20 bg-[var(--uxa-color-brand-soft)] p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-brand)]">{t("attention.suggestedAnswer", "Respuesta sugerida")}</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-brand)]">{suggestedLabel}</p>
           <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-text)]">{item.suggested_answer}</p>
           <button
             className="mt-2 text-[11px] font-black text-[var(--uxa-color-brand)] underline-offset-4 hover:underline"
@@ -290,7 +295,7 @@ function AttentionActionControls({ actionState, compact = false, item, onResolve
           </button>
         </div>
       ) : null}
-      {item.type === "question" || item.type === "gap" || item.options.length ? (
+      {expectsTextResolution ? (
         <UxaTextareaField
           label={t("attention.answerField", "Respuesta o criterio de cierre")}
           onChange={(event) => {
@@ -359,6 +364,145 @@ function AttentionActionControls({ actionState, compact = false, item, onResolve
   );
 }
 
+function TechnicalDiagnosticValue({
+  children,
+  code = false,
+  label,
+}: {
+  children: ReactNode;
+  code?: boolean;
+  label: string;
+}) {
+  return (
+    <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-3">
+      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{label}</p>
+      <p className={cn("mt-1 break-words text-[12px] leading-5 text-[var(--uxa-color-ink)]", code && "font-mono text-[11px]")}>
+        {children}
+      </p>
+    </div>
+  );
+}
+
+function RuntimeTechnicalDiagnostics({ item }: { item: AttentionItemV2 }) {
+  const { t } = useLanguage();
+  const diagnostics = item.diagnostics;
+  const traceRefs = diagnostics?.trace_refs?.filter(Boolean) ?? [];
+
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-danger)]/20 bg-white p-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-state-danger)]">
+          {t("attention.runtime.whatHappened", "Que paso")}
+        </p>
+        <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink)]">
+          {diagnostics?.summary || item.reason}
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <TechnicalDiagnosticValue label={t("attention.runtime.capability", "Capability afectada")}>
+          {diagnostics?.capability_label || diagnostics?.capability || item.stage}
+        </TechnicalDiagnosticValue>
+        <TechnicalDiagnosticValue label={t("attention.runtime.errorKind", "Tipo de error")}>
+          {diagnostics?.error_kind || item.type}
+        </TechnicalDiagnosticValue>
+        <TechnicalDiagnosticValue label={t("attention.runtime.operationId", "Operacion")}>
+          {diagnostics?.operation_id || item.source_ref.entity_id || "runtime"}
+        </TechnicalDiagnosticValue>
+        <TechnicalDiagnosticValue label={t("attention.runtime.retryPolicy", "Politica de recuperacion")}>
+          {diagnostics?.retry_policy || t("attention.runtime.retryPolicyFallback", "Reintentar con el mismo contexto aprobado y conservar trazabilidad.")}
+        </TechnicalDiagnosticValue>
+      </div>
+      <TechnicalDiagnosticValue label={t("attention.runtime.technicalMessage", "Mensaje tecnico saneado")} code>
+        {diagnostics?.technical_message || item.reason}
+      </TechnicalDiagnosticValue>
+      <TechnicalDiagnosticValue label={t("attention.runtime.repairHint", "Como repararlo")}>
+        {diagnostics?.repair_hint || item.suggested_answer || t("attention.runtime.repairHintFallback", "Reintenta la etapa; si el error persiste revisa proveedor, modelo, schema y logs de runtime.")}
+      </TechnicalDiagnosticValue>
+      {traceRefs.length ? (
+        <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
+            {t("attention.runtime.traceRefs", "Referencias de traza")}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {traceRefs.map((ref) => (
+              <code className="rounded-full bg-[var(--uxa-color-muted-panel)] px-2 py-1 text-[10px] text-[var(--uxa-color-ink-soft)]" key={ref}>
+                {ref}
+              </code>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AttentionTechnicalDetailsDisclosure({ item }: { item: AttentionItemV2 }) {
+  const { t } = useLanguage();
+  const isRuntimeError = item.type === "runtime_error";
+
+  return (
+    <details
+      className="mt-3 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] px-3 py-2"
+      open={isRuntimeError || undefined}
+    >
+      <summary className="cursor-pointer text-[11px] font-black text-[var(--uxa-color-ink-soft)]">
+        {t("attention.technicalDetails", "Ver detalles técnicos")}
+      </summary>
+      {isRuntimeError ? <RuntimeTechnicalDiagnostics item={item} /> : null}
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{t("attention.reason", "Motivo")}</p>
+          <p className="mt-1 break-words text-[12px] leading-5 text-[var(--uxa-color-ink)]">{item.reason}</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{t("attention.unresolvedConsequence", "Si no se resuelve")}</p>
+          <p className="mt-1 break-words text-[12px] leading-5 text-[var(--uxa-color-ink)]">{item.consequence_if_unresolved}</p>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function AttentionInlineBlocker({ item }: { item: AttentionItemV2 }) {
+  const { t } = useLanguage();
+  if (!item.blocking) {
+    return null;
+  }
+
+  return (
+    <p className="mt-3 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-danger)]/25 bg-[var(--uxa-state-danger-bg)] px-3 py-2 text-[11px] font-semibold leading-5 text-[var(--uxa-state-danger)]">
+      {t("attention.blockerHint", "Resuelve esta acción para desbloquear la siguiente etapa.")}
+    </p>
+  );
+}
+
+function AttentionResumeStatus({ actionState, itemKey }: { actionState?: ProductAttentionActionState; itemKey: string }) {
+  const { t } = useLanguage();
+  if (!actionState || actionState.itemKey !== itemKey || actionState.status === "idle" || !actionState.message) {
+    return null;
+  }
+
+  const isError = actionState.status === "error";
+  return (
+    <div
+      aria-live="polite"
+      className={cn(
+        "mt-3 flex items-start gap-2 rounded-[var(--uxa-radius-lg)] border px-3 py-2 text-[11px] leading-5",
+        isError
+          ? "border-[var(--uxa-state-danger)]/30 bg-[var(--uxa-state-danger-bg)] text-[var(--uxa-state-danger)]"
+          : "border-[var(--uxa-state-success)]/30 bg-[var(--uxa-state-success-bg)] text-[var(--uxa-state-success)]",
+      )}
+      role={isError ? "alert" : "status"}
+    >
+      {isError ? <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" /> : <CheckCircle2 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />}
+      <span>
+        <strong className="font-black">{isError ? t("attention.resumeError", "No se pudo aplicar la decisión") : t("attention.resumeReady", "Decisión registrada")}</strong>
+        <span className="ml-1">{actionState.message}</span>
+      </span>
+    </div>
+  );
+}
+
 export function AttentionItemCard({
   actionState,
   compact = false,
@@ -390,21 +534,23 @@ export function AttentionItemCard({
       </div>
       <h3 className="mt-3 break-words text-[17px] font-black text-[var(--uxa-color-ink)]">{item.title}</h3>
       <p className="mt-2 break-words text-[12px] leading-6 text-[var(--uxa-color-ink-soft)]">{item.impact}</p>
-      {!compact ? (
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <div className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{t("attention.reason", "Reason")}</p>
-            <p className="mt-2 break-words text-[12px] leading-5 text-[var(--uxa-color-ink)]">{item.reason}</p>
-          </div>
-          <div className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{t("attention.unresolvedConsequence", "If unresolved")}</p>
-            <p className="mt-2 break-words text-[12px] leading-5 text-[var(--uxa-color-ink)]">{item.consequence_if_unresolved}</p>
-          </div>
+      {item.unblocks ? (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-brand)]/20 bg-[var(--uxa-color-brand-soft)]/60 px-3 py-1.5 text-[11px] text-[var(--uxa-color-text)]">
+          <span className="font-black text-[var(--uxa-color-brand)]">{t("attention.unblocksPrefix", "Desbloquea:")}</span>
+          <span className="font-semibold">{item.unblocks}</span>
+          {item.resume_action ? (
+            <span className="ml-auto rounded bg-[var(--uxa-color-brand)]/10 px-1.5 py-0.5 font-mono text-[10px] text-[var(--uxa-color-brand)]">
+              {t("attention.resumeActionPrefix", "Reanudación")}: {item.resume_action}
+            </span>
+          ) : null}
         </div>
       ) : null}
+      {!compact ? <AttentionTechnicalDetailsDisclosure item={item} /> : null}
+      <AttentionInlineBlocker item={item} />
       <div className="mt-4">
         <AttentionActionControls actionState={actionState} compact={compact} item={item} onResolveItem={onResolveItem} />
       </div>
+      <AttentionResumeStatus actionState={actionState} itemKey={item.key} />
     </article>
   );
 }
@@ -533,9 +679,12 @@ function AttentionBoard({
   onResolveItem?: ResolveAttentionItemHandler;
 }) {
   const { t } = useLanguage();
+  const [priorityTab, setPriorityTab] = useState<"all" | "needsResponse" | "recommended">("all");
   const attention = activeRoute?.attention.data ?? null;
   const { clearFilters, filters, updateFilter } = useAttentionUrlFilters();
   const filteredItems = filterAttentionItems(attention?.items ?? [], filters);
+  const { needsResponse, recommended } = categorizeAttentionItems(filteredItems);
+  const displayItems = priorityTab === "needsResponse" ? needsResponse : priorityTab === "recommended" ? recommended : filteredItems;
   const filtered = attention?.items.length ? hasActiveAttentionFilters(filters) : false;
 
   return (
@@ -547,12 +696,50 @@ function AttentionBoard({
         onChange={updateFilter}
         onClear={clearFilters}
       />
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--uxa-color-border)] pb-3">
+        <button
+          className={cn(
+            "rounded-[var(--uxa-radius-md)] px-3 py-1.5 text-[12px] font-black transition",
+            priorityTab === "all"
+              ? "bg-[var(--uxa-color-brand)] text-white"
+              : "bg-[var(--uxa-color-muted-panel)] text-[var(--uxa-color-ink)] hover:bg-[var(--uxa-color-brand-soft)]",
+          )}
+          onClick={() => setPriorityTab("all")}
+          type="button"
+        >
+          {t("attention.tab.all", "Todos")} ({filteredItems.length})
+        </button>
+        <button
+          className={cn(
+            "rounded-[var(--uxa-radius-md)] px-3 py-1.5 text-[12px] font-black transition",
+            priorityTab === "needsResponse"
+              ? "bg-[var(--uxa-state-danger)] text-white"
+              : "bg-[var(--uxa-color-muted-panel)] text-[var(--uxa-color-ink)] hover:bg-[var(--uxa-state-danger-bg)]",
+          )}
+          onClick={() => setPriorityTab("needsResponse")}
+          type="button"
+        >
+          {t("attention.tab.needsResponse", "Necesita tu respuesta")} ({needsResponse.length})
+        </button>
+        <button
+          className={cn(
+            "rounded-[var(--uxa-radius-md)] px-3 py-1.5 text-[12px] font-black transition",
+            priorityTab === "recommended"
+              ? "bg-[var(--uxa-color-brand)] text-white"
+              : "bg-[var(--uxa-color-muted-panel)] text-[var(--uxa-color-ink)] hover:bg-[var(--uxa-color-brand-soft)]",
+          )}
+          onClick={() => setPriorityTab("recommended")}
+          type="button"
+        >
+          {t("attention.tab.recommended", "Recomendado")} ({recommended.length})
+        </button>
+      </div>
       <p aria-live="polite" className="sr-only" role="status">
-        {t("attention.boardStatus", "Mostrando")} {filteredItems.length} / {attention?.total_count ?? 0}
+        {t("attention.boardStatus", "Mostrando")} {displayItems.length} / {attention?.total_count ?? 0}
       </p>
-      {filteredItems.length ? (
+      {displayItems.length ? (
         <div className="space-y-3">
-          {filteredItems.map((item) => (
+          {displayItems.map((item) => (
             <AttentionItemCard
               actionState={actionState}
               item={item}
@@ -785,7 +972,7 @@ export function AttentionDrawer({
                 <div className="flex items-start gap-3">
                   <AlertCircle aria-hidden="true" className="mt-0.5 h-5 w-5 text-[var(--uxa-state-danger)]" />
                   <p className="text-[12px] leading-6 text-[var(--uxa-color-ink)]">
-                    {t("attention.drawerFooter", "Hay bloqueos activos. Al resolverlos, la experiencia refresca snapshot, operacion y attention-v2 para evitar duplicados.")}
+                    {t("attention.drawerFooter", "Hay bloqueos activos. Al resolverlos, la experiencia refresca proyecto, operacion y pendientes para evitar duplicados.")}
                   </p>
                 </div>
               </div>

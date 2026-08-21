@@ -1,11 +1,14 @@
 import type { AttentionItemV2 } from "@/features/attention/attention-contracts";
 import type { TranslationKey } from "@/core/i18n/locales/es";
-import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
+import type {
+  ProductExperienceRouteSnapshot,
+  ProductExperienceStageOperation,
+} from "@/features/product-experience/core/server-state";
 import type { ActivityTimelineEntry } from "@/features/sessions/types";
 
 export type ProductOperationStatus = "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type ProductOperationStepStatus = "pending" | "active" | "completed" | "failed" | "waiting";
-export type ProductOperationSource = "local" | "activity" | "attention";
+export type ProductOperationSource = "local" | "server" | "activity" | "attention";
 
 export type ProductOperationStep = {
   detail?: string;
@@ -78,7 +81,7 @@ export function normalizeOperationStatus(value: string | null | undefined): Prod
   if (["queued", "pending", "scheduled", "preparing"].includes(status)) {
     return "queued";
   }
-  if (["running", "submitting", "processing", "in_progress", "indexing", "executing"].includes(status)) {
+  if (["running", "submitting", "processing", "in_progress", "indexing", "executing", "active"].includes(status)) {
     return "running";
   }
   if (["waiting", "waiting_user", "waiting_for_user", "blocked", "needs_review", "paused"].includes(status)) {
@@ -317,11 +320,13 @@ export function failMutationOperationEnvelope(
 function labelForAction(action: string) {
   const labels: Record<string, string> = {
     analyze: "Analisis LLM de Discovery",
+    analyze_discovery: "Analisis LLM de Discover",
     approve: "Aprobacion de artefacto",
     approve_memory_profile: "Aprobacion de Memoria",
     approve_tools_selection: "Promocion de Herramientas",
     build_canvas: "Construccion de Canvas",
     define_requirements: "Generacion de Definir",
+    generate_estimation_report: "Generacion de Estimate",
     normalize: "Normalizacion de Discovery",
     propose_design: "Generacion de Diseno",
     recommend_memory: "Recomendacion de Memoria",
@@ -336,11 +341,13 @@ function labelForAction(action: string) {
 function titleKeyForAction(action: string): TranslationKey {
   const keys: Record<string, TranslationKey> = {
     analyze: "operation.synthetic.title.analyze",
+    analyze_discovery: "operation.synthetic.title.analyze",
     approve: "operation.synthetic.title.approve",
     approve_memory_profile: "operation.synthetic.title.approveMemory",
     approve_tools_selection: "operation.synthetic.title.approveTools",
     build_canvas: "operation.synthetic.title.buildCanvas",
     define_requirements: "operation.synthetic.title.defineRequirements",
+    generate_estimation_report: "operation.synthetic.title.generateEstimationReport",
     normalize: "operation.synthetic.title.normalize",
     propose_design: "operation.synthetic.title.proposeDesign",
     recommend_memory: "operation.synthetic.title.recommendMemory",
@@ -369,6 +376,70 @@ function operationFromAttention(activeRoute: ProductExperienceRouteSnapshot | nu
   }
 
   return operationFromAttentionItem(item, sessionId);
+}
+
+function normalizeStepStatus(status: string): ProductOperationStepStatus {
+  const normalized = normalizeOperationStatus(status);
+  if (normalized === "running") {
+    return "active";
+  }
+  if (normalized === "queued") {
+    return "pending";
+  }
+  if (normalized === "cancelled") {
+    return "failed";
+  }
+  return normalized;
+}
+
+function operationFromStageOperation(activeRoute: ProductExperienceRouteSnapshot | null): ProductOperationEnvelope | null {
+  const operation = activeRoute?.operation.data?.stageOperation ?? null;
+  if (!operation) {
+    return null;
+  }
+
+  return operationFromStageOperationRecord(operation);
+}
+
+function operationFromStageOperationRecord(operation: ProductExperienceStageOperation): ProductOperationEnvelope {
+  const status = normalizeOperationStatus(operation.status);
+  const detail = operation.error_message || operation.detail || operation.technical_detail || nextStepFor(status);
+  const currentStep =
+    operation.steps.find((step) => step.key === operation.current_step)?.label ||
+    currentStepFor(status);
+  const cancelRequested = Boolean(operation.cancel_requested_at);
+
+  return {
+    action: operation.action,
+    actionHint: cancelRequested
+      ? "La cancelacion fue solicitada; el runtime se detendra en el siguiente checkpoint seguro."
+      : nextStepFor(status),
+    actionHintKey: cancelRequested ? undefined : nextStepKeyFor(status),
+    canCancel: operation.can_cancel,
+    canRetry: operation.can_retry,
+    cancelHref: operation.cancel_url || undefined,
+    currentStep,
+    detail,
+    id: operation.id,
+    lastUpdatedAt: operation.heartbeat_at ?? operation.updated_at,
+    nextStep: nextStepFor(status),
+    nextStepKey: nextStepKeyFor(status),
+    retryHref: operation.retry_url || undefined,
+    sessionId: operation.session_id,
+    source: "server",
+    stage: operation.stage_key,
+    status,
+    steps: operation.steps.length
+      ? operation.steps.map((step) => ({
+          detail: step.detail,
+          key: step.key,
+          label: step.label,
+          status: normalizeStepStatus(step.status),
+        }))
+      : stepsForStatus(status, detail),
+    title: labelForAction(operation.action),
+    titleKey: titleKeyForAction(operation.action),
+  };
 }
 
 function operationFromAttentionItem(item: AttentionItemV2, sessionId: string): ProductOperationEnvelope {
@@ -455,13 +526,32 @@ export function buildProductOperationEnvelope({
   actionState?: ProductOperationActionSnapshot | null;
   activeRoute: ProductExperienceRouteSnapshot | null;
 }): ProductOperationEnvelope | null {
-  if (actionState?.operation && actionState.status !== "idle") {
+  if (actionState?.operation && actionState.status !== "idle" && actionState.status !== "success") {
     return actionState.operation;
   }
 
-  return operationFromAttention(activeRoute) ?? operationFromActivity(activeRoute);
+  return operationFromStageOperation(activeRoute) ?? operationFromAttention(activeRoute) ?? operationFromActivity(activeRoute);
 }
 
 export function isOperationActive(operation: ProductOperationEnvelope | null | undefined) {
   return operation?.status === "queued" || operation?.status === "running" || operation?.status === "waiting";
 }
+
+export function getOperationStepMetrics(operation: ProductOperationEnvelope) {
+  const total = operation.steps.length || 1;
+  const completed = operation.steps.filter((s) => s.status === "completed").length;
+  const activeIndex = operation.steps.findIndex(
+    (s) => s.status === "active" || s.status === "waiting" || s.status === "failed",
+  );
+  const currentIndex = activeIndex >= 0 ? activeIndex : completed >= total ? total - 1 : completed;
+  const rawFraction = (completed + (activeIndex >= 0 ? 0.5 : 0)) / total;
+  const progressPercent = Math.min(100, Math.max(0, Math.round(rawFraction * 100)));
+
+  return {
+    total,
+    completed,
+    currentIndex: currentIndex + 1,
+    progressPercent,
+  };
+}
+

@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createProductExperienceServerState } from "@/features/product-experience/core/server-state";
 import type {
+  ProductExperienceStageOperation,
   ProductExperienceStoreSnapshot,
   ProductRouteState,
 } from "@/features/product-experience/core/server-state";
 import {
+  buildProductOperationEnvelope,
   completeMutationOperationEnvelope,
   createMutationOperationEnvelope,
   failMutationOperationEnvelope,
+  isOperationActive,
   type ProductOperationEnvelope,
 } from "@/features/product-experience/operations/operation-model";
 import type {
@@ -28,7 +31,6 @@ import type {
   JourneyStageArtifactRejectionRequest,
   JourneyStageKey,
   MemoryRecommendationRequest,
-  ToolRecommendationEnvelope,
   ToolRecommendationRequest,
 } from "@/features/sessions/session-contracts";
 import type { SessionSnapshot } from "@/features/sessions/types";
@@ -49,6 +51,8 @@ export type ProductStageActionName =
   | "propose_design"
   | "recommend_tools"
   | "recommend_memory"
+  | "generate_estimation_report"
+  | "prepare_blueprint_commercial_result"
   | "approve_tools_selection"
   | "approve_memory_profile"
   | "review"
@@ -69,8 +73,13 @@ export type ProductStageActionState = {
   status: "idle" | "submitting" | "success" | "error";
 };
 
+export type ProductStageOperationControls = {
+  cancelOperation(operationId: string): Promise<ProductExperienceStageOperation>;
+  retryOperation(operationId: string): Promise<ProductExperienceStageOperation>;
+};
+
 export type ProductDiscoveryActions = {
-  analyzeDiscovery(payload: DiscoveryInput): Promise<JourneyStageArtifactEntry>;
+  analyzeDiscovery(payload: DiscoveryInput): Promise<ProductExperienceStageOperation>;
   approveDiscoverArtifact(
     artifactId: string,
     payload: JourneyStageArtifactApprovalRequest,
@@ -93,7 +102,7 @@ export type ProductStageActions = {
     payload: JourneyStageArtifactApprovalRequest,
   ): Promise<JourneyStageArtifactEntry>;
   buildCanvas(): Promise<CanvasEnvelope>;
-  defineRequirements(): Promise<JourneyStageArtifactEntry>;
+  defineRequirements(): Promise<ProductExperienceStageOperation>;
   approveMemoryProfile(payload: JourneyStageArtifactApprovalRequest): Promise<SessionSnapshot>;
   approveToolsSelection(payload: ApproveToolsSelectionRequest): Promise<SessionSnapshot>;
   patchStageArtifact(
@@ -101,9 +110,11 @@ export type ProductStageActions = {
     artifactId: string,
     payload: JourneyStageArtifactPatchRequest,
   ): Promise<JourneyStageArtifactEntry>;
-  proposeDesign(payload?: DesignProposalRequest): Promise<JourneyStageArtifactEntry>;
-  recommendMemory(payload?: MemoryRecommendationRequest): Promise<JourneyStageArtifactEntry>;
-  recommendTools(payload?: ToolRecommendationRequest): Promise<ToolRecommendationEnvelope>;
+  proposeDesign(payload?: DesignProposalRequest): Promise<ProductExperienceStageOperation>;
+  recommendMemory(payload?: MemoryRecommendationRequest): Promise<ProductExperienceStageOperation>;
+  recommendTools(payload?: ToolRecommendationRequest): Promise<ProductExperienceStageOperation>;
+  generateEstimationReport(): Promise<ProductExperienceStageOperation>;
+  prepareBlueprintCommercialResult(): Promise<SessionSnapshot>;
   rejectStageArtifact(
     stageKey: JourneyStageKey,
     artifactId: string,
@@ -116,6 +127,24 @@ function getServerSnapshot(): ProductExperienceStoreSnapshot {
     active: null,
     history: [],
   };
+}
+
+function toStageActionName(action: string): ProductStageActionName | undefined {
+  const allowed: ProductStageActionName[] = [
+    "build_canvas",
+    "define_requirements",
+    "propose_design",
+    "recommend_tools",
+    "recommend_memory",
+    "generate_estimation_report",
+    "prepare_blueprint_commercial_result",
+    "approve_tools_selection",
+    "approve_memory_profile",
+    "review",
+    "approve",
+    "reject",
+  ];
+  return allowed.includes(action as ProductStageActionName) ? (action as ProductStageActionName) : undefined;
 }
 
 export function useProductExperienceRoute(route: ProductRouteState, enabled = true) {
@@ -155,6 +184,32 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
       disposed = true;
     };
   }, [enabled, stableRoute]);
+
+  const activeRoute = state.active?.route.sessionId === stableRoute.sessionId ? state.active : null;
+  const currentActionState = stableRoute.currentStage === "discover" ? discoveryAction : stageAction;
+  const activeOperation = buildProductOperationEnvelope({
+    actionState: currentActionState,
+    activeRoute,
+  });
+  const isOperationProcessing =
+    isOperationActive(activeOperation) ||
+    discoveryAction.status === "submitting" ||
+    stageAction.status === "submitting" ||
+    attentionAction.status === "submitting";
+
+  useEffect(() => {
+    if (!enabled || !isOperationProcessing) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      void productExperienceStore.loadRoute(stableRoute, { force: true });
+    }, 5000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [enabled, isOperationProcessing, stableRoute]);
 
   const reload = useCallback(() => {
     setLoadError(null);
@@ -266,11 +321,63 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
     [stableRoute],
   );
 
+  const runDiscoverOperationMutation = useCallback(
+    async (
+      action: ProductDiscoveryActionName,
+      message: string,
+      mutation: () => Promise<ProductExperienceStageOperation>,
+    ): Promise<ProductExperienceStageOperation> => {
+      if (discoveryMutationRef.current) {
+        return discoveryMutationRef.current as Promise<ProductExperienceStageOperation>;
+      }
+
+      const operation = createMutationOperationEnvelope({
+        action,
+        message,
+        sessionId: stableRoute.sessionId,
+        stage: "discover",
+      });
+      setDiscoveryAction({
+        action,
+        message,
+        operation,
+        status: "submitting",
+      });
+
+      const promise = (async () => {
+        try {
+          const result = await mutation();
+          setDiscoveryAction({
+            action,
+            message: result.detail || "Operacion de Discover iniciada en backend.",
+            status: "success",
+          });
+          await productExperienceStore.loadRoute(stableRoute, { force: true });
+          return result;
+        } catch (error) {
+          const nextMessage = error instanceof Error ? error.message : "No se pudo iniciar la operacion de Discover.";
+          setDiscoveryAction({
+            action,
+            message: nextMessage,
+            operation: failMutationOperationEnvelope(operation, error),
+            status: "error",
+          });
+          throw error;
+        } finally {
+          discoveryMutationRef.current = null;
+        }
+      })();
+      discoveryMutationRef.current = promise;
+      return promise;
+    },
+    [stableRoute],
+  );
+
   const discoverActions = useMemo<ProductDiscoveryActions>(
     () => ({
       analyzeDiscovery(payload) {
-        return runDiscoverMutation("analyze", "Analizando Discovery con LLM.", () =>
-          productExperienceStore.analyzeDiscovery(payload),
+        return runDiscoverOperationMutation("analyze", "Analizando Discovery con LLM.", () =>
+          productExperienceStore.startAnalyzeDiscovery(payload),
         );
       },
       approveDiscoverArtifact(artifactId, payload) {
@@ -294,7 +401,7 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
         );
       },
     }),
-    [runDiscoverMutation],
+    [runDiscoverMutation, runDiscoverOperationMutation],
   );
 
   const runStageMutation = useCallback(
@@ -350,6 +457,86 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
     [stableRoute],
   );
 
+  const runStageOperationMutation = useCallback(
+    async (
+      action: ProductStageActionName,
+      message: string,
+      mutation: () => Promise<ProductExperienceStageOperation>,
+    ): Promise<ProductExperienceStageOperation> => {
+      if (stageMutationRef.current) {
+        return stageMutationRef.current as Promise<ProductExperienceStageOperation>;
+      }
+
+      const operation = createMutationOperationEnvelope({
+        action,
+        message,
+        sessionId: stableRoute.sessionId,
+        stage: stableRoute.currentStage,
+      });
+      setStageAction({
+        action,
+        message,
+        operation,
+        status: "submitting",
+      });
+
+      const promise = (async () => {
+        try {
+          const result = await mutation();
+          setStageAction({
+            action,
+            message: result.detail || "Operacion iniciada en backend.",
+            status: "success",
+          });
+          await productExperienceStore.loadRoute(stableRoute, { force: true });
+          return result;
+        } catch (error) {
+          const nextMessage = error instanceof Error ? error.message : "No se pudo iniciar la operacion de la etapa.";
+          setStageAction({
+            action,
+            message: nextMessage,
+            operation: failMutationOperationEnvelope(operation, error),
+            status: "error",
+          });
+          throw error;
+        } finally {
+          stageMutationRef.current = null;
+        }
+      })();
+      stageMutationRef.current = promise;
+      return promise;
+    },
+    [stableRoute],
+  );
+
+  const retryOperation = useCallback(
+    async (operationId: string): Promise<ProductExperienceStageOperation> => {
+      const result = await productExperienceStore.retryStageOperation(operationId);
+      setStageAction({
+        action: toStageActionName(result.action),
+        message: result.detail || "Operacion reintentada.",
+        status: "success",
+      });
+      await productExperienceStore.loadRoute(stableRoute, { force: true });
+      return result;
+    },
+    [stableRoute],
+  );
+
+  const cancelOperation = useCallback(
+    async (operationId: string): Promise<ProductExperienceStageOperation> => {
+      const result = await productExperienceStore.cancelStageOperation(operationId);
+      setStageAction({
+        action: toStageActionName(result.action),
+        message: result.detail || "Cancelacion solicitada.",
+        status: "success",
+      });
+      await productExperienceStore.loadRoute(stableRoute, { force: true });
+      return result;
+    },
+    [stableRoute],
+  );
+
   const stageActions = useMemo<ProductStageActions>(
     () => ({
       approveStageArtifact(stageKey, artifactId, payload) {
@@ -373,8 +560,8 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
         );
       },
       defineRequirements() {
-        return runStageMutation("define_requirements", "Generando Definir con LLM y memoria aprobada.", () =>
-          productExperienceStore.defineRequirements(),
+        return runStageOperationMutation("define_requirements", "Generando Definir con LLM y memoria aprobada.", () =>
+          productExperienceStore.startDefineRequirements(),
         );
       },
       patchStageArtifact(stageKey, artifactId, payload) {
@@ -383,17 +570,27 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
         );
       },
       proposeDesign(payload = {}) {
-        return runStageMutation("propose_design", "Generando alternativas de Diseno con LLM.", () =>
-          productExperienceStore.proposeDesign(payload),
+        return runStageOperationMutation("propose_design", "Generando alternativas de Diseno con LLM.", () =>
+          productExperienceStore.startProposeDesign(payload),
         );
       },
       recommendMemory(payload = {}) {
-        return runStageMutation("recommend_memory", "Generando estrategia de Memoria con LLM.", () =>
+        return runStageOperationMutation("recommend_memory", "Generando estrategia de Memoria con LLM.", () =>
           productExperienceStore.recommendMemory(payload),
         );
       },
+      generateEstimationReport() {
+        return runStageOperationMutation("generate_estimation_report", "Generando estimacion comercial y comparativa de valor.", () =>
+          productExperienceStore.generateEstimationReport(),
+        );
+      },
+      prepareBlueprintCommercialResult() {
+        return runStageMutation("prepare_blueprint_commercial_result", "Preparando resultado comercial del Blueprint.", () =>
+          productExperienceStore.prepareBlueprintCommercialResult(),
+        );
+      },
       recommendTools(payload = {}) {
-        return runStageMutation("recommend_tools", "Generando herramientas minimas con LLM.", () =>
+        return runStageOperationMutation("recommend_tools", "Generando herramientas minimas con LLM.", () =>
           productExperienceStore.recommendTools(payload),
         );
       },
@@ -403,7 +600,7 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
         );
       },
     }),
-    [runStageMutation],
+    [runStageMutation, runStageOperationMutation],
   );
 
   return {
@@ -411,6 +608,10 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
     discoverAction: discoveryAction,
     discoverActions,
     loadError,
+    operationControls: {
+      cancelOperation,
+      retryOperation,
+    } satisfies ProductStageOperationControls,
     reload,
     resolveAttentionItem,
     stageAction,

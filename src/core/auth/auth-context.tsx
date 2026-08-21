@@ -21,16 +21,24 @@ function resolveLanguage(): SupportedLanguage {
     return "es";
   }
 
-  const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  if (stored) {
-    return resolveInitialLanguage(stored, "es");
+  try {
+    const stored = window.localStorage?.getItem?.(LANGUAGE_STORAGE_KEY);
+    if (stored) {
+      return resolveInitialLanguage(stored, "es");
+    }
+  } catch {
+    // Ignore storage errors in restricted test environments
   }
 
-  const cookieMatch = document.cookie
-    .split(";")
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(`${LANGUAGE_COOKIE_NAME}=`));
-  return resolveInitialLanguage(cookieMatch?.split("=")[1], "es");
+  try {
+    const cookieMatch = document?.cookie
+      ?.split(";")
+      ?.map((item) => item.trim())
+      ?.find((item) => item.startsWith(`${LANGUAGE_COOKIE_NAME}=`));
+    return resolveInitialLanguage(cookieMatch?.split("=")[1], "es");
+  } catch {
+    return "es";
+  }
 }
 
 function AuthGate({

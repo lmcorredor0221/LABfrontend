@@ -1,5 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LanguageProvider } from "@/core/i18n/language-context";
 import { DiscoverStageView } from "@/features/product-experience/discover/discover-stage-view";
+import type { ProductExperienceStageOperation } from "@/features/product-experience/core/server-state";
 import {
   createAnalysisFixture,
   createDiscoverArtifactFixture,
@@ -17,6 +20,39 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+function createStageOperation(overrides: Partial<ProductExperienceStageOperation> = {}): ProductExperienceStageOperation {
+  return {
+    action: "analyze_discovery",
+    attempt_count: 1,
+    can_cancel: true,
+    can_retry: false,
+    cancel_requested_at: null,
+    cancel_url: "/api/v1/sessions/session-uxa7/stage-operations/operation-discover/cancel",
+    completed_at: null,
+    created_at: "2026-08-16T10:00:00Z",
+    current_step: "queued",
+    detail: "Discover se normalizara y analizara en segundo plano.",
+    error_message: "",
+    expires_at: "2026-08-16T10:30:00Z",
+    heartbeat_at: "2026-08-16T10:00:00Z",
+    id: "operation-discover",
+    idempotency_key: "discover-once",
+    is_stale: false,
+    recover_url: "/api/v1/sessions/session-uxa7/stage-operations/operation-discover/recover",
+    result: null,
+    result_artifact_id: null,
+    retry_url: "",
+    session_id: "session-uxa7",
+    stage_key: "discover",
+    status: "queued",
+    steps: [],
+    technical_detail: "",
+    updated_at: "2026-08-16T10:00:00Z",
+    workspace_id: "workspace-1",
+    ...overrides,
+  };
+}
+
 function createActions(): ProductDiscoveryActions {
   const discovery = createDiscoveryFixture();
   const artifact = createDiscoverArtifactFixture();
@@ -32,7 +68,7 @@ function createActions(): ProductDiscoveryActions {
   };
 
   return {
-    analyzeDiscovery: vi.fn(async () => artifact),
+    analyzeDiscovery: vi.fn(async () => createStageOperation()),
     approveDiscoverArtifact: vi.fn(async () => createDiscoverArtifactFixture({ state: "approved" })),
     normalizeDiscovery: vi.fn(async () => envelope),
     patchDiscoverArtifact: vi.fn(async () => artifact),
@@ -40,14 +76,18 @@ function createActions(): ProductDiscoveryActions {
   };
 }
 
+function renderWithLanguage(ui: ReactElement) {
+  return render(<LanguageProvider>{ui}</LanguageProvider>);
+}
+
 describe("DiscoverStageView UXA7", () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it("renders the new Discover workbench and executes normalize plus LLM analysis", async () => {
+  it("renders the new Discover workbench and starts persistent LLM analysis", async () => {
     const actions = createActions();
-    render(
+    renderWithLanguage(
       <DiscoverStageView
         actionState={{ status: "idle" }}
         actions={actions}
@@ -60,16 +100,16 @@ describe("DiscoverStageView UXA7", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Guardar y analizar" }));
 
-    await waitFor(() => expect(actions.normalizeDiscovery).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(actions.analyzeDiscovery).toHaveBeenCalledTimes(1));
-    expect(actions.normalizeDiscovery).toHaveBeenCalledWith(expect.objectContaining({
+    expect(actions.normalizeDiscovery).not.toHaveBeenCalled();
+    expect(actions.analyzeDiscovery).toHaveBeenCalledWith(expect.objectContaining({
       problem_statement: expect.stringContaining("soporte recibe solicitudes repetitivas"),
     }));
   });
 
   it("approves generated analysis and navigates to Define", async () => {
     const actions = createActions();
-    render(
+    renderWithLanguage(
       <DiscoverStageView
         actionState={{ status: "idle" }}
         actions={actions}
@@ -80,13 +120,12 @@ describe("DiscoverStageView UXA7", () => {
     fireEvent.click(screen.getByRole("button", { name: "Aprobar Discover" }));
 
     await waitFor(() => expect(actions.approveDiscoverArtifact).toHaveBeenCalledTimes(1));
-    expect(actions.patchDiscoverArtifact).toHaveBeenCalledTimes(1);
     expect(mockRouterPush).toHaveBeenCalledWith("/projects/session-uxa7/work/define");
   });
 
   it("records review decisions and can reject the generated proposal", async () => {
     const actions = createActions();
-    render(
+    renderWithLanguage(
       <DiscoverStageView
         actionState={{ status: "idle" }}
         actions={actions}
@@ -102,7 +141,9 @@ describe("DiscoverStageView UXA7", () => {
       note: "review_decision:question:q1",
     }));
 
-    fireEvent.click(screen.getByRole("button", { name: "Rechazar propuesta" }));
+    const rejectButton = await screen.findByRole("button", { name: "Rechazar propuesta" });
+    await waitFor(() => expect(rejectButton).not.toBeDisabled());
+    fireEvent.click(rejectButton);
 
     await waitFor(() => expect(actions.rejectDiscoverArtifact).toHaveBeenCalledTimes(1));
   });

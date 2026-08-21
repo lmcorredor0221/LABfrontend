@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { FolderKanban, RefreshCcw } from "lucide-react";
 import { BarsByDimension, DonutChart, MultiSeriesChart, Sparkline } from "@/components/lean/charts";
 import { AppButton, Badge, Panel, SelectField, SimpleTable, StatRow, TextAreaField, TextField } from "@/components/lean/ui";
+import { FinOpsDashboard } from "@/features/finops/finops-dashboard";
 import { OperationsModuleShell } from "@/features/operations/operations-module-shell";
 import {
   buildReleaseObservabilitySummary,
@@ -918,6 +919,8 @@ export function MonitoringWorkspacePage() {
             <MetricCard title="Artefactos registrados" value={String(currentMetrics?.artifact_count ?? 0)} hint={`Exports: ${monitoringSummary.exportCount}`} />
             <MetricCard title="Costo estimado" value={formatCurrency(currentMetrics?.cost_estimate_usd ?? 0)} hint={formatDurationMs(currentMetrics?.total_duration_ms ?? 0)} />
           </div>
+
+          <FinOpsDashboard />
 
           <Panel className="p-6">
             <div className="mb-5 flex items-center justify-between gap-4">

@@ -18,6 +18,7 @@ import type {
   ProductExperienceMutationOptions,
   ProductExperienceOperationState,
   ProductExperienceRouteSnapshot,
+  ProductExperienceStageOperation,
   ProductExperienceStoreListener,
   ProductExperienceStoreSnapshot,
   ProductRouteState,
@@ -36,7 +37,6 @@ import type {
   JourneyStageArtifactRejectionRequest,
   JourneyStageKey,
   MemoryRecommendationRequest,
-  ToolRecommendationEnvelope,
   ToolRecommendationRequest,
 } from "@/features/sessions/session-contracts";
 
@@ -112,11 +112,24 @@ function versionFromOperation(operation: ProductExperienceOperationState) {
     operation.overview?.generated_at ?? "",
     operation.activity?.generated_at ?? "",
     operation.activity?.timeline?.length ?? 0,
+    operation.stageOperation?.id ?? "",
+    operation.stageOperation?.status ?? "",
+    operation.stageOperation?.updated_at ?? "",
   ].join(":");
 }
 
 function toError(error: unknown): ApiError | Error {
   return error instanceof Error ? error : new Error("No se pudo completar la carga del servidor.");
+}
+
+function resolveIdempotencyKey(options?: ProductExperienceMutationOptions): string | undefined {
+  if (options?.idempotencyKey) {
+    return options.idempotencyKey;
+  }
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return undefined;
 }
 
 export function createProductExperienceServerState({
@@ -183,10 +196,12 @@ export function createProductExperienceServerState({
     }
 
     const promise = loader().finally(() => {
-      const current = inflight.get(key);
-      if (current?.promise === promise) {
-        inflight.delete(key);
-      }
+      globalThis.setTimeout(() => {
+        const current = inflight.get(key);
+        if (current?.promise === promise) {
+          inflight.delete(key);
+        }
+      }, 0);
     });
     inflight.set(key, { promise });
     return promise;
@@ -369,11 +384,12 @@ export function createProductExperienceServerState({
 
     try {
       const data = await singleFlight(key, force, async () => {
-        const [overview, activity] = await Promise.all([
+        const [overview, activity, stageOperation] = await Promise.all([
           api.getProductOverview(route.sessionId, { signal }),
           api.getActivity(route.sessionId, DEFAULT_ACTIVITY_LIMIT, { signal }),
+          api.getCurrentStageOperation(route.sessionId, { stage_key: route.currentStage || undefined }, { signal }),
         ]);
-        return { activity, overview };
+        return { activity, overview, stageOperation };
       });
       const ready = updateCache(cache.operation, key, createReadyResourceState({ data, requestKey: key, version: versionFromOperation(data) }));
       updateActiveResource(requestId, "operation", ready);
@@ -439,15 +455,47 @@ export function createProductExperienceServerState({
     });
   }
 
+  function syncStageOperation(stageOperation: ProductExperienceStageOperation) {
+    const key = operationKey({ currentStage: "", sessionId: stageOperation.session_id });
+    const previous = cache.operation.get(key)?.data ?? { activity: null, overview: null, stageOperation: null };
+    const data: ProductExperienceOperationState = {
+      ...previous,
+      stageOperation,
+    };
+    const ready = updateCache(cache.operation, key, createReadyResourceState({ data, requestKey: key, version: versionFromOperation(data) }));
+    setState((current) => {
+      if (!current.active || current.active.route.sessionId !== stageOperation.session_id) {
+        return current;
+      }
+
+      return {
+        ...current,
+        active: {
+          ...current.active,
+          operation: ready,
+        },
+      };
+    });
+  }
+
   function invalidateSession(sessionId: string, options: { attention?: boolean } = {}) {
     const shouldInvalidateAttention = options.attention ?? true;
-    cache.snapshot.delete(snapshotKey(sessionId));
-    cache.operation.delete(operationKey({ currentStage: "", sessionId }));
+    const sessionSnapshotKey = snapshotKey(sessionId);
+    const sessionOperationKey = operationKey({ currentStage: "", sessionId });
+    cache.snapshot.delete(sessionSnapshotKey);
+    cache.operation.delete(sessionOperationKey);
+    inflight.delete(sessionSnapshotKey);
+    inflight.delete(sessionOperationKey);
 
     if (shouldInvalidateAttention) {
       for (const key of cache.attention.keys()) {
         if (key.startsWith(`attention:${sessionId}:`)) {
           cache.attention.delete(key);
+        }
+      }
+      for (const key of inflight.keys()) {
+        if (key.startsWith(`attention:${sessionId}:`)) {
+          inflight.delete(key);
         }
       }
     }
@@ -504,6 +552,19 @@ export function createProductExperienceServerState({
     return result;
   }
 
+  async function startAnalyzeDiscovery(
+    payload: DiscoveryInput,
+    options: ProductExperienceMutationOptions = {},
+  ): Promise<ProductExperienceStageOperation> {
+    const sessionId = activeSessionId();
+    const result = await api.startAnalyzeDiscovery(sessionId, payload, {
+      idempotencyKey: resolveIdempotencyKey(options),
+      signal: signalFrom(options),
+    });
+    syncStageOperation(result);
+    return result;
+  }
+
   async function buildCanvas(options: ProductExperienceMutationOptions = {}): Promise<CanvasEnvelope> {
     const sessionId = activeSessionId();
     const result = await api.buildCanvas(sessionId, {
@@ -522,6 +583,18 @@ export function createProductExperienceServerState({
     return result;
   }
 
+  async function startDefineRequirements(
+    options: ProductExperienceMutationOptions = {},
+  ): Promise<ProductExperienceStageOperation> {
+    const sessionId = activeSessionId();
+    const result = await api.startDefineRequirements(sessionId, {
+      idempotencyKey: resolveIdempotencyKey(options),
+      signal: signalFrom(options),
+    });
+    syncStageOperation(result);
+    return result;
+  }
+
   async function proposeDesign(
     payload: DesignProposalRequest = {},
     options: ProductExperienceMutationOptions = {},
@@ -534,27 +607,98 @@ export function createProductExperienceServerState({
     return result;
   }
 
+  async function startProposeDesign(
+    payload: DesignProposalRequest = {},
+    options: ProductExperienceMutationOptions = {},
+  ): Promise<ProductExperienceStageOperation> {
+    const sessionId = activeSessionId();
+    const result = await api.startProposeDesign(sessionId, payload, {
+      idempotencyKey: resolveIdempotencyKey(options),
+      signal: signalFrom(options),
+    });
+    syncStageOperation(result);
+    return result;
+  }
+
+  async function retryStageOperation(
+    operationId: string,
+    options: ProductExperienceMutationOptions = {},
+  ): Promise<ProductExperienceStageOperation> {
+    const sessionId = activeSessionId();
+    const result = await api.retryStageOperation(sessionId, operationId, {
+      signal: signalFrom(options),
+    });
+    syncStageOperation(result);
+    return result;
+  }
+
+  async function cancelStageOperation(
+    operationId: string,
+    options: ProductExperienceMutationOptions = {},
+  ): Promise<ProductExperienceStageOperation> {
+    const sessionId = activeSessionId();
+    const result = await api.cancelStageOperation(sessionId, operationId, {
+      signal: signalFrom(options),
+    });
+    syncStageOperation(result);
+    return result;
+  }
+
+  async function recoverStageOperation(
+    operationId: string,
+    options: ProductExperienceMutationOptions = {},
+  ): Promise<ProductExperienceStageOperation> {
+    const sessionId = activeSessionId();
+    const result = await api.recoverStageOperation(sessionId, operationId, {
+      signal: signalFrom(options),
+    });
+    syncStageOperation(result);
+    return result;
+  }
+
   async function recommendTools(
     payload: ToolRecommendationRequest = {},
     options: ProductExperienceMutationOptions = {},
-  ): Promise<ToolRecommendationEnvelope> {
+  ): Promise<ProductExperienceStageOperation> {
     const sessionId = activeSessionId();
-    const result = await api.recommendTools(sessionId, payload, {
+    const result = await api.startRecommendTools(sessionId, payload, {
+      idempotencyKey: resolveIdempotencyKey(options),
       signal: signalFrom(options),
     });
-    invalidateSession(sessionId);
+    syncStageOperation(result);
     return result;
   }
 
   async function recommendMemory(
     payload: MemoryRecommendationRequest = {},
     options: ProductExperienceMutationOptions = {},
-  ): Promise<JourneyStageArtifactEntry> {
+  ): Promise<ProductExperienceStageOperation> {
     const sessionId = activeSessionId();
-    const result = await api.recommendMemory(sessionId, payload, {
+    const result = await api.startRecommendMemory(sessionId, payload, {
+      idempotencyKey: resolveIdempotencyKey(options),
+      signal: signalFrom(options),
+    });
+    syncStageOperation(result);
+    return result;
+  }
+
+  async function generateEstimationReport(options: ProductExperienceMutationOptions = {}): Promise<ProductExperienceStageOperation> {
+    const sessionId = activeSessionId();
+    const result = await api.startGenerateEstimationReport(sessionId, {
+      idempotencyKey: resolveIdempotencyKey(options),
+      signal: signalFrom(options),
+    });
+    syncStageOperation(result);
+    return result;
+  }
+
+  async function prepareBlueprintCommercialResult(options: ProductExperienceMutationOptions = {}): Promise<SessionSnapshot> {
+    const sessionId = activeSessionId();
+    const result = await api.prepareBlueprintCommercialResult(sessionId, {
       signal: signalFrom(options),
     });
     invalidateSession(sessionId);
+    syncSessionSnapshot(result);
     return result;
   }
 
@@ -665,19 +809,27 @@ export function createProductExperienceServerState({
 
   return {
     analyzeDiscovery,
+    startAnalyzeDiscovery,
     approveDiscoverArtifact,
     approveMemoryProfile,
     approveToolsSelection,
     approveStageArtifact,
     buildCanvas,
     defineRequirements,
+    startDefineRequirements,
+    generateEstimationReport,
     getState: () => state,
     invalidateSession,
     loadRoute,
     normalizeDiscovery,
     patchDiscoverArtifact,
     patchStageArtifact,
+    prepareBlueprintCommercialResult,
     proposeDesign,
+    startProposeDesign,
+    retryStageOperation,
+    cancelStageOperation,
+    recoverStageOperation,
     recommendMemory,
     recommendTools,
     reset,

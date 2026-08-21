@@ -8,7 +8,9 @@ import {
   UxaBadge,
   UxaProcessingStrip,
   UxaSurface,
+  type UxaTone,
 } from "@/features/product-experience/design-system";
+import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import type {
   LeanStageLinkedResult,
   LeanStageScreenContract,
@@ -21,6 +23,31 @@ type LeanStageScreenProps = {
   actionArea: ReactNode;
   contract: LeanStageScreenContract;
   message?: string;
+};
+
+export type LeanGeneratedDeliverableMetric = {
+  helper?: string;
+  label: string;
+  tone?: UxaTone;
+  value: string | number;
+};
+
+export type LeanGeneratedDeliverableSection = {
+  emptyLabel?: string;
+  items: string[];
+  title: string;
+};
+
+type LeanGeneratedDeliverableProps = {
+  badge?: {
+    label: string;
+    tone?: UxaTone;
+  };
+  metrics?: LeanGeneratedDeliverableMetric[];
+  nextUse?: string;
+  sections?: LeanGeneratedDeliverableSection[];
+  summary: string;
+  title: string;
 };
 
 const tabOrder: LeanStageTabKey[] = ["task", "result", "evidence"];
@@ -44,6 +71,85 @@ function resultIcon(type: LeanStageLinkedResult["type"]) {
     return Sparkles;
   }
   return FileText;
+}
+
+export function LeanGeneratedDeliverable({
+  badge,
+  metrics = [],
+  nextUse,
+  sections = [],
+  summary,
+  title,
+}: LeanGeneratedDeliverableProps) {
+  const { language } = useLanguage();
+
+  return (
+    <div className="space-y-4">
+      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.38fr)]">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <UxaBadge tone={badge?.tone ?? "info"}>
+                {badge?.label ?? byLanguage(language, { en: "Generated deliverable", es: "Entrega generada", pt: "Entrega gerada" })}
+              </UxaBadge>
+            </div>
+            <h3 className="mt-3 text-[20px] font-black text-[var(--uxa-color-ink)]">{title}</h3>
+            <p className="mt-2 max-w-[78ch] text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{summary}</p>
+          </div>
+
+          {metrics.length ? (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+              {metrics.map((metric) => (
+                <div
+                  className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] p-3"
+                  key={`${metric.label}-${metric.value}`}
+                >
+                  <UxaBadge tone={metric.tone ?? "neutral"}>{metric.label}</UxaBadge>
+                  <p className="mt-2 text-[18px] font-black text-[var(--uxa-color-ink)]">{metric.value}</p>
+                  {metric.helper ? (
+                    <p className="mt-1 text-[11px] leading-4 text-[var(--uxa-color-ink-soft)]">{metric.helper}</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </UxaSurface>
+
+      {sections.length ? (
+        <div className="grid gap-3 lg:grid-cols-3">
+          {sections.map((section) => (
+            <UxaSurface className="p-4" key={section.title} muted>
+              <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
+                {section.title}
+              </p>
+              {section.items.length ? (
+                <ul className="mt-3 space-y-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                  {section.items.slice(0, 5).map((item, index) => (
+                    <li className="flex gap-2" key={`${section.title}-${item}-${index}`}>
+                      <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--uxa-color-brand)]" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                  {section.emptyLabel ?? byLanguage(language, { en: "No generated items for this section.", es: "Sin elementos generados para esta seccion.", pt: "Sem itens gerados para esta secao." })}
+                </p>
+              )}
+            </UxaSurface>
+          ))}
+        </div>
+      ) : null}
+
+      {nextUse ? (
+        <UxaSurface className="p-4" muted>
+          <UxaBadge tone="success">{byLanguage(language, { en: "How it will be used", es: "Como se usara", pt: "Como sera usado" })}</UxaBadge>
+          <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">{nextUse}</p>
+        </UxaSurface>
+      ) : null}
+    </div>
+  );
 }
 
 function StagePrimaryActionPanel({

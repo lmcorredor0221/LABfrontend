@@ -1,9 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
 import { UxaButton } from "@/features/product-experience/design-system";
 import { ProjectWorkspaceShell } from "@/features/product-experience/shell/project-workspace-shell";
-import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
+import type {
+  ProductExperienceRouteSnapshot,
+  ProductExperienceStageOperation,
+} from "@/features/product-experience/core/server-state";
 import type { AttentionResponseV2 } from "@/features/attention/attention-contracts";
 import { createMutationOperationEnvelope } from "@/features/product-experience/operations/operation-model";
 import type { SessionSnapshot } from "@/features/sessions/types";
@@ -131,6 +134,43 @@ function createAttention(): AttentionResponseV2 {
   };
 }
 
+function createStageOperation(overrides: Partial<ProductExperienceStageOperation> = {}): ProductExperienceStageOperation {
+  return {
+    action: "propose_design",
+    attempt_count: 1,
+    can_cancel: true,
+    can_retry: false,
+    cancel_requested_at: null,
+    cancel_url: "/api/v1/sessions/session-uxa5/stage-operations/operation-1/cancel",
+    completed_at: null,
+    created_at: "2026-08-16T10:00:00Z",
+    current_step: "proposal",
+    detail: "Generando propuesta de arquitectura.",
+    error_message: "",
+    expires_at: "2026-08-16T10:30:00Z",
+    heartbeat_at: "2026-08-16T10:00:00Z",
+    id: "operation-1",
+    idempotency_key: "design-once",
+    is_stale: false,
+    recover_url: "/api/v1/sessions/session-uxa5/stage-operations/operation-1/recover",
+    result: null,
+    result_artifact_id: null,
+    retry_url: "",
+    session_id: "session-uxa5",
+    stage_key: "design",
+    status: "running",
+    steps: [
+      { detail: "", key: "queued", label: "Solicitud recibida", status: "completed" },
+      { detail: "", key: "proposal", label: "Propuesta de arquitectura", status: "active" },
+      { detail: "", key: "persist", label: "Publicacion del artefacto", status: "pending" },
+    ],
+    technical_detail: "",
+    updated_at: "2026-08-16T10:00:00Z",
+    workspace_id: "workspace-1",
+    ...overrides,
+  };
+}
+
 function createRoute(): ProductExperienceRouteSnapshot {
   return {
     attention: resource(createAttention()),
@@ -167,6 +207,7 @@ function createRoute(): ProductExperienceRouteSnapshot {
         session_id: "session-uxa5",
         workspace_id: "workspace-1",
       },
+      stageOperation: null,
     }),
     requestId: 1,
     route: {
@@ -179,6 +220,14 @@ function createRoute(): ProductExperienceRouteSnapshot {
 
 function renderWithLanguage(ui: ReactElement) {
   return render(ui);
+}
+
+function getLinkByHref(href: string) {
+  const link = screen.getAllByRole("link").find((candidate) => candidate.getAttribute("href") === href);
+  if (!link) {
+    throw new Error(`Expected product navigation link with href: ${href}`);
+  }
+  return link;
 }
 
 describe("ProjectWorkspaceShell UXA5", () => {
@@ -195,10 +244,9 @@ describe("ProjectWorkspaceShell UXA5", () => {
     expect(container.querySelectorAll(".uxa-button--primary")).toHaveLength(1);
     expect(screen.queryByLabelText("Recursos del proyecto")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Abrir Segmento de Atencion/ })).toHaveLength(2);
-    expect(screen.getByRole("link", { name: /Blueprint Pro/ })).toHaveAttribute(
-      "href",
-      "/projects/session-uxa5/blueprint/pro",
-    );
+    expect(getLinkByHref("/projects/session-uxa5/blueprint/pro")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Validar/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Package/ })).not.toBeInTheDocument();
   });
 
   it("keeps product routes accessible in the new product navigation", () => {
@@ -213,7 +261,10 @@ describe("ProjectWorkspaceShell UXA5", () => {
       "href",
       "/projects/session-uxa5/diagrams",
     );
-    expect(screen.getByRole("link", { name: /ACP/ })).toHaveAttribute("href", "/projects/session-uxa5/acp");
+    expect(screen.queryByRole("link", { name: /Resumen Blueprint/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Resumen Pro/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Resumen ACP/ })).not.toBeInTheDocument();
+    expect(getLinkByHref("/projects/session-uxa5/acp")).toBeInTheDocument();
   });
 
   it("shows persistent processing feedback for active backend or LLM operations", () => {
@@ -245,5 +296,56 @@ describe("ProjectWorkspaceShell UXA5", () => {
     expect(screen.getAllByText("Generando Definir con LLM.").length).toBeGreaterThan(0);
     expect(screen.getByText("Backend/LLM")).toBeInTheDocument();
     expect(screen.getByText(/El proceso continua aunque aun no existan nuevos resultados visibles/)).toBeInTheDocument();
+  });
+
+  it("renders server stage operations with real cancel and retry controls", () => {
+    const onCancelOperation = vi.fn();
+    const onRetryOperation = vi.fn();
+    const route = createRoute();
+    route.operation.data!.stageOperation = createStageOperation();
+
+    const { rerender } = renderWithLanguage(
+      <ProjectWorkspaceShell
+        activeProduct="work"
+        activeRoute={route}
+        activeStage="design"
+        onCancelOperation={onCancelOperation}
+        onRetryOperation={onRetryOperation}
+        sessionId="session-uxa5"
+      >
+        <section aria-label="Contenido de etapa"><UxaButton>Continuar</UxaButton></section>
+      </ProjectWorkspaceShell>,
+    );
+
+    expect(screen.getByText("Generando propuesta de arquitectura.")).toBeInTheDocument();
+    expect(screen.getAllByText("Propuesta de arquitectura").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(onCancelOperation).toHaveBeenCalledWith("operation-1");
+
+    route.operation.data!.stageOperation = createStageOperation({
+      can_cancel: false,
+      can_retry: true,
+      error_message: "Stage operation heartbeat expired before completion.",
+      retry_url: "/api/v1/sessions/session-uxa5/stage-operations/operation-1/retry",
+      status: "failed",
+      technical_detail: "stage_operation_stale",
+    });
+
+    rerender(
+      <ProjectWorkspaceShell
+        activeProduct="work"
+        activeRoute={route}
+        activeStage="design"
+        onCancelOperation={onCancelOperation}
+        onRetryOperation={onRetryOperation}
+        sessionId="session-uxa5"
+      >
+        <section aria-label="Contenido de etapa"><UxaButton>Continuar</UxaButton></section>
+      </ProjectWorkspaceShell>,
+    );
+
+    expect(screen.getByText("Stage operation heartbeat expired before completion.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(onRetryOperation).toHaveBeenCalledWith("operation-1");
   });
 });

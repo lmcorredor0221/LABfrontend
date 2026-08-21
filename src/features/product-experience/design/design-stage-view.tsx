@@ -24,11 +24,16 @@ import {
   type UxaTone,
 } from "@/features/product-experience/design-system";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
-import { LeanStageScreen, type LeanStageScreenContract } from "@/features/product-experience/stage-screen";
+import {
+  LeanGeneratedDeliverable,
+  LeanStageScreen,
+  type LeanStageScreenContract,
+} from "@/features/product-experience/stage-screen";
 import {
   applySelectedAlternative,
   buildDesignViewModel,
   deriveCoverageForAlternative,
+  normalizePercentScore,
   parseDesignArtifact,
   parseDesignSection,
   type DesignSection,
@@ -253,7 +258,7 @@ function FitMatrix({ design }: { design: DesignRecommendationArtifact }) {
                 const score = entry.scores.find((item) => item.alternative_key === alternative.alternative_key);
                 return (
                   <td className="p-3" key={alternative.alternative_key}>
-                    <span className="font-black">{score ? Math.round(score.score * 100) : 0}%</span>
+                    <span className="font-black">{score ? normalizePercentScore(score.score) : 0}%</span>
                     <p className="mt-1 text-[var(--uxa-color-ink-soft)]">{score?.rationale ?? byLanguage(language, { en: "No score", es: "Sin score", pt: "Sem score" })}</p>
                   </td>
                 );
@@ -393,6 +398,72 @@ function ArchitectureDetails({ alternative }: { alternative: DesignAlternative |
   );
 }
 
+function DesignDeliverable({
+  design,
+  selectedAlternative,
+}: {
+  design: DesignRecommendationArtifact;
+  selectedAlternative: DesignAlternative | null;
+}) {
+  const { language } = useLanguage();
+  const coverage = deriveCoverageForAlternative(design, selectedAlternative?.alternative_key ?? design.recommended_alternative_key);
+  const coveragePercent = normalizePercentScore(coverage.filter((entry) => entry.coverage_status === "covered").length / Math.max(coverage.length, 1));
+  const fitPercent = normalizePercentScore(selectedAlternative?.fit_score ?? 0);
+  const confidencePercent = normalizePercentScore(design.confidence.overall);
+
+  return (
+    <LeanGeneratedDeliverable
+      badge={{
+        label: selectedAlternative
+          ? byLanguage(language, { en: "Architecture selected", es: "Arquitectura seleccionada", pt: "Arquitetura selecionada" })
+          : byLanguage(language, { en: "Selection pending", es: "Seleccion pendiente", pt: "Selecao pendente" }),
+        tone: selectedAlternative ? "success" : "warning",
+      }}
+      metrics={[
+        {
+          helper: selectedAlternative?.reasoning_pattern,
+          label: byLanguage(language, { en: "Fit", es: "Ajuste", pt: "Aderencia" }),
+          tone: fitPercent >= 70 ? "success" : "warning",
+          value: `${fitPercent}%`,
+        },
+        {
+          helper: byLanguage(language, { en: "Covered requirements for the selected option.", es: "Requisitos cubiertos para la opcion seleccionada.", pt: "Requisitos cobertos para a opcao selecionada." }),
+          label: byLanguage(language, { en: "Coverage", es: "Cobertura", pt: "Cobertura" }),
+          tone: coveragePercent >= 70 ? "success" : "warning",
+          value: `${coveragePercent}%`,
+        },
+        {
+          helper: design.confidence.band,
+          label: byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
+          tone: confidencePercent >= 70 ? "success" : "warning",
+          value: `${confidencePercent}%`,
+        },
+      ]}
+      nextUse={byLanguage(language, {
+        en: "Tools will infer the minimum capabilities from this architecture, roles, handoffs, guardrails, and selected reasoning pattern.",
+        es: "Herramientas inferira las capacidades minimas desde esta arquitectura, roles, handoffs, guardrails y patron de razonamiento seleccionado.",
+        pt: "Ferramentas inferirao as capacidades minimas a partir desta arquitetura, papeis, handoffs, guardrails e padrao de raciocinio selecionado.",
+      })}
+      sections={[
+        {
+          items: selectedAlternative ? [selectedAlternative.summary, selectedAlternative.architecture] : [design.summary],
+          title: byLanguage(language, { en: "Architecture decision", es: "Decision arquitectonica", pt: "Decisao arquitetonica" }),
+        },
+        {
+          items: selectedAlternative?.fit_rationale ?? [],
+          title: byLanguage(language, { en: "Why this option", es: "Por que esta opcion", pt: "Por que esta opcao" }),
+        },
+        {
+          items: selectedAlternative ? [...selectedAlternative.tradeoffs, ...selectedAlternative.security_notes] : design.missing_information,
+          title: byLanguage(language, { en: "Tradeoffs and safeguards", es: "Tradeoffs y salvaguardas", pt: "Tradeoffs e salvaguardas" }),
+        },
+      ]}
+      summary={design.decision_rationale || design.summary}
+      title={byLanguage(language, { en: "Design deliverable", es: "Entrega de Diseno", pt: "Entrega de Design" })}
+    />
+  );
+}
+
 function DesignSectionContent({
   activeSection,
   design,
@@ -427,10 +498,21 @@ function DesignSectionContent({
   return <ArchitectureDetails alternative={selectedAlternative} />;
 }
 
-function ReadinessPanel({ items, openIssueCount, sessionId }: { items: ReturnType<typeof buildDesignViewModel>["readiness"]; openIssueCount: number; sessionId: string }) {
+function ReadinessPanel({
+  deferredIssueCount,
+  items,
+  openIssueCount,
+  sessionId,
+}: {
+  deferredIssueCount: number;
+  items: ReturnType<typeof buildDesignViewModel>["readiness"];
+  openIssueCount: number;
+  sessionId: string;
+}) {
   const { language } = useLanguage();
+  const hasDeferredIssues = !openIssueCount && deferredIssueCount > 0;
   return (
-    <UxaSurface className={cn("p-4", openIssueCount ? "border-[var(--uxa-state-danger)]" : "")}>
+    <UxaSurface className={cn("p-4", openIssueCount ? "border-[var(--uxa-state-danger)]" : hasDeferredIssues ? "border-[var(--uxa-state-warning)]" : "")}>
       <div className="flex items-start gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] text-[var(--uxa-color-brand)]">
           {openIssueCount ? <ShieldAlert aria-hidden="true" className="h-5 w-5" /> : <CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
@@ -440,6 +522,8 @@ function ReadinessPanel({ items, openIssueCount, sessionId }: { items: ReturnTyp
           <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
             {openIssueCount
               ? byLanguage(language, { en: "There are decisions or findings that must go through Attention.", es: "Hay decisiones o findings que deben pasar por Atencion.", pt: "Ha decisoes ou achados que devem passar por Atencao." })
+              : hasDeferredIssues
+                ? byLanguage(language, { en: "Basic Blueprint can continue. Open design questions stay registered for Premium enrichment.", es: "Blueprint Basico puede continuar. Las preguntas de diseno quedan registradas para enriquecimiento Premium.", pt: "Blueprint Basico pode continuar. As perguntas de design ficam registradas para enriquecimento Premium." })
               : byLanguage(language, { en: "The proposal is ready to approve.", es: "La propuesta esta lista para aprobar.", pt: "A proposta esta pronta para aprovar." })}
           </p>
         </div>
@@ -452,9 +536,11 @@ function ReadinessPanel({ items, openIssueCount, sessionId }: { items: ReturnTyp
           </p>
         ))}
       </div>
-      <Link className="mt-4 inline-flex text-[12px] font-black text-[var(--uxa-color-brand)]" href={getProductExperienceProductHref(sessionId, "attention")}>
-        {byLanguage(language, { en: "Open Attention Segment", es: "Abrir Segmento de Atencion", pt: "Abrir Segmento de Atencao" })} <ArrowRight aria-hidden="true" className="ml-1 h-4 w-4" />
-      </Link>
+      {openIssueCount ? (
+        <Link className="mt-4 inline-flex text-[12px] font-black text-[var(--uxa-color-brand)]" href={getProductExperienceProductHref(sessionId, "attention")}>
+          {byLanguage(language, { en: "Open Attention Segment", es: "Abrir Segmento de Atencion", pt: "Abrir Segmento de Atencao" })} <ArrowRight aria-hidden="true" className="ml-1 h-4 w-4" />
+        </Link>
+      ) : null}
     </UxaSurface>
   );
 }
@@ -524,7 +610,6 @@ export function DesignStageView({ actionState, activeRoute, actions }: DesignSta
         ),
         status: "error",
       });
-      throw error;
     }
   }
 
@@ -605,26 +690,32 @@ export function DesignStageView({ actionState, activeRoute, actions }: DesignSta
     return <DesignErrorState message={activeRoute?.snapshot.error?.message ?? byLanguage(language, { en: "The snapshot could not be loaded.", es: "No se pudo cargar el snapshot.", pt: "Nao foi possivel carregar o snapshot." })} />;
   }
 
-  const progress = viewModel.status === "approved" ? 100 : viewModel.status === "waiting_review" ? 76 : viewModel.status === "empty" ? 42 : viewModel.status === "blocked" ? 22 : 52;
+  const progress = viewModel.maturityScore;
+  const isBasicBlueprint = viewModel.commercialTier === "blueprint";
   const primaryLabel =
-    viewModel.status === "approved"
-      ? byLanguage(language, { en: "Continue to Tools", es: "Continuar a Herramientas", pt: "Continuar para Ferramentas" })
-      : viewModel.design
-        ? byLanguage(language, { en: "Approve Design", es: "Aprobar Diseno", pt: "Aprovar Design" })
-        : viewModel.status === "blocked"
-          ? byLanguage(language, { en: "Back to Define", es: "Volver a Definir", pt: "Voltar para Definir" })
-          : byLanguage(language, { en: "Generate Design", es: "Generar Diseno", pt: "Gerar Design" });
-  const primaryDescription =
-    viewModel.status === "approved"
-      ? byLanguage(language, { en: "The architecture is approved and can drive the minimum tool selection.", es: "La arquitectura esta aprobada y puede alimentar la seleccion minima de herramientas.", pt: "A arquitetura esta aprovada e pode orientar a selecao minima de ferramentas." })
-      : viewModel.status === "blocked"
-        ? byLanguage(language, { en: "Design needs approved requirements before generating architecture alternatives.", es: "Disenar necesita requisitos aprobados antes de generar alternativas de arquitectura.", pt: "Design precisa de requisitos aprovados antes de gerar alternativas de arquitetura." })
+    viewModel.status === "processing"
+      ? byLanguage(language, { en: "Generating Design...", es: "Generando Diseno...", pt: "Gerando Design..." })
+      : viewModel.status === "approved"
+        ? byLanguage(language, { en: "Continue to Tools", es: "Continuar a Herramientas", pt: "Continuar para Ferramentas" })
         : viewModel.design
-          ? byLanguage(language, { en: "Select or confirm the recommended alternative and review findings before approving.", es: "Selecciona o confirma la alternativa recomendada y revisa findings antes de aprobar.", pt: "Selecione ou confirme a alternativa recomendada e revise os findings antes de aprovar." })
-          : byLanguage(language, { en: "Ask the LLM to propose architecture alternatives, patterns, and behavior.", es: "Pide al LLM que proponga alternativas de arquitectura, patrones y comportamiento.", pt: "Peça ao LLM que proponha alternativas de arquitetura, padroes e comportamento." });
+          ? byLanguage(language, { en: "Approve Design", es: "Aprobar Diseno", pt: "Aprovar Design" })
+          : viewModel.status === "blocked"
+            ? byLanguage(language, { en: "Back to Define", es: "Volver a Definir", pt: "Voltar para Definir" })
+            : byLanguage(language, { en: "Generate Design", es: "Generar Diseno", pt: "Gerar Design" });
+  const primaryDescription =
+    viewModel.status === "processing"
+      ? byLanguage(language, { en: "The LLM is generating architecture alternatives, patterns, and behavior in the background.", es: "El LLM esta generando alternativas de arquitectura, patrones y conducta en segundo plano.", pt: "O LLM esta gerando alternativas de arquitetura, padroes e comportamento em segundo plano." })
+      : viewModel.status === "approved"
+        ? byLanguage(language, { en: "The architecture is approved and can drive the minimum tool selection.", es: "La arquitectura esta aprobada y puede alimentar la seleccion minima de herramientas.", pt: "A arquitetura esta aprovada e pode orientar a selecao minima de ferramentas." })
+        : viewModel.status === "blocked"
+          ? byLanguage(language, { en: "Design needs approved requirements before generating architecture alternatives.", es: "Disenar necesita requisitos aprobados antes de generar alternativas de arquitectura.", pt: "Design precisa de requisitos aprovados antes de gerar alternativas de arquitetura." })
+          : viewModel.design
+            ? byLanguage(language, { en: "Select or confirm the recommended alternative and review findings before approving.", es: "Selecciona o confirma la alternativa recomendada y revisa findings antes de aprobar.", pt: "Selecione ou confirme a alternativa recomendada e revise os findings antes de aprovar." })
+            : byLanguage(language, { en: "Ask the LLM to propose architecture alternatives, patterns, and behavior.", es: "Pide al LLM que proponga alternativas de arquitectura, patrones y comportamiento.", pt: "Peça ao LLM que proponha alternativas de arquitetura, padroes e comportamento." });
+  const shouldSurfaceDesignQuestionsInAttention = viewModel.commercialTier !== "blueprint";
   const contract: LeanStageScreenContract = {
     attentionItems: [
-      ...(viewModel.design?.open_questions ?? []).slice(0, 3).map((question) => ({
+      ...(shouldSurfaceDesignQuestionsInAttention ? (viewModel.design?.open_questions ?? []) : []).slice(0, 3).map((question) => ({
         description: copy(
           "Decision required to close architecture or behavior.",
           "Decision requerida para cerrar arquitectura o comportamiento.",
@@ -655,16 +746,16 @@ export function DesignStageView({ actionState, activeRoute, actions }: DesignSta
         tone: "warning" as const,
         value: item,
       })),
-      ...viewModel.warnings.slice(0, 2).map((warning) => ({
+      ...viewModel.warningItems.slice(0, 2).map((warning) => ({
         description: copy(
-          "Staleness or traceability warning.",
-          "Advertencia de desactualizacion o trazabilidad.",
-          "Advertencia de desatualizacao ou rastreabilidade.",
+          warning.impact,
+          warning.impact,
+          warning.impact,
         ),
         href: getProductExperienceProductHref(viewModel.sessionId, "attention"),
-        label: copy("Warning", "Advertencia", "Advertencia"),
+        label: copy("LLM warning", "Advertencia LLM", "Alerta LLM"),
         tone: "warning" as const,
-        value: warning,
+        value: warning.title,
       })),
     ],
     linkedResults: [
@@ -709,12 +800,20 @@ export function DesignStageView({ actionState, activeRoute, actions }: DesignSta
       },
     ],
     metric: {
-      helper: copy(
-        `${viewModel.design?.alternatives.length ?? 0} alternative(s), ${viewModel.openIssueCount} issue(s). Last update: ${viewModel.snapshotUpdatedAt ?? "no snapshot"}.`,
-        `${viewModel.design?.alternatives.length ?? 0} alternativa(s), ${viewModel.openIssueCount} asunto(s). Ultima actualizacion: ${viewModel.snapshotUpdatedAt ?? "sin snapshot"}.`,
-        `${viewModel.design?.alternatives.length ?? 0} alternativa(s), ${viewModel.openIssueCount} assunto(s). Ultima atualizacao: ${viewModel.snapshotUpdatedAt ?? "sem snapshot"}.`,
-      ),
-      label: byLanguage(language, { en: "Design maturity", es: "Madurez de diseno", pt: "Maturidade do design" }),
+      helper: isBasicBlueprint
+        ? copy(
+            `Basic Blueprint sufficiency uses coverage, fit, confidence and structure. ${viewModel.design?.alternatives.length ?? 0} alternative(s); ${viewModel.deferredIssueCount} enrichment item(s) are saved for Premium and do not block this stage. Last update: ${viewModel.snapshotUpdatedAt ?? "no snapshot"}.`,
+            `Suficiencia del Blueprint Basico calculada con cobertura, fit, confianza y estructura. ${viewModel.design?.alternatives.length ?? 0} alternativa(s); ${viewModel.deferredIssueCount} diferido(s) quedan como oportunidades Premium y no bloquean esta etapa. Ultima actualizacion: ${viewModel.snapshotUpdatedAt ?? "sin snapshot"}.`,
+            `Suficiencia do Blueprint Basico calculada com cobertura, fit, confianca e estrutura. ${viewModel.design?.alternatives.length ?? 0} alternativa(s); ${viewModel.deferredIssueCount} diferido(s) ficam como oportunidades Premium e nao bloqueiam esta etapa. Ultima atualizacao: ${viewModel.snapshotUpdatedAt ?? "sem snapshot"}.`,
+          )
+        : copy(
+            `Calculated from coverage, fit, confidence and pending blockers. ${viewModel.design?.alternatives.length ?? 0} alternative(s), ${viewModel.openIssueCount} blocker(s), ${viewModel.deferredIssueCount} deferred. Last update: ${viewModel.snapshotUpdatedAt ?? "no snapshot"}.`,
+            `Calculada con cobertura, fit, confianza y bloqueos pendientes. ${viewModel.design?.alternatives.length ?? 0} alternativa(s), ${viewModel.openIssueCount} bloqueo(s), ${viewModel.deferredIssueCount} diferido(s). Ultima actualizacion: ${viewModel.snapshotUpdatedAt ?? "sin snapshot"}.`,
+            `Calculada com cobertura, fit, confianca e bloqueios pendentes. ${viewModel.design?.alternatives.length ?? 0} alternativa(s), ${viewModel.openIssueCount} bloqueio(s), ${viewModel.deferredIssueCount} diferido(s). Ultima atualizacao: ${viewModel.snapshotUpdatedAt ?? "sem snapshot"}.`,
+          ),
+      label: isBasicBlueprint
+        ? byLanguage(language, { en: "Basic Blueprint sufficiency", es: "Suficiencia de diseno", pt: "Suficiencia do design" })
+        : byLanguage(language, { en: "Design maturity", es: "Madurez de diseno", pt: "Maturidade do design" }),
       progress,
       value: `${progress}%`,
     },
@@ -823,32 +922,29 @@ export function DesignStageView({ actionState, activeRoute, actions }: DesignSta
       {
         badge: viewModel.selectedAlternative ? "1" : "0",
         description: copy(
-          "Selected architecture and decision rationale.",
-          "Arquitectura seleccionada y rationale de decision.",
-          "Arquitetura selecionada e rationale da decisao.",
+          "Executive architecture deliverable and next-stage impact.",
+          "Entregable ejecutivo de arquitectura e impacto en la siguiente etapa.",
+          "Entregavel executivo de arquitetura e impacto na proxima etapa.",
         ),
         key: "result",
-        label: copy("Generated result", "Resultado generado", "Resultado gerado"),
+        label: copy("Generated deliverable", "Entrega generada", "Entrega gerada"),
         children: viewModel.design ? (
           <div className="space-y-4">
+            <DesignDeliverable design={viewModel.design} selectedAlternative={viewModel.selectedAlternative} />
             <ArchitectureDetails alternative={viewModel.selectedAlternative} />
-            <UxaSurface className="p-4">
-              <p className="text-[13px] font-black">{copy("Recommended decision", "Decision recomendada", "Decisao recomendada")}</p>
-              <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-                {viewModel.design!.decision_rationale}
-              </p>
-              <p className="mt-3 rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px]">
-                {copy("Confidence", "Confianza", "Confianca")} {Math.round(viewModel.design.confidence.overall * 100)}% - {viewModel.design.confidence.band}
-              </p>
-            </UxaSurface>
-            <ReadinessPanel items={viewModel.readiness} openIssueCount={viewModel.openIssueCount} sessionId={viewModel.sessionId} />
+            <ReadinessPanel
+              deferredIssueCount={viewModel.deferredIssueCount}
+              items={viewModel.readiness}
+              openIssueCount={viewModel.openIssueCount}
+              sessionId={viewModel.sessionId}
+            />
           </div>
         ) : (
           <EmptyDesign canGenerate={viewModel.canGenerate} />
         ),
       },
       {
-        badge: viewModel.openIssueCount,
+        badge: viewModel.openIssueCount + viewModel.deferredIssueCount,
         description: byLanguage(language, { en: "Fit, coverage, critique, warnings, and traceability.", es: "Ajuste, cobertura, critica, advertencias y trazabilidad.", pt: "Aderencia, cobertura, critica, alertas e rastreabilidade." }),
         key: "evidence",
         label: byLanguage(language, { en: "Evidence and traceability", es: "Evidencia y trazabilidad", pt: "Evidencia e rastreabilidade" }),
@@ -857,13 +953,40 @@ export function DesignStageView({ actionState, activeRoute, actions }: DesignSta
             <FitMatrix design={viewModel.design} />
             <Coverage design={viewModel.design} selectedKey={selectedAlternativeKey ?? viewModel.design.recommended_alternative_key} />
             <Critique design={viewModel.design} sessionId={viewModel.sessionId} />
-            {viewModel.warnings.length ? (
+            {viewModel.warningItems.length ? (
               <UxaSurface className="p-4">
-                <p className="text-[13px] font-black">{copy("Warnings", "Advertencias", "Advertencias")}</p>
-                {viewModel.warnings.map((warning, index) => (
-                  <p className="mt-2 rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px]" key={`${warning}-${index}`}>
-                    {warning}
-                  </p>
+                <p className="text-[13px] font-black">{copy("Runtime notes", "Notas de ejecucion", "Notas de execucao")}</p>
+                <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                  {copy(
+                    "These notes explain whether the LLM runtime needed recovery while preserving the design output.",
+                    "Estas notas explican si el runtime LLM necesito recuperacion mientras conservaba la salida de diseno.",
+                    "Estas notas explicam se o runtime LLM precisou de recuperacao enquanto preservava a saida de design.",
+                  )}
+                </p>
+                {viewModel.warningItems.map((warning, index) => (
+                  <article className="mt-3 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)]/45 p-4 text-[12px]" key={`${warning.technicalMessage}-${index}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-black">{warning.title}</p>
+                        <p className="mt-1 leading-5 text-[var(--uxa-color-ink-soft)]">{warning.summary}</p>
+                      </div>
+                      <UxaBadge tone="warning">{copy("Review", "Revision", "Revisao")}</UxaBadge>
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <p className="rounded-[var(--uxa-radius-md)] bg-white/70 p-3 leading-5">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{copy("Impact", "Impacto", "Impacto")}</span>
+                        {warning.impact}
+                      </p>
+                      <p className="rounded-[var(--uxa-radius-md)] bg-white/70 p-3 leading-5">
+                        <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{copy("Recovery", "Recuperacion", "Recuperacao")}</span>
+                        {warning.recovery}
+                      </p>
+                    </div>
+                    <details className="mt-3 rounded-[var(--uxa-radius-md)] bg-white/70 p-3">
+                      <summary className="cursor-pointer font-black">{copy("Technical detail", "Detalle tecnico", "Detalhe tecnico")}</summary>
+                      <p className="mt-2 break-words font-mono text-[11px] leading-5 text-[var(--uxa-color-ink-soft)]">{warning.technicalMessage}</p>
+                    </details>
+                  </article>
                 ))}
               </UxaSurface>
             ) : null}
@@ -895,11 +1018,13 @@ export function DesignStageView({ actionState, activeRoute, actions }: DesignSta
             </UxaButton>
           ) : (
             <UxaButton disabled={!viewModel.canGenerate || processing} isLoading={processing} onClick={() => void handleGenerate()} variant="primary">
-              {byLanguage(language, { en: "Generate Design", es: "Generar Diseno", pt: "Gerar Design" })} <Sparkles aria-hidden="true" className="h-4 w-4" />
+              {viewModel.status === "processing"
+                ? byLanguage(language, { en: "Generating Design...", es: "Generando Diseno...", pt: "Gerando Design..." })
+                : byLanguage(language, { en: "Generate Design", es: "Generar Diseno", pt: "Gerar Design" })} <Sparkles aria-hidden="true" className="h-4 w-4" />
             </UxaButton>
           )}
           <UxaButton disabled={!viewModel.canGenerate || processing} onClick={() => void handleGenerate()} variant="secondary">
-            <RefreshCw aria-hidden="true" className="h-4 w-4" /> {byLanguage(language, { en: "Regenerate", es: "Regenerar", pt: "Regenerar" })}
+            <RefreshCw aria-hidden="true" className={cn("h-4 w-4", processing && "animate-spin")} /> {byLanguage(language, { en: "Regenerate", es: "Regenerar", pt: "Regenerar" })}
           </UxaButton>
           <UxaButton disabled={!viewModel.design || processing} onClick={() => void handleSave()} variant="secondary">
             {byLanguage(language, { en: "Save decision", es: "Guardar decision", pt: "Salvar decisao" })}

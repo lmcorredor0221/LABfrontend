@@ -5,6 +5,16 @@ import type { AuthUser } from "@/core/auth/types";
 
 const selectWorkspaceMock = vi.fn();
 const useAuthMock = vi.fn();
+const routerPushMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/projects",
+  useRouter: () => ({
+    push: routerPushMock,
+    replace: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
 
 vi.mock("@/core/auth/auth-context", () => ({
   useAuth: () => useAuthMock(),

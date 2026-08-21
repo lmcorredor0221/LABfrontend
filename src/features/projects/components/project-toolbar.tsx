@@ -50,19 +50,35 @@ export function ProjectToolbar({
     { label: "ACP", value: "acp" },
   ];
   const sortOptions = [
-    { label: t("projects.filterSort", "Ordenar proyectos"), value: "updated_desc" },
-    { label: "A-Z", value: "title_asc" },
-    { label: "Z-A", value: "title_desc" },
+    {
+      label:
+        language === "en"
+          ? "Recently updated"
+          : language === "pt"
+            ? "Atualizado recentemente"
+            : "Actualizado reciente",
+      value: "updated_desc",
+    },
     {
       label:
         language === "en"
           ? "Oldest first"
           : language === "pt"
             ? "Mais antigo primeiro"
-            : "Actualizado mas antiguo",
+            : "Actualizado más antiguo",
       value: "updated_asc",
     },
-    { label: language === "en" ? "Recently updated" : language === "pt" ? "Atualizado recentemente" : "Actualizado reciente", value: "updated_desc" },
+    { label: "A-Z", value: "title_asc" },
+    { label: "Z-A", value: "title_desc" },
+    {
+      label:
+        language === "en"
+          ? "Recently created"
+          : language === "pt"
+            ? "Criado recentemente"
+            : "Creado recientemente",
+      value: "created_desc",
+    },
   ];
   const localizedLifecycleItems = [
     { ...lifecycleItems[0], label: t("projects.statusActive", "Activos") },

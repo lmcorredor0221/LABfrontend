@@ -2,6 +2,7 @@ import { clearStoredToken, getStoredToken } from "@/core/auth/token-store";
 import { clearStoredWorkspaceId, getStoredWorkspaceId } from "@/core/auth/workspace-store";
 import { API_TIMEOUT_HEADER, getApiRequestTimeoutMs, getPublicApiBaseUrl } from "@/core/config/runtime";
 import { ApiError, type ApiErrorSource } from "@/core/api/errors";
+import { isPublicRoute } from "@/core/routing/routes";
 
 type FetchLike = typeof fetch;
 
@@ -77,7 +78,8 @@ function defaultUnauthorizedRedirect() {
   clearStoredWorkspaceId();
   window.dispatchEvent(new CustomEvent("lean-builder:unauthorized"));
 
-  if (window.location.pathname !== "/login") {
+  const pathname = window.location.pathname;
+  if (!isPublicRoute(pathname) && pathname !== "/login") {
     window.location.assign("/login");
   }
 }

@@ -4,6 +4,7 @@ import {
   getSessionProjectWorkRoute,
   persistLastVisitedProjectStage,
 } from "@/features/sessions/session-routes";
+import type { ProductJourneyOverview } from "@/features/product-experience/saas/product-journey-overview";
 import type { SessionCommercialAccess, SessionSnapshot, SessionSummary } from "@/features/sessions/types";
 
 function createSession(overrides?: Partial<SessionSummary>): SessionSummary {
@@ -214,6 +215,42 @@ function createSnapshot(overrides?: Partial<SessionSnapshot>): SessionSnapshot {
   };
 }
 
+function createJourneyOverview(overrides?: Partial<ProductJourneyOverview>): ProductJourneyOverview {
+  return {
+    achieved_outcomes: [],
+    active_operation: null,
+    blocking_attention_count: 0,
+    contract_version: "product-journey-overview.v2",
+    current_stage: {
+      label: "Herramientas",
+      lifecycle: "running",
+      product_key: "blueprint_basic",
+      progress_percent: 44,
+      stage_key: "tools",
+    },
+    deliverable_summary: {
+      attention_count: 0,
+      available_count: 1,
+      error_count: 0,
+      locked_count: 2,
+      pending_count: 4,
+      running_count: 1,
+      stale_count: 0,
+      total_count: 8,
+    },
+    generated_at: "2026-08-05T11:00:00Z",
+    products: [],
+    project_title: "Asistente de soporte",
+    recommended_next_action: null,
+    session_id: "session-s3",
+    source_contracts: ["product-build-status.v1"],
+    technical_error_count: 0,
+    warning_attention_count: 0,
+    workspace_id: "workspace-1",
+    ...overrides,
+  };
+}
+
 describe("session project routes", () => {
   beforeEach(() => {
     const storage = new Map<string, string>();
@@ -237,6 +274,84 @@ describe("session project routes", () => {
     expect(getPreferredProjectStage(session, snapshot)).toBe("memory");
     expect(getSessionProjectRoute(session, snapshot)).toBe("/projects/session-s3/blueprint");
     expect(getSessionProjectWorkRoute(session, snapshot)).toBe("/projects/session-s3/work/memory");
+  });
+
+  it("uses the canonical journey overview to continue an unfinished Blueprint stage", () => {
+    const session = createSession();
+    const snapshot = createSnapshot();
+    const overview = createJourneyOverview({
+      current_stage: {
+        label: "Herramientas",
+        lifecycle: "running",
+        product_key: "blueprint_basic",
+        progress_percent: 44,
+        stage_key: "tools",
+      },
+    });
+
+    expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/work/tools");
+  });
+
+  it("uses a blocking attention action from the canonical journey overview before product landing pages", () => {
+    const session = createSession();
+    const snapshot = createSnapshot();
+    const overview = createJourneyOverview({
+      blocking_attention_count: 1,
+      recommended_next_action: {
+        action_key: "open_attention",
+        href: "/projects/session-s3/attention",
+        label: "Resolver pendientes",
+        primary: true,
+        product_key: "blueprint_basic",
+        reason: "Hay informacion bloqueante.",
+        state: "blocked",
+      },
+    });
+
+    expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/attention");
+  });
+
+  it("uses the progress action from the canonical journey overview when the backend recommends it", () => {
+    const session = createSession();
+    const snapshot = createSnapshot();
+    const overview = createJourneyOverview({
+      recommended_next_action: {
+        action_key: "view_progress",
+        href: "/projects/session-s3/activity",
+        label: "Ver actividad",
+        primary: true,
+        product_key: "blueprint_pro",
+        reason: "Hay una operacion en curso.",
+        state: "running",
+      },
+    });
+
+    expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/activity");
+  });
+
+  it("falls back to the recommended product landing route when overview action has no local href", () => {
+    const session = createSession();
+    const snapshot = createSnapshot();
+    const overview = createJourneyOverview({
+      current_stage: {
+        label: "Blueprint Pro",
+        lifecycle: "ready_to_start",
+        product_key: "blueprint_pro",
+        progress_percent: 0,
+        stage_key: "blueprint_pro",
+      },
+      recommended_next_action: {
+        action_key: "start_product",
+        href: "",
+        label: "Abrir Blueprint Profesional",
+        primary: true,
+        product_key: "blueprint_pro",
+        reason: "El producto esta disponible para iniciar.",
+        state: "recommended",
+      },
+    });
+
+    expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/blueprint/pro");
   });
 
   it("falls back to the recommended stage when the stored stage is no longer accessible", () => {

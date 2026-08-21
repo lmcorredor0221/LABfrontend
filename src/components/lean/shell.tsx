@@ -9,6 +9,7 @@ import {
   ChevronDown,
   CircleHelp,
   FolderKanban,
+  Inbox,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -33,6 +34,10 @@ function getIsActive(pathname: string, href: string) {
 
   if (href.startsWith("/agents/")) {
     return pathname.startsWith("/agents/");
+  }
+
+  if (href === "/admin/requests") {
+    return pathname === "/admin/requests" || pathname.startsWith("/admin/requests/");
   }
 
   return pathname.startsWith(href.split("/:")[0]) || pathname.startsWith(href);
@@ -90,6 +95,7 @@ export function UserDropdownMenu({ compact = false }: { compact?: boolean }) {
   const globalNav = [
     { label: t("nav.home", "Inicio"), href: "/", icon: LayoutDashboard },
     { label: t("nav.projects", "Proyectos"), href: "/projects", icon: FolderKanban },
+    { label: t("nav.requests", "Gestión de solicitudes"), href: "/admin/requests", icon: Inbox },
     { label: t("nav.settings", "Configuración"), href: "/settings", icon: Settings },
   ];
 

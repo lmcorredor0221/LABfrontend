@@ -1,5 +1,5 @@
-import { SaasHomePage } from "@/features/productization/saas-home-page";
+import { LabLandingPage } from "@/features/landing/lab-landing-page";
 
 export default function Page() {
-  return <SaasHomePage />;
+  return <LabLandingPage />;
 }

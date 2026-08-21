@@ -8,6 +8,7 @@ import type {
   JourneyStageArtifactEntry,
   OpenQuestion,
 } from "@/features/sessions/session-contracts";
+import type { CommercialTier } from "@/features/sessions/types";
 
 export type DefineSection = "summary" | "requirements" | "nfr" | "rules" | "criteria" | "questions" | "traceability";
 
@@ -29,13 +30,17 @@ export type DefineSectionDefinition = {
 };
 
 export type DefineViewModel = {
+  approvalBlockingIssues: string[];
   canApprove: boolean;
   canGenerate: boolean;
   canvas: CanvasArtifact | null;
+  commercialTier: CommercialTier;
+  deferredQualityIssues: string[];
   definition: DefinitionArtifact | null;
   discoveryApproved: boolean;
   latestDefineArtifact: JourneyStageArtifactEntry | null;
   latestDiscoverArtifact: JourneyStageArtifactEntry | null;
+  actionableOpenQuestions: OpenQuestion[];
   openBlockerCount: number;
   projectTitle: string;
   sections: DefineSectionDefinition[];
@@ -43,6 +48,7 @@ export type DefineViewModel = {
   snapshotUpdatedAt: string | null;
   status: DefineStageStatus;
   totalRequirementCount: number;
+  traceableOpenQuestions: OpenQuestion[];
   validation: DefinitionValidationSummary;
   warnings: string[];
 };
@@ -74,7 +80,7 @@ export const DEFINE_SECTIONS: Array<Omit<DefineSectionDefinition, "count">> = [
     label: "Criterios",
   },
   {
-    description: "Preguntas y bloqueos movibles a Atencion.",
+    description: "Preguntas accionables segun el producto activo.",
     key: "questions",
     label: "Preguntas",
   },
@@ -131,6 +137,21 @@ function getDefinitionEntities(definition: DefinitionArtifact) {
     ...asArray(definition.assumptions),
     ...asArray(definition.open_questions),
   ];
+}
+
+function isResolvedQuestion(question: OpenQuestion) {
+  return question.status === "accepted" || question.status === "rejected";
+}
+
+export function getActionableDefineOpenQuestions(
+  definition?: DefinitionArtifact | null,
+  commercialTier: CommercialTier = "blueprint",
+): OpenQuestion[] {
+  if (!definition || commercialTier === "blueprint") {
+    return [];
+  }
+
+  return asArray(definition.open_questions).filter((question) => !isResolvedQuestion(question));
 }
 
 export function parseDefineSection(value?: string | null): DefineSection {
@@ -204,6 +225,28 @@ export function deriveDefinitionValidation(definition?: DefinitionArtifact | nul
   };
 }
 
+export function getDefineApprovalBlockingIssues(
+  validation: DefinitionValidationSummary,
+  commercialTier: CommercialTier = "blueprint",
+): string[] {
+  if (commercialTier === "blueprint") {
+    return [];
+  }
+
+  return asArray(validation.blocking_issues);
+}
+
+export function getDefineDeferredQualityIssues(
+  validation: DefinitionValidationSummary,
+  commercialTier: CommercialTier = "blueprint",
+): string[] {
+  if (commercialTier !== "blueprint") {
+    return [];
+  }
+
+  return asArray(validation.blocking_issues);
+}
+
 export function setOpenQuestionStatus(
   definition: DefinitionArtifact,
   questionKey: string,
@@ -250,7 +293,17 @@ export function buildDefineViewModel(
     discoveryApproved && !stale && latestDefineArtifact?.state !== "rejected"
       ? rawDefinition
       : null;
+  const commercialTier = snapshot?.session.commercial_tier ?? "blueprint";
+  const actionableOpenQuestions = getActionableDefineOpenQuestions(definition, commercialTier);
+  const traceableOpenQuestions = asArray(definition?.open_questions);
   const validation = deriveDefinitionValidation(definition);
+  const approvalBlockingIssues = getDefineApprovalBlockingIssues(validation, commercialTier);
+  const deferredQualityIssues = getDefineDeferredQualityIssues(validation, commercialTier);
+  const stageOperation = activeRoute?.operation?.data?.stageOperation ?? null;
+  const isStageOperationActive =
+    stageOperation?.stage_key === "define" &&
+    (stageOperation.status === "queued" || stageOperation.status === "running");
+  const isProcessing = Boolean(options.processing || isStageOperationActive);
   const status: DefineStageStatus = (() => {
     if (!snapshotResource || snapshotResource.status === "idle" || snapshotResource.status === "loading") {
       return "loading";
@@ -260,7 +313,7 @@ export function buildDefineViewModel(
       return "error";
     }
 
-    if (options.processing) {
+    if (isProcessing) {
       return "processing";
     }
 
@@ -299,20 +352,24 @@ export function buildDefineViewModel(
             : section.key === "criteria"
               ? asArray(definition?.acceptance_criteria).length + asArray(definition?.dependencies).length + asArray(definition?.assumptions).length
               : section.key === "questions"
-                ? asArray(definition?.open_questions).length
+                ? actionableOpenQuestions.length
                 : section.key === "traceability"
                   ? asArray(definition?.traceability).length
                   : totalRequirementCount,
   }));
 
   return {
-    canApprove: Boolean(latestDefineArtifact && definition && status === "waiting_review" && validation.blocking_issues.length === 0),
+    approvalBlockingIssues,
+    canApprove: Boolean(latestDefineArtifact && definition && status === "waiting_review" && approvalBlockingIssues.length === 0),
     canGenerate: discoveryApproved && status !== "processing",
     canvas: definition?.canvas_projection ?? snapshot?.canvas ?? null,
+    commercialTier,
+    deferredQualityIssues,
     definition,
     discoveryApproved,
     latestDefineArtifact,
     latestDiscoverArtifact,
+    actionableOpenQuestions,
     openBlockerCount: validation.blocking_open_questions.length,
     projectTitle: activeRoute?.operation.data?.overview?.project_title ?? snapshot?.session.title ?? "Proyecto LEAN",
     sections,
@@ -320,6 +377,7 @@ export function buildDefineViewModel(
     snapshotUpdatedAt: snapshot?.session.updated_at ?? null,
     status,
     totalRequirementCount,
+    traceableOpenQuestions,
     validation,
     warnings: [
       ...asArray(latestDefineArtifact?.warnings),

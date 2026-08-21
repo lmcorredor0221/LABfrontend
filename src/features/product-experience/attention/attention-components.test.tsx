@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LanguageProvider } from "@/core/i18n/language-context";
 import type { AttentionItemV2 } from "@/features/attention/attention-contracts";
 import {
   AttentionContextRail,
@@ -83,6 +85,10 @@ function createRoute(items: AttentionItemV2[]): ProductExperienceRouteSnapshot {
   };
 }
 
+function renderWithLanguage(ui: ReactElement) {
+  return render(<LanguageProvider>{ui}</LanguageProvider>);
+}
+
 describe("attention components UXA6", () => {
   it("resolves inline items through the provided handler", async () => {
     let receivedCall: Parameters<ResolveAttentionItemHandler> | null = null;
@@ -90,7 +96,7 @@ describe("attention components UXA6", () => {
       receivedCall = args;
       return undefined;
     };
-    render(<AttentionItemCard item={createItem()} onResolveItem={onResolveItem} />);
+    renderWithLanguage(<AttentionItemCard item={createItem()} onResolveItem={onResolveItem} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Resolver pregunta" }));
 
@@ -108,7 +114,7 @@ describe("attention components UXA6", () => {
       receivedCall = args;
       return undefined;
     };
-    render(<AttentionItemCard item={createItem()} onResolveItem={onResolveItem} />);
+    renderWithLanguage(<AttentionItemCard item={createItem()} onResolveItem={onResolveItem} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Supervisor \+ RAG/i }));
     fireEvent.click(screen.getByRole("button", { name: "Resolver pregunta" }));
@@ -122,8 +128,63 @@ describe("attention components UXA6", () => {
     });
   });
 
+  it("shows actionable runtime diagnostics without asking for a business answer", async () => {
+    let receivedCall: Parameters<ResolveAttentionItemHandler> | null = null;
+    const onResolveItem: ResolveAttentionItemHandler = async (...args) => {
+      receivedCall = args;
+      return undefined;
+    };
+    renderWithLanguage(
+      <AttentionItemCard
+        item={createItem({
+          action: {
+            can_resolve_inline: true,
+            href: "/projects/session-1/define",
+            kind: "retry",
+            label: "Reintentar recuperacion",
+            return_href: "/projects/session-1/define",
+          },
+          diagnostics: {
+            capability: "define_requirements",
+            capability_label: "generar Definir",
+            error_kind: "provider_or_schema",
+            operation_id: "run-1",
+            repair_hint: "Validar proveedor/modelo activo y reintentar.",
+            retry_policy: "Reintentar con el mismo contexto aprobado.",
+            summary: "generar Definir fallo porque el proveedor o el esquema no entrego una salida valida.",
+            technical_message: "Codex local no pudo ejecutar define_requirements; policy=needs_review_on_provider_or_schema_failure.",
+            trace_refs: ["runtime.operation:run-1", "runtime.capability:define_requirements"],
+          },
+          impact: "La etapa no deberia avanzar hasta recuperar o aceptar una salida trazable.",
+          options: [],
+          reason: "El proveedor LLM o el esquema de respuesta no entrego una salida valida para la etapa.",
+          source: "runtime_operation",
+          source_ref: { artifact_id: "operation", entity_id: "run-1", field_path: "runtime_issue" },
+          stage: "define",
+          suggested_answer: "Reintentar generacion con el mismo contexto aprobado.",
+          title: "No se pudo generar Definir automaticamente",
+          type: "runtime_error",
+        })}
+        onResolveItem={onResolveItem}
+      />,
+    );
+
+    expect(screen.getByText("Que paso")).toBeInTheDocument();
+    expect(screen.getByText("Mensaje tecnico saneado")).toBeInTheDocument();
+    expect(screen.getByText(/needs_review_on_provider_or_schema_failure/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Respuesta o criterio de cierre")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar recuperacion" }));
+
+    await waitFor(() => expect(receivedCall).not.toBeNull());
+    expect(receivedCall?.[1]).toMatchObject({
+      action_kind: "retry",
+      answer_text: undefined,
+    });
+  });
+
   it("shows an operational empty state that is not an upsell", () => {
-    render(
+    renderWithLanguage(
       <AttentionContextRail
         activeRoute={createRoute([])}
         currentStage="design"

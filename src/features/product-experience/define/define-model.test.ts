@@ -22,6 +22,25 @@ describe("Define model UXA8", () => {
     expect(viewModel.sections.find((section) => section.key === "requirements")?.count).toBe(1);
   });
 
+  it("keeps basic Blueprint questions as traceability instead of task actions", () => {
+    const route = createDefineRouteFixture();
+    const viewModel = buildDefineViewModel(route);
+
+    expect(viewModel.traceableOpenQuestions).toHaveLength(1);
+    expect(viewModel.actionableOpenQuestions).toEqual([]);
+    expect(viewModel.sections.find((section) => section.key === "questions")?.count).toBe(0);
+  });
+
+  it("surfaces unresolved Define questions as task actions for Premium", () => {
+    const route = createDefineRouteFixture();
+    route.snapshot.data!.session.commercial_tier = "blueprint_pro";
+    const viewModel = buildDefineViewModel(route);
+
+    expect(viewModel.traceableOpenQuestions).toHaveLength(1);
+    expect(viewModel.actionableOpenQuestions).toHaveLength(1);
+    expect(viewModel.sections.find((section) => section.key === "questions")?.count).toBe(1);
+  });
+
   it("marks Define stale when the approved Discover artifact is stale", () => {
     const route = createDefineRouteFixture({
       discoverArtifact: createDiscoverArtifactFixture({
@@ -54,6 +73,47 @@ describe("Define model UXA8", () => {
 
     const resolved = setOpenQuestionStatus(definition, "Q-BLOCK", "accepted");
     expect(deriveDefinitionValidation(resolved).blocking_open_questions).toEqual([]);
+  });
+
+  it("allows Basic Blueprint approval while deferring Define quality blockers", () => {
+    const issues = ["untraced_item:NFR-01", "vague_nfr:NFR-02"];
+    const definition = createDefinitionArtifactPayload();
+    definition.validation = {
+      ...definition.validation,
+      blocking_issues: issues,
+    };
+    const route = createDefineRouteFixture({
+      defineArtifact: createDefineArtifactFixture({
+        proposal_payload: definition as unknown as Record<string, unknown>,
+      }),
+    });
+
+    const viewModel = buildDefineViewModel(route);
+
+    expect(viewModel.canApprove).toBe(true);
+    expect(viewModel.approvalBlockingIssues).toEqual([]);
+    expect(viewModel.deferredQualityIssues).toEqual(issues);
+  });
+
+  it("keeps Premium Define approval strict for quality blockers", () => {
+    const issues = ["untraced_item:NFR-01", "vague_nfr:NFR-02"];
+    const definition = createDefinitionArtifactPayload();
+    definition.validation = {
+      ...definition.validation,
+      blocking_issues: issues,
+    };
+    const route = createDefineRouteFixture({
+      defineArtifact: createDefineArtifactFixture({
+        proposal_payload: definition as unknown as Record<string, unknown>,
+      }),
+    });
+    route.snapshot.data!.session.commercial_tier = "blueprint_pro";
+
+    const viewModel = buildDefineViewModel(route);
+
+    expect(viewModel.canApprove).toBe(false);
+    expect(viewModel.approvalBlockingIssues).toEqual(issues);
+    expect(viewModel.deferredQualityIssues).toEqual([]);
   });
 
   it("keeps approved Define ready to enable Design", () => {

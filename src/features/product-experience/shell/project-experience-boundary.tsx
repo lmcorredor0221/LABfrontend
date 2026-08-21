@@ -42,6 +42,7 @@ function ProductExperienceEnabledGate({
     discoverAction,
     discoverActions,
     loadError,
+    operationControls,
     reload,
     resolveAttentionItem,
     stageAction,
@@ -84,8 +85,10 @@ function ProductExperienceEnabledGate({
       activeRoute={activeRoute}
       activeStage={effectiveStage}
       attentionAction={attentionAction}
+      onCancelOperation={(operationId) => void operationControls.cancelOperation(operationId)}
       onResolveAttentionItem={resolveAttentionItem}
       onReload={() => void reload()}
+      onRetryOperation={(operationId) => void operationControls.retryOperation(operationId)}
       operationAction={operationAction}
       sessionId={sessionId}
     >
@@ -136,13 +139,21 @@ function ProductExperienceEnabledGate({
           activeRoute={activeRoute}
         />
       ) : stage === "estimate" ? (
-        <EstimateStageView activeRoute={activeRoute} />
+        <EstimateStageView
+          actionState={stageAction}
+          actions={stageActions}
+          activeRoute={activeRoute}
+        />
       ) : stage === "validate" ? (
         <ValidateStageView activeRoute={activeRoute} />
       ) : stage === "package" ? (
         <PackageStageView activeRoute={activeRoute} />
       ) : (
-        <EstimateStageView activeRoute={activeRoute} />
+        <EstimateStageView
+          actionState={stageAction}
+          actions={stageActions}
+          activeRoute={activeRoute}
+        />
       )}
     </ProjectWorkspaceShell>
   );

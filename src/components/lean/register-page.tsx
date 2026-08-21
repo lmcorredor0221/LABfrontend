@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -25,6 +25,8 @@ import {
 } from "@/components/lean/ui";
 import { apiClient } from "@/core/api";
 import { useAuth } from "@/core/auth/auth-context";
+import { clearLegacyStoredToken, setStoredToken } from "@/core/auth/token-store";
+import type { LoginResponse } from "@/core/auth/types";
 import { LanguageSelector } from "@/components/lean/language-selector";
 import { useLanguage } from "@/core/i18n/language-context";
 import { HOME_ROUTE, LOGIN_ROUTE } from "@/core/routing/routes";
@@ -43,6 +45,10 @@ export function RegisterPage() {
   const router = useRouter();
   const auth = useAuth();
   const { language, t } = useLanguage();
+  const passwordInputId = "register-password";
+  const passwordRequirementsId = "register-password-requirements";
+  const confirmPasswordInputId = "register-confirm-password";
+  const confirmPasswordErrorId = "register-confirm-password-error";
 
   const [form, setForm] = useState({
     fullName: "",
@@ -63,6 +69,7 @@ export function RegisterPage() {
   const [activeModal, setActiveModal] = useState<LegalModalType>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitInFlightRef = useRef(false);
 
   const criteria: PasswordCriteria = {
     minLength: form.password.length >= 8,
@@ -89,6 +96,16 @@ export function RegisterPage() {
 
   const localize = (en: string, es: string, pt: string) =>
     language === "en" ? en : language === "pt" ? pt : es;
+
+  useEffect(() => {
+    if (auth.status === "authenticated") {
+      const redirectParam =
+        typeof window !== "undefined"
+          ? new URLSearchParams(window.location.search).get("redirect")
+          : null;
+      router.replace(redirectParam || "/projects");
+    }
+  }, [auth.status, router]);
 
   const registerHighlights = [
     {
@@ -139,13 +156,16 @@ export function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (submitInFlightRef.current || !canSubmit) return;
 
+    submitInFlightRef.current = true;
     setSubmitting(true);
     setError(null);
 
+    let shouldClearAuthOnFailure = false;
+
     try {
-      const response = await apiClient.post<{ access_token: string }>(
+      const response = await apiClient.post<LoginResponse>(
         "/api/v1/auth/register",
         {
           body: {
@@ -165,15 +185,56 @@ export function RegisterPage() {
         },
       );
 
-      if (response && response.access_token) {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("antigravity_auth_token", response.access_token);
-        }
-        await auth.hydrate({ force: true });
-        router.replace(HOME_ROUTE);
+      if (!response?.access_token) {
+        throw new Error(
+          localize(
+            "The registration was created, but the backend did not return an access token. Please log in with your new account.",
+            "El registro fue creado, pero el backend no devolvio un token de acceso. Inicia sesion con tu nueva cuenta.",
+            "O cadastro foi criado, mas o backend nao retornou um token de acesso. Inicie sessao com sua nova conta.",
+          ),
+        );
       }
+
+      const tokenPersisted = setStoredToken(response.access_token);
+      if (!tokenPersisted) {
+        throw new Error(
+          localize(
+            "Your account was created, but the browser blocked local session storage. Enable storage for this site and log in again.",
+            "Tu cuenta fue creada, pero el navegador bloqueo el almacenamiento local de la sesion. Habilita el almacenamiento para este sitio e inicia sesion de nuevo.",
+            "Sua conta foi criada, mas o navegador bloqueou o armazenamento local da sessao. Habilite o armazenamento deste site e inicie sessao novamente.",
+          ),
+        );
+      }
+
+      clearLegacyStoredToken();
+      shouldClearAuthOnFailure = true;
+      const hydratedState = await auth.hydrate({
+        force: true,
+        redirectOnUnauthorized: false,
+      });
+
+      if (hydratedState.status === "authenticated" && hydratedState.user) {
+        const redirectParam =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("redirect")
+            : null;
+        router.replace(redirectParam || "/projects");
+        return;
+      }
+
+      throw new Error(
+        localize(
+          "We created your account, but could not validate the new session. Please log in with your credentials.",
+          "Creamos tu cuenta, pero no pudimos validar la nueva sesion. Inicia sesion con tus credenciales.",
+          "Criamos sua conta, mas nao conseguimos validar a nova sessao. Inicie sessao com suas credenciais.",
+        ),
+      );
     } catch (err: unknown) {
+      if (shouldClearAuthOnFailure) {
+        auth.clear();
+      }
       setSubmitting(false);
+      submitInFlightRef.current = false;
       if (err && typeof err === "object" && "message" in err) {
         setError(String((err as { message: string }).message));
       } else {
@@ -190,12 +251,12 @@ export function RegisterPage() {
 
   return (
     <div
-      className="auth-viewport min-h-[100dvh] bg-[#07152c] p-2.5 sm:p-3 lg:p-4"
+      className="auth-viewport min-h-[100dvh] overflow-y-auto bg-[#07152c] p-2.5 sm:p-3 lg:p-4"
       data-auth-build="auth-compact-20"
       data-auth-density="compact-20"
       data-auth-surface="register"
     >
-      <div className="auth-shell mx-auto grid min-h-[calc(100dvh-20px)] max-w-[1500px] overflow-hidden rounded-[26px] border border-white/15 bg-white lg:h-[calc(100dvh-32px)] lg:min-h-0 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)]">
+      <div className="auth-shell mx-auto grid min-h-[calc(100dvh-20px)] max-w-[1500px] overflow-hidden rounded-[26px] border border-white/15 bg-white lg:min-h-[calc(100dvh-32px)] lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)]">
         {/* Left Sidebar */}
         <section className="auth-marketing-shell auth-marketing-shell-register sidebar-sheen surface-noise relative order-2 px-5 py-6 text-white sm:px-7 sm:py-7 lg:order-1 lg:overflow-hidden lg:px-7 lg:py-8">
           <div className="relative z-10 flex h-full flex-col">
@@ -369,11 +430,16 @@ export function RegisterPage() {
 
                 {/* Password Field */}
                 <div className="space-y-1.5">
-                  <label className="block text-[12px] font-medium text-[var(--text-primary)]">
+                  <label
+                    className="block text-[12px] font-medium text-[var(--text-primary)]"
+                    htmlFor={passwordInputId}
+                  >
                     {t("register.password")}
                   </label>
                   <div className="relative">
                     <input
+                      aria-describedby={form.password ? passwordRequirementsId : undefined}
+                      id={passwordInputId}
                       type={showPassword ? "text" : "password"}
                       value={form.password}
                       onChange={(e) => updateField("password", e.target.value)}
@@ -386,6 +452,20 @@ export function RegisterPage() {
                       className="auth-inline-input h-10 w-full rounded-[9px] border border-[var(--border-default)] bg-white px-3.5 py-2 pr-10 text-[13px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
                     />
                     <button
+                      aria-label={
+                        showPassword
+                          ? localize(
+                              "Hide password",
+                              "Ocultar contrasena",
+                              "Ocultar senha",
+                            )
+                          : localize(
+                              "Show password",
+                              "Mostrar contrasena",
+                              "Mostrar senha",
+                            )
+                      }
+                      aria-pressed={showPassword}
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
                       className="absolute right-3 top-2.5 text-[var(--text-muted)] hover:text-black"
@@ -439,7 +519,10 @@ export function RegisterPage() {
                       </div>
 
                       {/* Criteria checklist */}
-                      <div className="grid grid-cols-2 gap-1 pt-0.5 text-[10px]">
+                      <div
+                        className="grid grid-cols-2 gap-1 pt-0.5 text-[10px]"
+                        id={passwordRequirementsId}
+                      >
                         <span
                           className={`flex items-center gap-1.5 ${criteria.minLength ? "text-[#16a34a]" : "text-[var(--text-muted)]"}`}
                         >
@@ -497,10 +580,22 @@ export function RegisterPage() {
 
                 {/* Confirm Password */}
                 <div className="space-y-1">
-                  <label className="block text-[12px] font-medium text-[var(--text-primary)]">
+                  <label
+                    className="block text-[12px] font-medium text-[var(--text-primary)]"
+                    htmlFor={confirmPasswordInputId}
+                  >
                     {t("register.confirmPassword")}
                   </label>
                   <input
+                    aria-describedby={
+                      form.confirmPassword && !passwordsMatch
+                        ? confirmPasswordErrorId
+                        : undefined
+                    }
+                    aria-invalid={
+                      form.confirmPassword && !passwordsMatch ? true : undefined
+                    }
+                    id={confirmPasswordInputId}
                     type={showPassword ? "text" : "password"}
                     value={form.confirmPassword}
                     onChange={(e) =>
@@ -511,7 +606,10 @@ export function RegisterPage() {
                     className="auth-inline-input h-10 w-full rounded-[9px] border border-[var(--border-default)] bg-white px-3.5 py-2 text-[13px] text-[var(--text-primary)] outline-none transition focus:border-[var(--brand-primary)]"
                   />
                   {form.confirmPassword && !passwordsMatch ? (
-                    <p className="text-[11px] text-red-600">
+                    <p
+                      className="text-[11px] text-red-600"
+                      id={confirmPasswordErrorId}
+                    >
                       {localize(
                         "Passwords do not match.",
                         "Las contraseñas no coinciden.",
@@ -649,7 +747,11 @@ export function RegisterPage() {
                   </label>
                 </div>
 
-                {error ? <InlineFieldError>{error}</InlineFieldError> : null}
+                {error ? (
+                  <InlineFieldError aria-live="assertive" role="alert">
+                    {error}
+                  </InlineFieldError>
+                ) : null}
 
                 <AppButton
                   variant="primary"

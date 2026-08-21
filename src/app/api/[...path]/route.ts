@@ -67,6 +67,14 @@ async function proxyRequest(
     HOP_BY_HOP_HEADERS.forEach((header) => responseHeaders.delete(header));
     responseHeaders.set("x-lean-builder-proxy", "next-api");
 
+    if (response.status === 204 || response.status === 205) {
+      return new Response(null, {
+        headers: responseHeaders,
+        status: response.status,
+        statusText: response.statusText,
+      });
+    }
+
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
     if (contentType.includes("application/json")) {
       const payload = await response.arrayBuffer();

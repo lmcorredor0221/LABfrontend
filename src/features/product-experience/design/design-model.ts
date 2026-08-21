@@ -6,6 +6,7 @@ import type {
   DesignRequirementCoverageEntry,
   JourneyStageArtifactEntry,
 } from "@/features/sessions/session-contracts";
+import type { CommercialTier } from "@/features/sessions/types";
 
 export type DesignSection = "alternatives" | "fit" | "coverage" | "critique" | "architecture";
 
@@ -33,9 +34,13 @@ export type DesignReadinessItem = {
 };
 
 export type DesignViewModel = {
+  approvalBlockingIssues: string[];
   canApprove: boolean;
   canGenerate: boolean;
+  commercialTier: CommercialTier;
+  deferredIssueCount: number;
   design: DesignRecommendationArtifact | null;
+  maturityScore: number;
   latestDefineArtifact: JourneyStageArtifactEntry | null;
   latestDesignArtifact: JourneyStageArtifactEntry | null;
   openIssueCount: number;
@@ -48,6 +53,15 @@ export type DesignViewModel = {
   snapshotUpdatedAt: string | null;
   status: DesignStageStatus;
   warnings: string[];
+  warningItems: DesignWarningItem[];
+};
+
+export type DesignWarningItem = {
+  impact: string;
+  recovery: string;
+  summary: string;
+  technicalMessage: string;
+  title: string;
 };
 
 export const DESIGN_SECTIONS: Array<Omit<DesignSectionDefinition, "count">> = [
@@ -96,6 +110,184 @@ function hasStaleness(artifact?: JourneyStageArtifactEntry | null) {
 
 function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+export function normalizePercentScore(value?: number | null): number {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.round(clamp(numeric <= 1 ? numeric * 100 : numeric, 0, 100));
+}
+
+function priorityWeight(priority?: string | null): number {
+  switch (String(priority ?? "").toLowerCase()) {
+    case "critical":
+      return 1.45;
+    case "high":
+      return 1.25;
+    case "low":
+      return 0.75;
+    default:
+      return 1;
+  }
+}
+
+function coverageWeight(status?: string | null): number {
+  switch (String(status ?? "").toLowerCase()) {
+    case "covered":
+    case "done":
+    case "accepted":
+      return 1;
+    case "partial":
+    case "needs_review":
+      return 0.55;
+    case "not_covered":
+    case "uncovered":
+    case "missing":
+    case "blocked":
+      return 0;
+    default:
+      return 0.35;
+  }
+}
+
+export function calculateCoveragePercent(coverage: DesignRequirementCoverageEntry[]): number {
+  if (!coverage.length) {
+    return 0;
+  }
+
+  const totals = coverage.reduce(
+    (acc, entry) => {
+      const weight = priorityWeight(entry.priority);
+      acc.available += coverageWeight(entry.coverage_status) * weight;
+      acc.total += weight;
+      return acc;
+    },
+    { available: 0, total: 0 },
+  );
+  return normalizePercentScore(totals.total ? totals.available / totals.total : 0);
+}
+
+function average(values: number[]) {
+  const valid = values.filter((value) => Number.isFinite(value));
+  if (!valid.length) {
+    return 0;
+  }
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+export function calculateSelectedFitPercent(
+  design?: DesignRecommendationArtifact | null,
+  selectedAlternative?: DesignAlternative | null,
+): number {
+  if (!design || !selectedAlternative) {
+    return 0;
+  }
+
+  if (selectedAlternative.fit_score) {
+    return normalizePercentScore(selectedAlternative.fit_score);
+  }
+
+  const scores = asArray(design.fit_matrix)
+    .flatMap((entry) => asArray(entry.scores))
+    .filter((score) => score.alternative_key === selectedAlternative.alternative_key)
+    .map((score) => normalizePercentScore(score.score));
+  return normalizePercentScore(average(scores));
+}
+
+export function calculateDesignMaturityScore(params: {
+  approvalBlockingIssueCount: number;
+  commercialTier?: CommercialTier;
+  deferredIssueCount: number;
+  design?: DesignRecommendationArtifact | null;
+  selectedAlternative?: DesignAlternative | null;
+  status: DesignStageStatus;
+}): number {
+  const { approvalBlockingIssueCount, commercialTier = "blueprint", deferredIssueCount, design, selectedAlternative, status } = params;
+  if (!design) {
+    return status === "blocked" ? 0 : 20;
+  }
+
+  const coverage = deriveCoverageForAlternative(design, selectedAlternative?.alternative_key ?? design.recommended_alternative_key);
+  const coverageScore = calculateCoveragePercent(coverage);
+  const fitScore = calculateSelectedFitPercent(design, selectedAlternative);
+  const confidenceScore = normalizePercentScore(design.confidence?.overall);
+  const structureScore = average([
+    selectedAlternative ? 100 : 0,
+    asArray(design.alternatives).length ? 100 : 0,
+    asArray(design.fit_matrix).length ? 100 : 0,
+    coverage.length ? 100 : 0,
+  ]);
+  const warningFindingCount = asArray(design.critic_findings).filter((finding) => finding.severity !== "blocking").length;
+  const rawScore =
+    commercialTier === "blueprint"
+      ? (coverageScore * 0.44) + (fitScore * 0.3) + (structureScore * 0.2) + (confidenceScore * 0.06)
+      : (coverageScore * 0.36) + (fitScore * 0.24) + (confidenceScore * 0.22) + (structureScore * 0.18);
+  const deferredPenalty = commercialTier === "blueprint" ? 0 : Math.min(8, deferredIssueCount * 3);
+  const warningPenalty = commercialTier === "blueprint" ? Math.min(3, warningFindingCount) : Math.min(6, warningFindingCount * 2);
+  const penalty = Math.min(30, approvalBlockingIssueCount * 12) + deferredPenalty + warningPenalty;
+  return Math.round(clamp(rawScore - penalty, 0, 100));
+}
+
+function capabilityLabel(capability: string) {
+  switch (capability) {
+    case "propose_agent_design":
+      return "generar la propuesta de Disenar";
+    case "critique_agent_design":
+      return "evaluar la propuesta de Disenar";
+    case "define_requirements":
+    case "requirements_definition_skill":
+      return "generar Definir";
+    case "recommend_minimal_tools":
+      return "recomendar Herramientas";
+    case "recommend_memory_architecture":
+      return "generar Memoria";
+    default:
+      return capability.replaceAll("_", " ");
+  }
+}
+
+function extractCapabilityFromWarning(warning: string) {
+  const match = warning.match(/(?:ejecutar|para)\s+([a-z0-9_]+)/i);
+  return match?.[1]?.toLowerCase() ?? "";
+}
+
+function extractPolicyFromWarning(warning: string) {
+  return warning.match(/policy=([a-z0-9_]+)/i)?.[1] ?? "";
+}
+
+export function explainRuntimeWarning(warning: string): DesignWarningItem {
+  const technicalMessage = warning.trim();
+  const capability = extractCapabilityFromWarning(technicalMessage);
+  const policy = extractPolicyFromWarning(technicalMessage);
+  const target = capabilityLabel(capability);
+
+  if (/codex local/i.test(technicalMessage) && /no pudo ejecutar/i.test(technicalMessage)) {
+    return {
+      impact:
+        policy === "blocked_until_critique_or_user_review"
+          ? "La plataforma conserva una salida trazable y exige revision antes de promoverla."
+          : "La propuesta puede continuar, pero la revision automatica no alcanzo el nivel esperado.",
+      recovery:
+        "Si necesitas elevar confianza, reintenta la etapa o revisa la configuracion del proveedor Codex local.",
+      summary: `Codex local no completo ${target}. El sistema aplico la politica de recuperacion configurada y dejo evidencia para revision.`,
+      technicalMessage,
+      title: "Operacion LLM local con recuperacion",
+    };
+  }
+
+  return {
+    impact: "Puede afectar la confianza o trazabilidad de la etapa si no se revisa.",
+    recovery: "Revisa la evidencia tecnica o reintenta la etapa si el resultado no es suficiente.",
+    summary: technicalMessage,
+    technicalMessage,
+    title: "Advertencia de ejecucion",
+  };
 }
 
 export function parseDesignSection(value?: string | null): DesignSection {
@@ -183,10 +375,48 @@ export function deriveCoverageForAlternative(
   });
 }
 
-export function buildDesignReadiness(design?: DesignRecommendationArtifact | null): DesignReadinessItem[] {
+export function getDesignApprovalBlockingIssues(
+  design?: DesignRecommendationArtifact | null,
+  commercialTier: CommercialTier = "blueprint",
+): string[] {
+  if (!design || commercialTier === "blueprint") {
+    return [];
+  }
+
+  return [
+    ...asArray(design.open_questions).map((item) => `open_question:${item}`),
+    ...asArray(design.missing_information).map((item) => `missing_information:${item}`),
+    ...asArray(design.critic_findings)
+      .filter((finding) => finding.severity === "blocking")
+      .map((finding) => `blocking_finding:${finding.finding_key || finding.title}`),
+  ];
+}
+
+export function getDesignDeferredIssueCount(
+  design?: DesignRecommendationArtifact | null,
+  commercialTier: CommercialTier = "blueprint",
+): number {
+  if (!design || commercialTier !== "blueprint") {
+    return 0;
+  }
+
+  const blockingFindings = asArray(design.critic_findings).filter((finding) => finding.severity === "blocking").length;
+  return asArray(design.open_questions).length + asArray(design.missing_information).length + blockingFindings;
+}
+
+export function buildDesignReadiness(
+  design?: DesignRecommendationArtifact | null,
+  commercialTier: CommercialTier = "blueprint",
+): DesignReadinessItem[] {
   const selected = getSelectedAlternative(design);
   const openQuestions = asArray(design?.open_questions);
   const findings = asArray(design?.critic_findings);
+  const strictQuestions = commercialTier !== "blueprint" ? openQuestions : [];
+  const deferredQuestions = commercialTier === "blueprint" ? openQuestions : [];
+  const strictBlockingFindings =
+    commercialTier !== "blueprint" ? findings.filter((finding) => finding.severity === "blocking") : [];
+  const deferredBlockingFindings =
+    commercialTier === "blueprint" ? findings.filter((finding) => finding.severity === "blocking") : [];
   return [
     {
       key: "alternative",
@@ -200,15 +430,21 @@ export function buildDesignReadiness(design?: DesignRecommendationArtifact | nul
     },
     {
       key: "questions",
-      label: openQuestions.length ? "Preguntas abiertas para Atencion" : "Sin preguntas abiertas",
-      state: openQuestions.length ? "blocked" : "done",
+      label: strictQuestions.length
+        ? "Preguntas abiertas para Atencion"
+        : deferredQuestions.length
+          ? "Preguntas diferidas para Premium"
+          : "Sin preguntas abiertas",
+      state: strictQuestions.length ? "blocked" : deferredQuestions.length ? "pending" : "done",
     },
     {
       key: "findings",
-      label: findings.some((finding) => finding.severity === "blocking")
+      label: strictBlockingFindings.length
         ? "Findings bloqueantes"
+        : deferredBlockingFindings.length
+          ? "Findings diferidos para Premium"
         : "Findings sin bloqueo critico",
-      state: findings.some((finding) => finding.severity === "blocking") ? "blocked" : "done",
+      state: strictBlockingFindings.length ? "blocked" : deferredBlockingFindings.length ? "pending" : "done",
     },
   ];
 }
@@ -227,6 +463,7 @@ export function buildDesignViewModel(
   const latestDesignArtifact = snapshot?.journey_latest_artifacts?.design ?? null;
   const definition = parseDefinitionArtifact(latestDefineArtifact);
   const parsedDesign = parseDesignArtifact(latestDesignArtifact);
+  const commercialTier = snapshot?.session.commercial_tier ?? "blueprint";
   const defineApproved = isApprovedArtifact(latestDefineArtifact);
   const stale = hasStaleness(latestDefineArtifact) || hasStaleness(latestDesignArtifact);
   const design =
@@ -235,9 +472,20 @@ export function buildDesignViewModel(
       : null;
   const recommendedAlternative = getRecommendedAlternative(design);
   const selectedAlternative = getSelectedAlternative(design, options.selectedAlternativeKey);
-  const readiness = buildDesignReadiness(design);
-  const blockingFindingCount = asArray(design?.critic_findings).filter((finding) => finding.severity === "blocking").length;
-  const openIssueCount = asArray(design?.open_questions).length + blockingFindingCount + asArray(design?.missing_information).length;
+  const readiness = buildDesignReadiness(design, commercialTier);
+  const approvalBlockingIssues = getDesignApprovalBlockingIssues(design, commercialTier);
+  const deferredIssueCount = getDesignDeferredIssueCount(design, commercialTier);
+  const openIssueCount = approvalBlockingIssues.length;
+  const warnings = unique([
+    ...asArray(latestDesignArtifact?.warnings),
+    ...asArray(latestDesignArtifact?.stale_reasons),
+    ...asArray(latestDefineArtifact?.stale_reasons),
+  ]);
+  const stageOperation = activeRoute?.operation?.data?.stageOperation ?? null;
+  const isStageOperationActive =
+    stageOperation?.stage_key === "design" &&
+    (stageOperation.status === "queued" || stageOperation.status === "running");
+  const isProcessing = Boolean(options.processing || isStageOperationActive);
   const status: DesignStageStatus = (() => {
     if (!snapshotResource || snapshotResource.status === "idle" || snapshotResource.status === "loading") {
       return "loading";
@@ -247,7 +495,7 @@ export function buildDesignViewModel(
       return "error";
     }
 
-    if (options.processing) {
+    if (isProcessing) {
       return "processing";
     }
 
@@ -286,11 +534,22 @@ export function buildDesignViewModel(
   }));
 
   return {
-    canApprove: Boolean(latestDesignArtifact && design && selectedAlternative && status === "waiting_review" && openIssueCount === 0),
+    approvalBlockingIssues,
+    canApprove: Boolean(latestDesignArtifact && design && selectedAlternative && status === "waiting_review" && approvalBlockingIssues.length === 0),
     canGenerate: defineApproved && Boolean(definition) && status !== "processing",
+    commercialTier,
+    deferredIssueCount,
     design,
     latestDefineArtifact,
     latestDesignArtifact,
+    maturityScore: calculateDesignMaturityScore({
+      approvalBlockingIssueCount: approvalBlockingIssues.length,
+      commercialTier,
+      deferredIssueCount,
+      design,
+      selectedAlternative,
+      status,
+    }),
     openIssueCount,
     projectTitle: activeRoute?.operation.data?.overview?.project_title ?? snapshot?.session.title ?? "Proyecto LEAN",
     readiness,
@@ -300,10 +559,7 @@ export function buildDesignViewModel(
     sessionId: activeRoute?.route.sessionId ?? snapshot?.session.id ?? "",
     snapshotUpdatedAt: snapshot?.session.updated_at ?? null,
     status,
-    warnings: unique([
-      ...asArray(latestDesignArtifact?.warnings),
-      ...asArray(latestDesignArtifact?.stale_reasons),
-      ...asArray(latestDefineArtifact?.stale_reasons),
-    ]),
+    warnings,
+    warningItems: warnings.map(explainRuntimeWarning),
   };
 }

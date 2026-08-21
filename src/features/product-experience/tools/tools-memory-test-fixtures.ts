@@ -92,9 +92,31 @@ export function createToolRecommendationPayload(
           owner: "Knowledge Ops",
           outputs: ["document_chunks", "lineage"],
           purpose: "Ingerir documentos aprobados para retrieval.",
+          request_schema: {
+            type: "object",
+            properties: {
+              metadata: { type: "object", description: "Metadatos de owner, sensibilidad y version." },
+              source_uri: { type: "string", description: "URI del documento o repositorio aprobado." },
+            },
+            required: ["source_uri"],
+          },
+          response_schema: {
+            type: "object",
+            properties: {
+              document_chunks: { type: "array", description: "Chunks generados para retrieval." },
+              lineage: { type: "object", description: "Trazabilidad de la ingesta." },
+            },
+            required: ["document_chunks", "lineage"],
+          },
           requires_approval: false,
           retry_strategy: "retry_once",
           risk_level: "medium",
+          usage_examples: [
+            {
+              request: { metadata: { owner: "Knowledge Ops" }, source_uri: "kb://support/policies" },
+              response: { document_chunks: ["chunk-1"], lineage: { source_uri: "kb://support/policies" } },
+            },
+          ],
           validations: ["source_owner_required"],
         },
         decision_reason: "Necesaria si se habilita RAG con refresh gobernado.",
@@ -147,9 +169,33 @@ export function createToolRecommendationPayload(
           owner: "Support Knowledge",
           outputs: ["sources", "snippets", "confidence"],
           purpose: "Recuperar politicas aprobadas.",
+          request_schema: {
+            type: "object",
+            properties: {
+              filters: { type: "object", description: "Filtros por fuente aprobada, dominio o sensibilidad." },
+              query: { type: "string", description: "Pregunta o consulta del agente." },
+              top_k: { type: "integer", description: "Numero maximo de fragmentos a recuperar." },
+            },
+            required: ["query"],
+          },
+          response_schema: {
+            type: "object",
+            properties: {
+              confidence: { type: "number", description: "Confianza agregada de la recuperacion." },
+              snippets: { type: "array", description: "Fragmentos relevantes recuperados." },
+              sources: { type: "array", description: "Fuentes aprobadas usadas como evidencia." },
+            },
+            required: ["sources", "snippets"],
+          },
           requires_approval: false,
           retry_strategy: "query_expansion_once",
           risk_level: "low",
+          usage_examples: [
+            {
+              request: { filters: { approved: true }, query: "Politica de vacaciones", top_k: 3 },
+              response: { confidence: 0.91, snippets: ["El colaborador debe..."], sources: ["policy-vacations-v2"] },
+            },
+          ],
           validations: ["citation_required"],
         },
         decision_reason: "Obligatoria para respuestas trazables.",
@@ -477,6 +523,7 @@ export function createToolsRouteFixture({
           active_stage: stage,
           lean_progress_percent: stage === "tools" ? 50 : 63,
         },
+        stageOperation: operation.stageOperation,
       },
     },
     route: {

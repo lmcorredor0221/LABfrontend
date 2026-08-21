@@ -35,6 +35,15 @@ const DICTIONARIES: Record<SupportedLanguage, Record<TranslationKey, string>> = 
 
 const LanguageContext = createContext<LanguageContextType | null>(null);
 
+function getStorage(): Storage | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const storage = window.localStorage;
+  return typeof storage?.getItem === "function" && typeof storage?.setItem === "function" ? storage : null;
+}
+
 export function getDictionary(language: SupportedLanguage): Record<TranslationKey, string> {
   return DICTIONARIES[language] || DICTIONARIES.es;
 }
@@ -53,7 +62,7 @@ function readStoredLanguage(): SupportedLanguage | null {
     return null;
   }
 
-  const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY) as SupportedLanguage | null;
+  const savedLanguage = getStorage()?.getItem(LANGUAGE_STORAGE_KEY) as SupportedLanguage | null;
   if (isSupportedLanguage(savedLanguage)) {
     return savedLanguage;
   }
@@ -92,7 +101,7 @@ export function LanguageProvider({
     }
 
     document.documentElement.lang = language;
-    localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    getStorage()?.setItem(LANGUAGE_STORAGE_KEY, language);
     document.cookie = `${LANGUAGE_COOKIE_NAME}=${language}; path=/; max-age=31536000; samesite=lax`;
   }, [isLanguageBootstrapped, language]);
 
@@ -103,9 +112,10 @@ export function LanguageProvider({
       return;
     }
 
-    localStorage.setItem(LANGUAGE_STORAGE_KEY, newLanguage);
+    const storage = getStorage();
+    storage?.setItem(LANGUAGE_STORAGE_KEY, newLanguage);
     document.cookie = `${LANGUAGE_COOKIE_NAME}=${newLanguage}; path=/; max-age=31536000; samesite=lax`;
-    const token = localStorage.getItem("lean-builder.auth-token") || localStorage.getItem("antigravity_auth_token");
+    const token = storage?.getItem("lean-builder.auth-token") || storage?.getItem("antigravity_auth_token");
     if (!token) {
       return;
     }
@@ -140,7 +150,13 @@ export function LanguageProvider({
 export function useLanguage(): LanguageContextType {
   const context = useContext(LanguageContext);
   if (!context) {
-    throw new Error("useLanguage must be used within a LanguageProvider");
+    return {
+      language: "es",
+      languages: SUPPORTED_LANGUAGES,
+      setLanguage: () => {},
+      t: (key: any, fallback?: string) => fallback ?? String(key),
+    };
   }
   return context;
 }
+

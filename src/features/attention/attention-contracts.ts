@@ -47,12 +47,25 @@ export type AttentionActionV2 = {
   can_resolve_inline: boolean;
 };
 
+export type AttentionDiagnosticsV2 = {
+  summary?: string;
+  technical_message?: string;
+  error_kind?: string;
+  capability?: string;
+  capability_label?: string;
+  operation_id?: string;
+  retry_policy?: string;
+  repair_hint?: string;
+  trace_refs?: string[];
+};
+
 export type AttentionItemV2 = {
   affected_artifact_refs: string[];
   action: AttentionActionV2;
   blocking: boolean;
   consequence_if_unresolved: string;
   detected_at?: string | null;
+  diagnostics?: AttentionDiagnosticsV2 | null;
   impact: string;
   key: string;
   options: AttentionOptionV2[];
@@ -66,6 +79,8 @@ export type AttentionItemV2 = {
   stage: string;
   status: AttentionStatusV2;
   suggested_answer: string;
+  unblocks?: string;
+  resume_action?: string;
   title: string;
   type: AttentionItemTypeV2;
   updated_at?: string | null;

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
   ArrowRight,
+  ChevronDown,
   CheckCircle2,
   HelpCircle,
   Loader2,
@@ -22,7 +23,11 @@ import {
   type UxaTone,
 } from "@/features/product-experience/design-system";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
-import { LeanStageScreen, type LeanStageScreenContract } from "@/features/product-experience/stage-screen";
+import {
+  LeanGeneratedDeliverable,
+  LeanStageScreen,
+  type LeanStageScreenContract,
+} from "@/features/product-experience/stage-screen";
 import {
   buildMemoryViewModel,
   parseMemoryArtifact,
@@ -97,6 +102,20 @@ function isSubmitting(actionState?: ProductStageActionState, localAction?: Local
   return actionState?.status === "submitting" || localAction?.status === "submitting";
 }
 
+function hasActiveServerOperation(
+  activeRoute: ProductExperienceRouteSnapshot | null,
+  stageKey: string,
+  actions: string[],
+) {
+  const operation = activeRoute?.operation.data?.stageOperation ?? null;
+  return Boolean(
+    operation &&
+      operation.stage_key === stageKey &&
+      actions.includes(operation.action) &&
+      ["queued", "running", "waiting_for_user"].includes(operation.status),
+  );
+}
+
 function payload(memory: MemoryRecommendationArtifact): Record<string, unknown> {
   return memory as unknown as Record<string, unknown>;
 }
@@ -145,32 +164,79 @@ function Blockers({
   sessionId: string;
 }) {
   const { language } = useLanguage();
+  const hasBlocking = blockers.some((item) => item.severity === "blocking");
+  const hasWarnings = blockers.length > 0;
+  if (!hasWarnings) {
+    return null;
+  }
+  const title = hasBlocking
+    ? byLanguage(language, { en: "Approval control", es: "Control de aprobacion", pt: "Controle de aprovacao" })
+    : hasWarnings
+      ? byLanguage(language, { en: "Deferred observations", es: "Observaciones diferidas", pt: "Observacoes diferidas" })
+      : byLanguage(language, { en: "Approval control", es: "Control de aprobacion", pt: "Controle de aprovacao" });
+  const description = hasBlocking
+    ? byLanguage(language, { en: "Resolve these issues before approving Memory.", es: "Resuelve estos asuntos antes de aprobar Memoria.", pt: "Resolva estes assuntos antes de aprovar Memoria." })
+    : hasWarnings
+      ? byLanguage(language, {
+          en: "These quality findings remain documented for Blueprint Pro or ACP, but they do not block Basic Blueprint approval.",
+          es: "Estos hallazgos de calidad quedan documentados para Blueprint Pro o ACP, pero no bloquean la aprobacion del Blueprint Basico.",
+          pt: "Estes achados de qualidade ficam documentados para Blueprint Pro ou ACP, mas nao bloqueiam a aprovacao do Blueprint Basico.",
+        })
+      : byLanguage(language, { en: "The proposal has no critical blockers.", es: "La propuesta no tiene bloqueos criticos.", pt: "A proposta nao tem bloqueios criticos." });
   return (
-    <UxaSurface className={cn("p-4", blockers.some((item) => item.severity === "blocking") ? "border-[var(--uxa-state-danger)]" : "")}>
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] text-[var(--uxa-color-brand)]">
-          {blockers.length ? <ShieldAlert aria-hidden="true" className="h-5 w-5" /> : <CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
-        </span>
-        <div>
-          <p className="text-[13px] font-black">{byLanguage(language, { en: "Approval control", es: "Control de aprobacion", pt: "Controle de aprovacao" })}</p>
-          <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-            {blockers.length
-              ? byLanguage(language, { en: "Resolve these issues before approving Memory.", es: "Resuelve estos asuntos antes de aprobar Memoria.", pt: "Resolva estes assuntos antes de aprovar Memoria." })
-              : byLanguage(language, { en: "The proposal has no critical blockers.", es: "La propuesta no tiene bloqueos criticos.", pt: "A proposta nao tem bloqueios criticos." })}
-          </p>
+    <details
+      className={cn(
+        "group rounded-[var(--uxa-radius-xl)] border bg-white",
+        hasBlocking ? "border-[var(--uxa-state-danger)]" : "border-[var(--uxa-state-warning)]",
+      )}
+      open={hasBlocking}
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] text-[var(--uxa-color-brand)]">
+            {hasBlocking ? <ShieldAlert aria-hidden="true" className="h-5 w-5" /> : <CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
+          </span>
+          <div>
+            <p className="text-[13px] font-black">{title}</p>
+            <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {hasBlocking
+                ? description
+                : byLanguage(language, {
+                    en: `${blockers.length} deferred finding(s). Expand only if you want to review traceability.`,
+                    es: `${blockers.length} hallazgo(s) diferido(s). Expande solo si quieres revisar la trazabilidad.`,
+                    pt: `${blockers.length} achado(s) diferido(s). Expanda apenas se quiser revisar a rastreabilidade.`,
+                  })}
+            </p>
+          </div>
         </div>
+        <ChevronDown aria-hidden="true" className="h-5 w-5 shrink-0 text-[var(--uxa-color-ink-muted)] transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-[var(--uxa-color-border)] px-4 pb-4 pt-3">
+        <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+          {description}
+        </p>
       </div>
-      <div className="mt-4 space-y-2">
+      <div className="space-y-2 px-4 pb-4">
         {blockers.map((blocker) => (
-          <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px]" key={blocker.key}>
-            <span className="font-black">{blocker.title}: </span>{blocker.detail}
+          <p
+            className={cn(
+              "rounded-[var(--uxa-radius-lg)] p-3 text-[12px]",
+              blocker.severity === "blocking"
+                ? "bg-[var(--uxa-state-danger-bg)]"
+                : "bg-[var(--uxa-state-warning-bg)]",
+            )}
+            key={blocker.key}
+          >
+            <span className="font-black">{blocker.severity === "blocking" ? blocker.title : `${blocker.title} (diferido)`}: </span>{blocker.detail}
           </p>
         ))}
       </div>
-      <Link className="mt-4 inline-flex text-[12px] font-black text-[var(--uxa-color-brand)]" href={getProductExperienceProductHref(sessionId, "attention")}>
-        {byLanguage(language, { en: "Open Attention Segment", es: "Abrir Segmento de Atencion", pt: "Abrir Segmento de Atencao" })} <ArrowRight aria-hidden="true" className="ml-1 h-4 w-4" />
-      </Link>
-    </UxaSurface>
+      <div className="px-4 pb-4">
+        <Link className="inline-flex text-[12px] font-black text-[var(--uxa-color-brand)]" href={getProductExperienceProductHref(sessionId, "attention")}>
+          {byLanguage(language, { en: "Open Attention Segment", es: "Abrir Segmento de Atencion", pt: "Abrir Segmento de Atencao" })} <ArrowRight aria-hidden="true" className="ml-1 h-4 w-4" />
+        </Link>
+      </div>
+    </details>
   );
 }
 
@@ -242,6 +308,81 @@ function Knowledge({ memory }: { memory: MemoryRecommendationArtifact }) {
         ))}
       </div>
     </div>
+  );
+}
+
+function MemoryDeliverable({
+  blockerCount,
+  memory,
+}: {
+  blockerCount: number;
+  memory: MemoryRecommendationArtifact;
+}) {
+  const { language } = useLanguage();
+  const confidence = Math.round(memory.confidence.overall * 100);
+  const requiredDependencies = memory.tool_dependencies.filter((dependency) => dependency.required);
+
+  return (
+    <LeanGeneratedDeliverable
+      badge={{
+        label: byLanguage(language, { en: "Knowledge strategy", es: "Estrategia de conocimiento", pt: "Estrategia de conhecimento" }),
+        tone: blockerCount ? "warning" : "success",
+      }}
+      metrics={[
+        {
+          helper: memory.memory_need_decision.mode,
+          label: byLanguage(language, { en: "Memory need", es: "Necesidad de memoria", pt: "Necessidade de memoria" }),
+          tone: memory.memory_need_decision.required ? "success" : "neutral",
+          value: memory.memory_need_decision.required
+            ? byLanguage(language, { en: "Required", es: "Requerida", pt: "Obrigatoria" })
+            : byLanguage(language, { en: "Optional", es: "Opcional", pt: "Opcional" }),
+        },
+        {
+          helper: memory.knowledge_design.source_scope,
+          label: byLanguage(language, { en: "RAG", es: "RAG", pt: "RAG" }),
+          tone: memory.knowledge_design.rag_required ? "success" : "neutral",
+          value: memory.knowledge_design.rag_required
+            ? byLanguage(language, { en: "Required", es: "Requerido", pt: "Obrigatorio" })
+            : byLanguage(language, { en: "Not required", es: "No requerido", pt: "Nao obrigatorio" }),
+        },
+        {
+          helper: memory.confidence.band,
+          label: byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
+          tone: confidence >= 70 ? "success" : "warning",
+          value: `${confidence}%`,
+        },
+        {
+          helper: byLanguage(language, { en: "Required tool dependencies.", es: "Dependencias de herramientas requeridas.", pt: "Dependencias de ferramentas obrigatorias." }),
+          label: byLanguage(language, { en: "Dependencies", es: "Dependencias", pt: "Dependencias" }),
+          tone: requiredDependencies.length ? "info" : "neutral",
+          value: requiredDependencies.length,
+        },
+      ]}
+      nextUse={byLanguage(language, {
+        en: "Estimate and Blueprint visualization will use this strategy to explain context budget, source governance, RAG scope, and operational memory risk.",
+        es: "Estimar y la visualizacion del Blueprint usaran esta estrategia para explicar presupuesto de contexto, gobierno de fuentes, alcance RAG y riesgo operativo de memoria.",
+        pt: "Estimativa e visualizacao do Blueprint usarao esta estrategia para explicar orcamento de contexto, governanca de fontes, escopo RAG e risco operacional de memoria.",
+      })}
+      sections={[
+        {
+          items: [memory.short_term_design.summary, memory.working_memory_design.summary, memory.long_term_design.summary],
+          title: byLanguage(language, { en: "Memory layers", es: "Capas de memoria", pt: "Camadas de memoria" }),
+        },
+        {
+          items: [memory.knowledge_design.summary, ...memory.knowledge_design.notes],
+          title: byLanguage(language, { en: "Knowledge and RAG", es: "Conocimiento y RAG", pt: "Conhecimento e RAG" }),
+        },
+        {
+          items: [
+            memory.dry_compile_status.summary,
+            ...requiredDependencies.map((dependency) => `${dependency.tool_key}: ${dependency.reason}`),
+          ],
+          title: byLanguage(language, { en: "Operational readiness", es: "Preparacion operativa", pt: "Preparacao operacional" }),
+        },
+      ]}
+      summary={memory.summary}
+      title={byLanguage(language, { en: "Memory deliverable", es: "Entrega de Memoria", pt: "Entrega de Memoria" })}
+    />
   );
 }
 
@@ -325,7 +466,9 @@ export function MemoryStageView({ actionState, activeRoute, actions }: MemorySta
   const draftMemory = draftState.signature === artifactSignature ? draftState.memory : parsedMemory;
   const [instructions, setInstructions] = useState("");
   const [localAction, setLocalAction] = useState<LocalActionState>({ status: "idle" });
-  const processing = isSubmitting(actionState, localAction);
+  const processing =
+    isSubmitting(actionState, localAction) ||
+    hasActiveServerOperation(activeRoute, "memory", ["recommend_memory"]);
   const viewModel = useMemo(
     () => buildMemoryViewModel(activeRoute, { draftMemory, processing }),
     [activeRoute, draftMemory, processing],
@@ -352,17 +495,20 @@ export function MemoryStageView({ actionState, activeRoute, actions }: MemorySta
         ),
         status: "error",
       });
-      throw error;
     }
   }
 
   async function handleGenerate() {
+    if (!actions || processing) {
+      return;
+    }
+
     await runLocal(copy(
-      "Generating Memory strategy with the backend.",
-      "Generando estrategia de Memoria con backend.",
-      "Gerando estrategia de Memoria com o backend.",
+      "Generating memory strategy with the backend.",
+      "Generando estrategia de memoria con backend.",
+      "Gerando estrategia de memoria com o backend.",
     ), async () => {
-      await actions?.recommendMemory({ instructions: instructions.trim() || undefined });
+      await actions.recommendMemory({ instructions: instructions.trim() || undefined });
     });
   }
 
@@ -422,13 +568,15 @@ export function MemoryStageView({ actionState, activeRoute, actions }: MemorySta
   const blockingCount = viewModel.blockers.filter((blocker) => blocker.severity === "blocking").length;
   const progress = viewModel.status === "approved" ? 100 : viewModel.status === "waiting_review" ? 78 : viewModel.status === "empty" ? 48 : viewModel.status === "blocked" ? 34 : 58;
   const primaryLabel =
-    viewModel.status === "approved"
-      ? byLanguage(language, { en: "Continue to Estimate", es: "Continuar a Estimar", pt: "Continuar para Estimar" })
-      : viewModel.memory
-        ? byLanguage(language, { en: "Approve Memory", es: "Aprobar Memoria", pt: "Aprovar Memoria" })
-        : viewModel.status === "blocked"
-          ? byLanguage(language, { en: "Back to Tools", es: "Volver a Herramientas", pt: "Voltar para Ferramentas" })
-          : byLanguage(language, { en: "Generate Memory", es: "Generar Memoria", pt: "Gerar Memoria" });
+    viewModel.status === "processing"
+      ? byLanguage(language, { en: "Generating Memory...", es: "Generando Memoria...", pt: "Gerando Memoria..." })
+      : viewModel.status === "approved"
+        ? byLanguage(language, { en: "Continue to Estimate", es: "Continuar a Estimar", pt: "Continuar para Estimar" })
+        : viewModel.memory
+          ? byLanguage(language, { en: "Approve Memory", es: "Aprobar Memoria", pt: "Aprovar Memoria" })
+          : viewModel.status === "blocked"
+            ? byLanguage(language, { en: "Back to Tools", es: "Volver a Herramientas", pt: "Voltar para Ferramentas" })
+            : byLanguage(language, { en: "Generate Memory", es: "Generar Memoria", pt: "Gerar Memoria" });
   const primaryDescription =
     viewModel.status === "approved"
       ? byLanguage(language, { en: "The memory strategy is approved and ready for value and cost estimation.", es: "La estrategia de memoria esta aprobada y lista para estimar valor/costo.", pt: "A estrategia de memoria esta aprovada e pronta para estimar valor e custo." })
@@ -570,8 +718,8 @@ export function MemoryStageView({ actionState, activeRoute, actions }: MemorySta
           </UxaSurface>
         ) : viewModel.memory ? (
           <div className="space-y-4">
-            <Blockers blockers={viewModel.blockers} sessionId={viewModel.sessionId} />
             <Strategy memory={viewModel.memory} onChange={setDraftMemory} />
+            <Blockers blockers={viewModel.blockers} sessionId={viewModel.sessionId} />
           </div>
         ) : (
           <div className="space-y-4">
@@ -594,11 +742,12 @@ export function MemoryStageView({ actionState, activeRoute, actions }: MemorySta
       },
       {
         badge: viewModel.memory?.knowledge_design.approved_sources.length ?? 0,
-        description: byLanguage(language, { en: "Knowledge, RAG, budget, and approved sources.", es: "Conocimiento, RAG, presupuesto y fuentes aprobadas.", pt: "Conhecimento, RAG, orcamento e fontes aprovadas." }),
+        description: byLanguage(language, { en: "Executive deliverable for memory, knowledge, and context.", es: "Entregable ejecutivo de memoria, conocimiento y contexto.", pt: "Entregavel executivo de memoria, conhecimento e contexto." }),
         key: "result",
-        label: byLanguage(language, { en: "Generated result", es: "Resultado generado", pt: "Resultado gerado" }),
+        label: byLanguage(language, { en: "Generated deliverable", es: "Entrega generada", pt: "Entrega gerada" }),
         children: viewModel.memory ? (
           <div className="space-y-4">
+            <MemoryDeliverable blockerCount={blockingCount} memory={viewModel.memory} />
             <Knowledge memory={viewModel.memory} />
             <Budget memory={viewModel.memory} />
           </div>
@@ -661,11 +810,13 @@ export function MemoryStageView({ actionState, activeRoute, actions }: MemorySta
             </UxaButton>
           ) : (
             <UxaButton disabled={!viewModel.canGenerate || processing} isLoading={processing} onClick={() => void handleGenerate()} variant="primary">
-              {byLanguage(language, { en: "Generate Memory", es: "Generar Memoria", pt: "Gerar Memoria" })} <Sparkles aria-hidden="true" className="h-4 w-4" />
+              {viewModel.status === "processing"
+                ? byLanguage(language, { en: "Generating Memory...", es: "Generando Memoria...", pt: "Gerando Memoria..." })
+                : byLanguage(language, { en: "Generate Memory", es: "Generar Memoria", pt: "Gerar Memoria" })} <Sparkles aria-hidden="true" className="h-4 w-4" />
             </UxaButton>
           )}
           <UxaButton disabled={!viewModel.canGenerate || processing} onClick={() => void handleGenerate()} variant="secondary">
-            <RefreshCw aria-hidden="true" className="h-4 w-4" /> {byLanguage(language, { en: "Regenerate", es: "Regenerar", pt: "Regenerar" })}
+            <RefreshCw aria-hidden="true" className={cn("h-4 w-4", processing && "animate-spin")} /> {byLanguage(language, { en: "Regenerate", es: "Regenerar", pt: "Regenerar" })}
           </UxaButton>
           <UxaButton disabled={!viewModel.memory || processing} onClick={() => void handleSaveReview()} variant="secondary">
             {byLanguage(language, { en: "Save review", es: "Guardar revision", pt: "Salvar revisao" })}

@@ -268,6 +268,40 @@ export function buildAttentionResolutionPayload(
   };
 }
 
+export function isAttentionItemRequired(item: AttentionItemV2): boolean {
+  if (item.blocking || item.severity === "blocking") {
+    return true;
+  }
+  if (item.status !== "open" && item.status !== "in_progress") {
+    return false;
+  }
+  return item.action.kind === "answer" ||
+    item.action.kind === "approve" ||
+    item.action.kind === "confirm" ||
+    item.type === "question" ||
+    item.type === "gap" ||
+    item.type === "approval" ||
+    item.type === "access_request";
+}
+
+export function categorizeAttentionItems(items: AttentionItemV2[]): {
+  needsResponse: AttentionItemV2[];
+  recommended: AttentionItemV2[];
+} {
+  const needsResponse: AttentionItemV2[] = [];
+  const recommended: AttentionItemV2[] = [];
+
+  for (const item of items) {
+    if (isAttentionItemRequired(item)) {
+      needsResponse.push(item);
+    } else {
+      recommended.push(item);
+    }
+  }
+
+  return { needsResponse, recommended };
+}
+
 export function createAttentionIdempotencyKey(itemKey: string, actionKind: string) {
   const random =
     typeof globalThis.crypto !== "undefined" && "randomUUID" in globalThis.crypto

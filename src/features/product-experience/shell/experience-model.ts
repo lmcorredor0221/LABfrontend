@@ -207,7 +207,7 @@ export function getStageState(candidate: ProjectRouteStage, activeStage: Project
 }
 
 export function getProductStageForSection(section: ProductExperienceProductSection | null | undefined): ProjectRouteStage {
-  if (section === "acp") {
+  if (section === "acp" || section === "acp_overview") {
     return "validate";
   }
 

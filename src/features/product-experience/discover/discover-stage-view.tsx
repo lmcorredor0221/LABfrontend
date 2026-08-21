@@ -31,7 +31,11 @@ import {
   UxaTextareaField,
   type UxaTone,
 } from "@/features/product-experience/design-system";
-import { LeanStageScreen, type LeanStageScreenContract } from "@/features/product-experience/stage-screen";
+import {
+  LeanGeneratedDeliverable,
+  LeanStageScreen,
+  type LeanStageScreenContract,
+} from "@/features/product-experience/stage-screen";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 import {
   buildDiscoverViewModel,
@@ -185,7 +189,7 @@ function DiscoverLoadingState() {
           <UxaBadge tone="neutral">{t("discover.loading.badge", "Cargando")}</UxaBadge>
           <h2 className="mt-3 text-[var(--uxa-font-size-screen-title)] font-black">{t("discover.loading.title", "Preparando Descubrir")}</h2>
           <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
-            {t("discover.loading.desc", "Estamos recuperando snapshot, attention-v2 y estado operacional antes de mostrar la captura.")}
+            {t("discover.loading.desc", "Estamos recuperando el proyecto, los pendientes y el estado operacional antes de mostrar la captura.")}
           </p>
         </div>
       </div>
@@ -452,7 +456,7 @@ function AnalysisPanel({
   evidenceCount: number;
   warnings: string[];
 }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   if (!analysis) {
     return (
       <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
@@ -466,47 +470,62 @@ function AnalysisPanel({
   }
 
   return (
-    <div className="space-y-4">
-      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <UxaBadge tone={artifactState === "approved" ? "success" : "warning"}>
-              {getArtifactStateLabel(artifactState ?? "generated", t)}
-            </UxaBadge>
-            <h3 className="mt-3 text-[22px] font-black">{t("discover.analysis.title", "Propuesta de analisis")}</h3>
-            <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{analysis.summary}</p>
-          </div>
-          <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] p-3">
-            <p className="text-[var(--uxa-font-size-section-title)] font-black">{(analysis.confidence * 100).toFixed(0)}%</p>
-            <p className="text-[11px] font-bold text-[var(--uxa-color-ink-muted)]">{t("discover.confidence", "Confianza")}</p>
-          </div>
-        </div>
-      </UxaSurface>
-      <section className="grid gap-4 lg:grid-cols-2" aria-label={t("discover.section.analysisDetail", "Detalle del analisis de Discover")}>
-        <InsightList empty={t("discover.analysis.factsEmpty", "Sin hechos detectados.")} items={analysis.facts} title={t("discover.analysis.facts", "Hechos")} t={t} />
-        <InsightList empty={t("discover.analysis.needsEmpty", "Sin necesidades inferidas.")} items={analysis.inferred_needs} title={t("discover.analysis.needs", "Necesidades inferidas")} t={t} />
-        <InsightList empty={t("discover.analysis.risksEmpty", "Sin riesgos detectados.")} items={analysis.risk_signals} title={t("discover.analysis.risks", "Riesgos")} t={t} />
-        <InsightList empty={t("discover.analysis.sensitiveEmpty", "Sin senales de datos sensibles.")} items={analysis.sensitive_data_signals} title={t("discover.analysis.sensitive", "Datos sensibles")} t={t} />
-      </section>
-      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-        <UxaBadge tone="info">{t("discover.analysis.evidenceBadge", "Evidencia")}</UxaBadge>
-        <h3 className="mt-3 text-[20px] font-black">{t("discover.analysis.traceability", "Trazabilidad y advertencias")}</h3>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <MiniMetric label={t("discover.analysis.metric.evidenceRefs", "Evidence refs")} value={analysis.evidence_refs.length} />
-          <MiniMetric label={t("discover.analysis.metric.manifest", "Manifest")} value={evidenceCount} />
-          <MiniMetric label={t("discover.analysis.metric.warnings", "Warnings")} value={warnings.length} />
-        </div>
-        {warnings.length ? (
-          <div className="mt-4 space-y-2">
-            {warnings.map((warning, index) => (
-              <p className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-warning)]/30 bg-[var(--uxa-state-warning-bg)] p-3 text-[12px] leading-5" key={`${warning}-${index}`}>
-                {warning}
-              </p>
-            ))}
-          </div>
-        ) : null}
-      </UxaSurface>
-    </div>
+    <LeanGeneratedDeliverable
+      badge={{
+        label: getArtifactStateLabel(artifactState ?? "generated", t),
+        tone: artifactState === "approved" ? "success" : "warning",
+      }}
+      metrics={[
+        {
+          label: byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
+          tone: analysis.confidence >= 0.75 ? "success" : "warning",
+          value: `${(analysis.confidence * 100).toFixed(0)}%`,
+        },
+        {
+          helper: byLanguage(language, {
+            en: "Refs and manifest stay in Evidence.",
+            es: "Refs y manifest quedan en Evidencia.",
+            pt: "Refs e manifest ficam em Evidencia.",
+          }),
+          label: byLanguage(language, { en: "Traceable signals", es: "Senales trazables", pt: "Sinais rastreaveis" }),
+          tone: "neutral",
+          value: evidenceCount + analysis.evidence_refs.length,
+        },
+        {
+          label: byLanguage(language, { en: "Warnings", es: "Advertencias", pt: "Advertencias" }),
+          tone: warnings.length ? "warning" : "success",
+          value: warnings.length,
+        },
+      ]}
+      nextUse={byLanguage(language, {
+        en: "Define will use this normalized understanding to structure goals, requirements, rules, and measurable criteria without asking again for the same context.",
+        es: "Definir usara este entendimiento normalizado para estructurar objetivos, requisitos, reglas y criterios medibles sin volver a pedir el mismo contexto.",
+        pt: "Definir usara este entendimento normalizado para estruturar objetivos, requisitos, regras e criterios mensuraveis sem pedir o mesmo contexto novamente.",
+      })}
+      sections={[
+        {
+          emptyLabel: t("discover.analysis.factsEmpty", "Sin hechos detectados."),
+          items: analysis.facts.map((item) => item.statement),
+          title: byLanguage(language, { en: "What was understood", es: "Que se entendio", pt: "O que foi entendido" }),
+        },
+        {
+          emptyLabel: t("discover.analysis.needsEmpty", "Sin necesidades inferidas."),
+          items: analysis.inferred_needs.map((item) => item.statement),
+          title: byLanguage(language, { en: "Inferred needs", es: "Necesidades inferidas", pt: "Necessidades inferidas" }),
+        },
+        {
+          emptyLabel: t("discover.analysis.risksEmpty", "Sin riesgos detectados."),
+          items: [...analysis.assumptions, ...analysis.risk_signals].map((item) => item.statement),
+          title: byLanguage(language, { en: "Assumptions and risks", es: "Supuestos y riesgos", pt: "Suposicoes e riscos" }),
+        },
+      ]}
+      summary={analysis.summary}
+      title={byLanguage(language, {
+        en: "Discover deliverable",
+        es: "Entrega de Descubrir",
+        pt: "Entrega de Descobrir",
+      })}
+    />
   );
 }
 
@@ -575,7 +594,17 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
   const router = useRouter();
   const { language, t } = useLanguage();
   const snapshot = activeRoute?.snapshot.data ?? null;
-  const initialValues = useMemo(() => createDiscoveryFormValues(snapshot?.discovery), [snapshot?.discovery]);
+  const latestArtifactFromRoute = activeRoute?.snapshot.data?.journey_latest_artifacts?.discover ?? null;
+  const candidateFromPayload =
+    latestArtifactFromRoute?.proposal_payload &&
+    typeof latestArtifactFromRoute.proposal_payload === "object" &&
+    "normalized_discovery_candidate" in latestArtifactFromRoute.proposal_payload
+      ? (latestArtifactFromRoute.proposal_payload.normalized_discovery_candidate as DiscoveryArtifact)
+      : null;
+  const initialValues = useMemo(
+    () => createDiscoveryFormValues(snapshot?.discovery ?? candidateFromPayload),
+    [snapshot?.discovery, candidateFromPayload],
+  );
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<DiscoveryFormErrors>({});
   const [formValues, setFormValues] = useState<DiscoveryFormValues>(initialValues);
@@ -625,9 +654,34 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       return;
     }
 
+    if (sessionId && typeof window !== "undefined") {
+      try {
+        const stored =
+          window.sessionStorage.getItem(`session_eval_prefill_${sessionId}`) ||
+          window.sessionStorage.getItem("pending_initiative_prefill");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.initial_prompt && !initialValues.problem_statement) {
+            setFormValues({
+              ...initialValues,
+              problem_statement: parsed.initial_prompt,
+              goal_statement: parsed.title ? `Construir ${parsed.title}` : initialValues.goal_statement,
+              solution_hypothesis: parsed.archetype ? `Implementar un agente con arquetipo: ${parsed.archetype}` : initialValues.solution_hypothesis,
+            });
+            setDirty(true);
+            window.sessionStorage.removeItem(`session_eval_prefill_${sessionId}`);
+            window.sessionStorage.removeItem("pending_initiative_prefill");
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     // eslint-disable-next-line react-hooks/set-state-in-effect -- UXA7 keeps the form aligned with refreshed backend snapshots while the user has no unsaved edits.
     setFormValues(initialValues);
-  }, [busy, dirty, initialValues]);
+  }, [busy, dirty, initialValues, sessionId]);
 
   function updateField<K extends keyof DiscoveryFormValues>(key: K, value: DiscoveryFormValues[K]) {
     setFormValues((current) => ({
@@ -705,14 +759,13 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       status: "submitting",
     });
     try {
-      await actions.normalizeDiscovery(payload);
-      const artifact = await actions.analyzeDiscovery(payload);
+      const operation = await actions.analyzeDiscovery(payload);
       setDirty(false);
       setLocalAction({
-        message: copy(
-          `Analysis generated. Status: ${artifact.state}.`,
-          `Analisis generado. Estado: ${artifact.state}.`,
-          `Analise gerada. Estado: ${artifact.state}.`,
+        message: operation.detail || copy(
+          "Discover analysis started in the background.",
+          "Analisis de Discover iniciado en segundo plano.",
+          "Analise de Discover iniciada em segundo plano.",
         ),
         status: "success",
       });
@@ -770,33 +823,26 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       return;
     }
 
-    const payload = validateForm();
-    if (!payload) {
-      return;
-    }
-
     setLocalAction({ message: copy("Approving Discover.", "Aprobando Discover.", "Aprovando Discover."), status: "submitting" });
     try {
-      const envelope = await actions.normalizeDiscovery(payload);
-      if (envelope.status !== "ready") {
-        setLocalAction({
-          message: copy(
-            "Critical data is still missing; resolve it before approving.",
-            "Aun faltan datos criticos; resuelvelos antes de aprobar.",
-            "Ainda faltam dados criticos; resolva-os antes de aprovar.",
-          ),
-          status: "error",
-        });
-        return;
+      if (dirty) {
+        const payload = validateForm();
+        if (!payload) {
+          return;
+        }
+
+        const envelope = await actions.normalizeDiscovery(payload);
+        if (envelope.data) {
+          await actions.patchDiscoverArtifact(latestArtifact.id, {
+            note: "Persistir candidato normalizado para aprobacion UXA7",
+            user_patch: {
+              normalized_discovery_candidate: envelope.data,
+              review_decisions: viewModel.reviewDecisions,
+            },
+          });
+        }
       }
 
-      await actions.patchDiscoverArtifact(latestArtifact.id, {
-        note: "Persistir candidato normalizado para aprobacion UXA7",
-        user_patch: {
-          normalized_discovery_candidate: envelope.data,
-          review_decisions: viewModel.reviewDecisions,
-        },
-      });
       await actions.approveDiscoverArtifact(latestArtifact.id, {
         decision_payload: {
           review_decisions: viewModel.reviewDecisions,
@@ -1130,9 +1176,9 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       },
       {
         badge: analysis ? "LLM" : "0",
-        description: t("discover.tab.result.desc", "Proposal generated and normalized by the system."),
+        description: byLanguage(language, { en: "Executive synthesis produced by the LLM.", es: "Sintesis ejecutiva producida por el LLM.", pt: "Sintese executiva produzida pelo LLM." }),
         key: "result",
-        label: t("discover.tab.result.label", "Generated result"),
+        label: byLanguage(language, { en: "Generated deliverable", es: "Entrega generada", pt: "Entrega gerada" }),
         children: (
           <AnalysisPanel
             analysis={analysis}

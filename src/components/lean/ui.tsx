@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import type {
   ButtonHTMLAttributes,
   ChangeEvent,
@@ -295,12 +295,13 @@ export function TabList({
 export function InlineFieldError({
   children,
   className,
-}: {
+  ...props
+}: HTMLAttributes<HTMLParagraphElement> & {
   children: ReactNode;
-  className?: string;
 }) {
   return (
     <p
+      {...props}
       className={cn("text-[12px] font-medium text-[var(--danger)]", className)}
     >
       {children}
@@ -323,6 +324,7 @@ export function TextField({
   defaultValue,
   error,
   hint,
+  id,
   label,
   onChange,
   onValueChange,
@@ -330,12 +332,21 @@ export function TextField({
   required,
   trailing,
   value,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
   ...props
 }: TextFieldProps) {
   const isControlled = value !== undefined && (onChange || onValueChange);
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+  const hintId = hint ? `${inputId}-hint` : undefined;
+  const errorId = error ? `${inputId}-error` : undefined;
+  const describedBy = [ariaDescribedBy, hintId, errorId]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <label
+    <div
       className={cn(
         "flex flex-col font-medium text-[var(--text-primary)]",
         density === "compact" ? "gap-1.5 text-[13px]" : "gap-2 text-[14px]",
@@ -343,14 +354,16 @@ export function TextField({
       )}
     >
       {label ? (
-        <span>
+        <label htmlFor={inputId}>
           {label}
           {required ? (
             <span className="ml-1 text-[var(--danger)]">*</span>
           ) : null}
-        </span>
+        </label>
       ) : (
-        <span className="sr-only">{placeholder ?? "Campo de texto"}</span>
+        <label className="sr-only" htmlFor={inputId}>
+          {placeholder ?? "Campo de texto"}
+        </label>
       )}
       <div
         className={cn(
@@ -364,11 +377,14 @@ export function TextField({
         )}
       >
         <input
+          aria-describedby={describedBy || undefined}
+          aria-invalid={error ? true : ariaInvalid}
           className={cn(
             "h-full w-full bg-transparent text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]",
             density === "compact" ? "text-[13px]" : "text-[14px]",
           )}
           defaultValue={!isControlled ? (defaultValue ?? value) : undefined}
+          id={inputId}
           onChange={(event) => {
             onChange?.(event);
             onValueChange?.(event.target.value, event);
@@ -383,12 +399,15 @@ export function TextField({
         ) : null}
       </div>
       {hint ? (
-        <p className="text-[12px] font-normal text-[var(--text-secondary)]">
+        <p
+          className="text-[12px] font-normal text-[var(--text-secondary)]"
+          id={hintId}
+        >
           {hint}
         </p>
       ) : null}
-      {error ? <InlineFieldError>{error}</InlineFieldError> : null}
-    </label>
+      {error ? <InlineFieldError id={errorId}>{error}</InlineFieldError> : null}
+    </div>
   );
 }
 

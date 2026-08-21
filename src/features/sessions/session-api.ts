@@ -60,6 +60,7 @@ import type {
   ValidationSimulationJudgeRequest,
   ValidationSimulationRunRequest,
 } from "@/features/sessions/session-contracts";
+import type { ProductJourneyOverview } from "@/features/product-experience/saas/product-journey-overview";
 import type {
   AccessRequestCreateRequest,
   AccessRequestResolveRequest,
@@ -369,6 +370,9 @@ export function createSessionsApi(client = apiClient) {
     getProductOverview(sessionId: string) {
       return client.get<ProductOverviewResponse>(`/api/v1/sessions/${sessionId}/product-overview`);
     },
+    getProductJourneyOverview(sessionId: string) {
+      return client.get<ProductJourneyOverview>(`/api/v1/sessions/${sessionId}/product-journey-overview`);
+    },
     getBlueprintResult(sessionId: string) {
       return client.get<BlueprintResultResponse>(`/api/v1/sessions/${sessionId}/blueprint/result`);
     },
@@ -457,6 +461,13 @@ export function createSessionsApi(client = apiClient) {
       return client.post<AccessRequestResponse>(`/api/v1/access-requests/${encodeURIComponent(requestId)}/resolve`, {
         body: payload,
       });
+    },
+    listAccessRequests(status?: string) {
+      const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
+      return client.get<AccessRequestResponse[]>(`/api/v1/commerce/access-requests${query}`);
+    },
+    getAccessRequestsCount() {
+      return client.get<{ pending: number; total: number }>("/api/v1/commerce/access-requests/count");
     },
     createJourneyArtifact(sessionId: string, stageKey: JourneyStageKey, payload: JourneyStageArtifactCreateRequest) {
       return client.post<JourneyStageArtifactEntry>(`/api/v1/sessions/${sessionId}/journey/${stageKey}/artifacts`, {

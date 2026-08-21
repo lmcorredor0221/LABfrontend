@@ -1,5 +1,6 @@
 import { createProductExperienceServerState } from "@/features/product-experience/core/server-state/store";
 import type { ProductExperienceApiClientInstance } from "@/features/product-experience/core/server-state/api";
+import type { ProductExperienceStageOperation } from "@/features/product-experience/core/server-state/types";
 import type {
   AttentionActionRequestV2,
   AttentionActionResultV2,
@@ -119,6 +120,7 @@ function createList(...sessionIds: string[]): SessionListResponse {
 function createOperation(sessionId: string): {
   activity: ActivityResponse;
   overview: ProductOverviewResponse;
+  stageOperation: null;
 } {
   return {
     activity: {
@@ -144,6 +146,7 @@ function createOperation(sessionId: string): {
       session_id: sessionId,
       workspace_id: "workspace-1",
     },
+    stageOperation: null,
   };
 }
 
@@ -210,6 +213,39 @@ function createStageArtifact(stageKey: JourneyStageArtifactEntry["stage_key"], i
   };
 }
 
+function createStageOperation(overrides: Partial<ProductExperienceStageOperation> = {}): ProductExperienceStageOperation {
+  return {
+    action: "analyze_discovery",
+    attempt_count: 1,
+    can_cancel: true,
+    can_retry: false,
+    cancel_requested_at: null,
+    cancel_url: "/api/v1/sessions/session-a/stage-operations/operation-1/cancel",
+    completed_at: null,
+    created_at: "2026-08-16T10:00:00Z",
+    current_step: "queued",
+    detail: "Solicitud recibida.",
+    error_message: "",
+    expires_at: "2026-08-16T10:30:00Z",
+    heartbeat_at: "2026-08-16T10:00:00Z",
+    id: "operation-1",
+    idempotency_key: "operation-once",
+    is_stale: false,
+    recover_url: "/api/v1/sessions/session-a/stage-operations/operation-1/recover",
+    result: null,
+    result_artifact_id: null,
+    retry_url: "",
+    session_id: "session-a",
+    stage_key: "discover",
+    status: "queued",
+    steps: [],
+    technical_detail: "",
+    updated_at: "2026-08-16T10:00:00Z",
+    workspace_id: "workspace-1",
+    ...overrides,
+  };
+}
+
 function createApi(overrides: Partial<ProductExperienceApiClientInstance> = {}): ProductExperienceApiClientInstance {
   return {
     getActivity: vi.fn(async (sessionId: string) => createOperation(sessionId).activity),
@@ -225,9 +261,12 @@ function createApi(overrides: Partial<ProductExperienceApiClientInstance> = {}):
       workspaces: [],
     })),
     getProductOverview: vi.fn(async (sessionId: string) => createOperation(sessionId).overview),
+    getCurrentStageOperation: vi.fn(async () => null),
+    getStageOperation: vi.fn(),
     getSnapshot: vi.fn(async (sessionId: string) => createSessionSnapshot(sessionId)),
     listSessions: vi.fn(async () => createList("session-a")),
     analyzeDiscovery: vi.fn(async () => createStageArtifact("discover", "discover-analysis")),
+    startAnalyzeDiscovery: vi.fn(async () => createStageOperation()),
     buildCanvas: vi.fn(async (): Promise<CanvasEnvelope> => ({
       assumptions: [],
       data: {
@@ -256,6 +295,30 @@ function createApi(overrides: Partial<ProductExperienceApiClientInstance> = {}):
       warnings: [],
     } as CanvasEnvelope)),
     defineRequirements: vi.fn(async () => createStageArtifact("define", "define-artifact")),
+    startDefineRequirements: vi.fn(async () => createStageOperation({
+      action: "define_requirements",
+      id: "operation-define",
+      stage_key: "define",
+    })),
+    startProposeDesign: vi.fn(),
+    startRecommendTools: vi.fn(async () => createStageOperation({
+      action: "recommend_tools",
+      id: "operation-tools",
+      stage_key: "tools",
+    })),
+    startRecommendMemory: vi.fn(async () => createStageOperation({
+      action: "recommend_memory",
+      id: "operation-memory",
+      stage_key: "memory",
+    })),
+    startGenerateEstimationReport: vi.fn(async () => createStageOperation({
+      action: "generate_estimation_report",
+      id: "operation-estimate",
+      stage_key: "estimate",
+    })),
+    retryStageOperation: vi.fn(),
+    cancelStageOperation: vi.fn(),
+    recoverStageOperation: vi.fn(),
     normalizeDiscovery: vi.fn(async () => ({
       assumptions: [],
       data: createSessionSnapshot("session-a").discovery,
@@ -327,6 +390,8 @@ function createApi(overrides: Partial<ProductExperienceApiClientInstance> = {}):
       warnings: [],
     } as unknown as ToolRecommendationEnvelope)),
     recommendMemory: vi.fn(async () => createStageArtifact("memory", "memory-artifact")),
+    generateEstimationReport: vi.fn(async () => ({ status: "ready" }) as never),
+    prepareBlueprintCommercialResult: vi.fn(async (sessionId: string) => createSessionSnapshot(sessionId, "2026-08-03T10:09:00Z")),
     approveToolsSelection: vi.fn(async (sessionId: string) => createSessionSnapshot(sessionId, "2026-08-03T10:07:00Z")),
     approveMemoryProfile: vi.fn(async (sessionId: string) => createSessionSnapshot(sessionId, "2026-08-03T10:08:00Z")),
     approveJourneyArtifact: vi.fn(async () => ({ ...createStageArtifact("discover", "discover-analysis"), state: "approved" as const })),
@@ -453,6 +518,31 @@ describe("product experience server state", () => {
     expect(api.rejectJourneyArtifact).toHaveBeenCalledWith("session-a", "discover", "artifact-1", { note: "reject" }, expect.any(Object));
   });
 
+  it("starts Discover and Define as persistent stage operations", async () => {
+    const api = createApi();
+    const store = createProductExperienceServerState({ api });
+    const payload = createDiscoveryPayload();
+
+    await store.loadRoute({ currentStage: "discover", sessionId: "session-a" });
+    const discoverOperation = await store.startAnalyzeDiscovery(payload, { idempotencyKey: "discover-once" });
+    expect(discoverOperation.action).toBe("analyze_discovery");
+    expect(api.startAnalyzeDiscovery).toHaveBeenCalledWith(
+      "session-a",
+      payload,
+      expect.objectContaining({ idempotencyKey: "discover-once" }),
+    );
+    expect(store.getState().active?.operation.data?.stageOperation?.action).toBe("analyze_discovery");
+
+    await store.loadRoute({ currentStage: "define", sessionId: "session-a" });
+    const defineOperation = await store.startDefineRequirements({ idempotencyKey: "define-once" });
+    expect(defineOperation.action).toBe("define_requirements");
+    expect(api.startDefineRequirements).toHaveBeenCalledWith(
+      "session-a",
+      expect.objectContaining({ idempotencyKey: "define-once" }),
+    );
+    expect(store.getState().active?.operation.data?.stageOperation?.action).toBe("define_requirements");
+  });
+
   it("runs Define and Design mutations against the active route with generic stage artifacts", async () => {
     const api = createApi();
     const store = createProductExperienceServerState({ api });
@@ -479,7 +569,7 @@ describe("product experience server state", () => {
     expect(api.rejectJourneyArtifact).toHaveBeenCalledWith("session-a", "design", "design-artifact", { note: "reject" }, expect.any(Object));
   });
 
-  it("runs Tools and Memory UXA9 mutations and syncs promoted snapshots", async () => {
+  it("starts Tools and Memory UXA9 operations and syncs promoted snapshots", async () => {
     const api = createApi();
     const store = createProductExperienceServerState({ api });
 
@@ -491,7 +581,7 @@ describe("product experience server state", () => {
     await store.recommendMemory({ instructions: "RAG gobernado con fuentes aprobadas." });
     await store.approveMemoryProfile({ note: "Aprobar memoria." });
 
-    expect(api.recommendTools).toHaveBeenCalledWith(
+    expect(api.startRecommendTools).toHaveBeenCalledWith(
       "session-a",
       { instructions: "Solo herramientas minimas." },
       expect.any(Object),
@@ -501,7 +591,7 @@ describe("product experience server state", () => {
       { include_optional_tool_keys: ["document_ingestion"] },
       expect.any(Object),
     );
-    expect(api.recommendMemory).toHaveBeenCalledWith(
+    expect(api.startRecommendMemory).toHaveBeenCalledWith(
       "session-a",
       { instructions: "RAG gobernado con fuentes aprobadas." },
       expect.any(Object),

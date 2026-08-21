@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { LanguageProvider } from "@/core/i18n/language-context";
 import type { DiagramCatalog, DiagramDetail } from "@/features/diagram-center/domain/types";
 import { DiagramCenterPage } from "./diagram-center-page";
 
@@ -44,6 +45,8 @@ const catalog: DiagramCatalog = {
       family: "architecture",
       generation_state: "available",
       key: "solution_architecture",
+      layout_upgrade_reason: "",
+      needs_layout_upgrade: false,
       notation: "flowchart",
       products: ["blueprint", "acp"],
       required_tier: "blueprint",
@@ -75,6 +78,8 @@ const catalog: DiagramCatalog = {
       family: "deployment",
       generation_state: "pending",
       key: "deployment_diagram",
+      layout_upgrade_reason: "",
+      needs_layout_upgrade: false,
       notation: "deployment",
       products: ["acp"],
       required_tier: "acp",
@@ -107,6 +112,7 @@ const detail: DiagramDetail = {
     metadata: {},
     nodes: [],
     notation: "flowchart",
+    pools: [],
     schema_version: "diagram-model.v1",
     source_refs: ["artifact:1"],
     title: "Arquitectura de solución",
@@ -141,10 +147,18 @@ describe("DiagramCenterPage", () => {
     vi.clearAllMocks();
   });
 
-  it("presents the governed catalog and the safe generated preview", () => {
-    render(<DiagramCenterPage projectId="project-1" />);
+  function renderPage() {
+    return render(
+      <LanguageProvider initialLanguage="es">
+        <DiagramCenterPage projectId="project-1" />
+      </LanguageProvider>,
+    );
+  }
 
-    expect(screen.getByRole("heading", { name: /todos los diagramas de la solución/i })).toBeInTheDocument();
+  it("presents the governed catalog and the safe generated preview", () => {
+    renderPage();
+
+    expect(screen.getByRole("heading", { name: /diagramas de la soluci/i })).toBeInTheDocument();
     expect(screen.getAllByText("Arquitectura de solución").length).toBeGreaterThan(0);
     expect(screen.getByText("Diagrama de despliegue")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Diagrama Arquitectura de solución" })).toBeInTheDocument();
@@ -157,22 +171,39 @@ describe("DiagramCenterPage", () => {
 
   it("filters by search and keeps the locked value discoverable", async () => {
     const user = userEvent.setup();
-    render(<DiagramCenterPage projectId="project-1" />);
+    renderPage();
 
     await user.type(screen.getByRole("searchbox", { name: "Buscar diagramas" }), "despliegue");
 
     const catalogRegion = screen.getByRole("region", { name: "Catálogo de diagramas" });
     expect(within(catalogRegion).queryByText("Arquitectura de solución")).not.toBeInTheDocument();
     expect(within(catalogRegion).getByText("Diagrama de despliegue")).toBeInTheDocument();
-    expect(within(catalogRegion).getByText("Plan requerido")).toBeInTheDocument();
+    expect(within(catalogRegion).getByText("Por plan")).toBeInTheDocument();
   });
 
   it("regenerates an entitled diagram through the application layer", async () => {
     const user = userEvent.setup();
-    render(<DiagramCenterPage projectId="project-1" />);
+    renderPage();
 
     await user.click(screen.getAllByRole("button", { name: /regenerar/i })[0]);
 
-    expect(generate).toHaveBeenCalledWith("solution_architecture", true);
+    expect(generate).toHaveBeenCalledWith("solution_architecture", "regenerate");
+  });
+
+  it("requests a controlled layout upgrade for old renderer revisions", async () => {
+    const user = userEvent.setup();
+    catalog.entries[0].available_actions = ["view", "download", "regenerate", "layout_upgrade"];
+    catalog.entries[0].layout_upgrade_reason = "Renderer anterior diagram-renderer.v1.2.0 detectado.";
+    catalog.entries[0].needs_layout_upgrade = true;
+
+    renderPage();
+
+    await user.click(screen.getAllByRole("button", { name: /actualizar legibilidad/i })[0]);
+
+    expect(generate).toHaveBeenCalledWith("solution_architecture", "layout_upgrade");
+
+    catalog.entries[0].available_actions = ["view", "download", "regenerate"];
+    catalog.entries[0].layout_upgrade_reason = "";
+    catalog.entries[0].needs_layout_upgrade = false;
   });
 });

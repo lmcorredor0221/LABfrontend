@@ -53,6 +53,72 @@ describe("Memory model UXA9", () => {
     expect(blockers.map((item) => item.key)).toContain("document_ingestion_missing");
   });
 
+  it("defers Memory critique blockers in Basic Blueprint without blocking approval", () => {
+    const route = createToolsRouteFixture({
+      memoryArtifact: createMemoryArtifactFixture({
+        proposal_payload: createMemoryRecommendationPayload({
+          critic_findings: [
+            {
+              category: "critic",
+              detail: "TTL exacto y owner de knowledge se deben cerrar en Premium o ACP.",
+              finding_key: "memory_governance_pending",
+              severity: "blocking",
+              source_refs: ["memory.critique"],
+              suggested_action: "Registrar como pendiente de enriquecimiento.",
+              title: "Gobernanza de memoria pendiente",
+            },
+          ],
+          review_state: "blocked",
+        }) as unknown as Record<string, unknown>,
+      }),
+      toolsArtifact: createToolsArtifactFixture({
+        proposal_payload: createToolRecommendationPayload({ approved_tools_digest: createApprovedToolsDigest() }) as unknown as Record<string, unknown>,
+        state: "approved",
+      }),
+      stage: "memory",
+    });
+
+    route.snapshot.data!.session.commercial_tier = "blueprint";
+    const viewModel = buildMemoryViewModel(route);
+
+    expect(viewModel.status).toBe("waiting_review");
+    expect(viewModel.canApprove).toBe(true);
+    expect(viewModel.blockers.find((item) => item.key === "memory_governance_pending")?.severity).toBe("warning");
+  });
+
+  it("keeps Memory critique blockers strict in Blueprint Professional", () => {
+    const route = createToolsRouteFixture({
+      memoryArtifact: createMemoryArtifactFixture({
+        proposal_payload: createMemoryRecommendationPayload({
+          critic_findings: [
+            {
+              category: "critic",
+              detail: "TTL exacto y owner de knowledge deben cerrarse antes de entrega profesional.",
+              finding_key: "memory_governance_pending",
+              severity: "blocking",
+              source_refs: ["memory.critique"],
+              suggested_action: "Resolver antes de aprobar.",
+              title: "Gobernanza de memoria pendiente",
+            },
+          ],
+          review_state: "blocked",
+        }) as unknown as Record<string, unknown>,
+      }),
+      toolsArtifact: createToolsArtifactFixture({
+        proposal_payload: createToolRecommendationPayload({ approved_tools_digest: createApprovedToolsDigest() }) as unknown as Record<string, unknown>,
+        state: "approved",
+      }),
+      stage: "memory",
+    });
+
+    route.snapshot.data!.session.commercial_tier = "blueprint_pro";
+    const viewModel = buildMemoryViewModel(route);
+
+    expect(viewModel.status).toBe("waiting_review");
+    expect(viewModel.canApprove).toBe(false);
+    expect(viewModel.blockers.find((item) => item.key === "memory_governance_pending")?.severity).toBe("blocking");
+  });
+
   it("does not approve stale Memory", () => {
     const route = createToolsRouteFixture({
       memoryArtifact: createMemoryArtifactFixture({

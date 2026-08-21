@@ -1,4 +1,5 @@
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
+import type { CommercialTier } from "@/features/sessions/types";
 import type {
   ApprovedToolsDigest,
   JourneyStageArtifactEntry,
@@ -37,6 +38,7 @@ export type MemoryViewModel = {
   blockers: MemoryBlocker[];
   canApprove: boolean;
   canGenerate: boolean;
+  commercialTier: CommercialTier;
   latestMemoryArtifact: JourneyStageArtifactEntry | null;
   latestToolsArtifact: JourneyStageArtifactEntry | null;
   memory: MemoryRecommendationArtifact | null;
@@ -97,11 +99,15 @@ function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function findingToBlocker(finding: MemoryRecommendationFinding): MemoryBlocker {
+function findingToBlocker(
+  finding: MemoryRecommendationFinding,
+  commercialTier: CommercialTier = "blueprint",
+): MemoryBlocker {
+  const isDeferredBasicFinding = commercialTier === "blueprint" && finding.severity === "blocking";
   return {
     detail: finding.suggested_action || finding.detail,
     key: finding.finding_key,
-    severity: finding.severity === "blocking" ? "blocking" : "warning",
+    severity: isDeferredBasicFinding ? "warning" : finding.severity === "blocking" ? "blocking" : "warning",
     title: finding.title,
   };
 }
@@ -168,11 +174,13 @@ export function buildMemoryBlockers(
   memory: MemoryRecommendationArtifact | null,
   digest: ApprovedToolsDigest | null,
   options: {
+    commercialTier?: CommercialTier;
     stale?: boolean;
     toolsApproved?: boolean;
   } = {},
 ): MemoryBlocker[] {
   const blockers: MemoryBlocker[] = [];
+  const commercialTier = options.commercialTier ?? "blueprint";
 
   if (!options.toolsApproved) {
     blockers.push({
@@ -216,7 +224,7 @@ export function buildMemoryBlockers(
   blockers.push(
     ...asArray(memory.critic_findings)
       .filter((finding) => finding.severity === "blocking" || finding.severity === "warning")
-      .map(findingToBlocker),
+      .map((finding) => findingToBlocker(finding, commercialTier)),
   );
   blockers.push(
     ...asArray(memory.tool_dependencies)
@@ -244,6 +252,7 @@ export function buildMemoryViewModel(
   const snapshot = snapshotResource?.data ?? null;
   const latestToolsArtifact = snapshot?.journey_latest_artifacts?.tools ?? null;
   const latestMemoryArtifact = snapshot?.journey_latest_artifacts?.memory ?? null;
+  const commercialTier = snapshot?.session.commercial_tier ?? "blueprint";
   const rawMemory = options.draftMemory ?? parseMemoryArtifact(latestMemoryArtifact);
   const rawApprovedDigest =
     snapshot?.latest_tool_recommendation?.approved_tools_digest ??
@@ -255,8 +264,13 @@ export function buildMemoryViewModel(
       ? rawMemory
       : null;
   const approvedDigest = toolsApproved ? rawApprovedDigest : null;
-  const blockers = buildMemoryBlockers(rawMemory, rawApprovedDigest, { stale, toolsApproved });
+  const blockers = buildMemoryBlockers(rawMemory, rawApprovedDigest, { commercialTier, stale, toolsApproved });
   const blockingCount = blockers.filter((blocker) => blocker.severity === "blocking").length;
+  const stageOperation = activeRoute?.operation?.data?.stageOperation ?? null;
+  const isStageOperationActive =
+    stageOperation?.stage_key === "memory" &&
+    (stageOperation.status === "queued" || stageOperation.status === "running");
+  const isProcessing = Boolean(options.processing || isStageOperationActive);
   const status: MemoryStageStatus = (() => {
     if (!snapshotResource || snapshotResource.status === "idle" || snapshotResource.status === "loading") {
       return "loading";
@@ -266,7 +280,7 @@ export function buildMemoryViewModel(
       return "error";
     }
 
-    if (options.processing) {
+    if (isProcessing) {
       return "processing";
     }
 
@@ -307,6 +321,7 @@ export function buildMemoryViewModel(
     blockers,
     canApprove: Boolean(latestMemoryArtifact && memory && status === "waiting_review" && blockingCount === 0),
     canGenerate: toolsApproved && status !== "processing",
+    commercialTier,
     latestMemoryArtifact,
     latestToolsArtifact,
     memory,

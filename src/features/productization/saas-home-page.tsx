@@ -17,17 +17,20 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import Link from "next/link";
 import { TopUtilities, WorkspaceShell, WorkspaceUserCard } from "@/components/lean/shell";
+import { LanguageSelector } from "@/components/lean/language-selector";
 import { AppButton, Badge, Panel, ProgressBar } from "@/components/lean/ui";
 import { useAuth } from "@/core/auth/auth-context";
 import { useCurrency } from "@/core/commerce/currency-context";
 import { useLanguage } from "@/core/i18n/language-context";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
-import { formatPriceValue, type Currency } from "@/core/commerce/trm-service";
+import type { Currency } from "@/core/commerce/trm-service";
 import { getProjectProductRoute } from "@/core/routing/routes";
 import { getSessionProjectRoute, getSessionStageLabel, getSessionStatusLabel } from "@/features/sessions/session-routes";
 import { useSessions } from "@/features/sessions/session-context";
-import type { CommercialTier, ProductCatalogResponse, ProductOverviewResponse } from "@/features/sessions/types";
+import type { ProductJourneyOverview } from "@/features/product-experience/saas/product-journey-overview";
+import type { CommercialTier, ProductCatalogResponse } from "@/features/sessions/types";
 import { cn } from "@/lib/utils";
 import { ErrorState, LoadingState } from "@/shared/states/runtime-states";
 
@@ -132,7 +135,7 @@ function formatPrice(
     return { price: "$0", detail: copy("Free per project", "Gratis por proyecto", "Gratis por projeto") };
   }
   const usdCents = (price as { unit_amount_usd_cents?: number }).unit_amount_usd_cents || price.unit_amount_cents;
-  const usdAmount = usdCents > 1000 ? usdCents / 100 : (product?.tier === "acp" ? 220 : 60);
+  const usdAmount = usdCents > 1000 ? usdCents / 100 : (product?.tier === "acp" ? 149 : 49);
 
   if (currency === "USD") {
     const formatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(usdAmount);
@@ -244,6 +247,26 @@ function HomeSidebarFooter() {
       })}
     />
   );
+}
+
+function getActiveTierFromJourneyOverview(overview: ProductJourneyOverview | null): CommercialTier | null {
+  if (!overview) {
+    return null;
+  }
+
+  if (overview.products.some((product) => product.product_key === "acp" && product.is_purchased)) {
+    return "acp";
+  }
+
+  if (overview.products.some((product) => product.product_key === "blueprint_pro" && product.is_purchased)) {
+    return "blueprint_pro";
+  }
+
+  if (overview.products.some((product) => product.product_key === "blueprint_basic" && product.is_purchased)) {
+    return "blueprint";
+  }
+
+  return null;
 }
 
 function FirstValueCard() {
@@ -487,7 +510,7 @@ export function SaasHomePage() {
     activeSessionId,
     activeSnapshot,
     createSession,
-    getProductOverview,
+    getProductJourneyOverview,
     items,
     listCommercialProducts,
     listError,
@@ -499,18 +522,20 @@ export function SaasHomePage() {
   const [catalog, setCatalog] = useState<ProductCatalogResponse[]>([]);
   const [catalogStatus, setCatalogStatus] = useState<LoadStatus>("idle");
   const [catalogError, setCatalogError] = useState("");
-  const [overview, setOverview] = useState<ProductOverviewResponse | null>(null);
+  const [journeyOverview, setJourneyOverview] = useState<ProductJourneyOverview | null>(null);
+  const [journeyStatus, setJourneyStatus] = useState<LoadStatus>("idle");
+  const [journeyError, setJourneyError] = useState("");
   const [createStatus, setCreateStatus] = useState<"idle" | "creating" | "error">("idle");
   const [createError, setCreateError] = useState("");
   const [comparisonOpen, setComparisonOpen] = useState(false);
 
   const { currency, setCurrency, trm } = useCurrency();
   const { language } = useLanguage();
-  const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
+  const copy = useCallback((en: string, es: string, pt: string) => byLanguage(language, { en, es, pt }), [language]);
   const selectedSession = items.find((item) => item.id === activeSessionId) ?? items[0] ?? null;
   const selectedSnapshot = activeSnapshot?.session.id === selectedSession?.id ? activeSnapshot : null;
   const hasProject = Boolean(selectedSession);
-  const activeTier = overview?.access.tier ?? selectedSnapshot?.commercial_access?.tier ?? selectedSession?.commercial_tier ?? "blueprint";
+  const activeTier = getActiveTierFromJourneyOverview(journeyOverview) ?? selectedSnapshot?.commercial_access?.tier ?? selectedSession?.commercial_tier ?? "blueprint";
   const planDefinitions = useMemo(
     () => buildPlanDefinitions(catalog, currency, trm.trm_cop, activeTier, language),
     [activeTier, catalog, currency, language, trm.trm_cop],
@@ -583,15 +608,7 @@ export function SaasHomePage() {
   );
   const activePlan = localizedPlanDefinitions.find((plan) => plan.key === activeTier) ?? localizedPlanDefinitions[0];
 
-  const fallbackProgress = useMemo(() => {
-    if (!selectedSession) return 0;
-    if (selectedSnapshot?.estimation_report) return 88;
-    if (selectedSnapshot?.blueprint) return 72;
-    if (selectedSnapshot?.canvas) return 42;
-    if (selectedSnapshot?.discovery) return 18;
-    return 8;
-  }, [selectedSession, selectedSnapshot]);
-  const progress = overview?.lean_progress_percent ?? fallbackProgress;
+  const progress = journeyOverview?.current_stage.progress_percent ?? 0;
 
   const loadCatalog = useCallback(async () => {
     setCatalogStatus("loading");
@@ -603,14 +620,14 @@ export function SaasHomePage() {
       setCatalogError(error instanceof Error ? error.message : copy("The commercial catalog could not be loaded.", "No fue posible recuperar el catalogo comercial.", "Nao foi possivel recuperar o catalogo comercial."));
       setCatalogStatus("error");
     }
-  }, [listCommercialProducts]);
+  }, [copy, listCommercialProducts]);
 
   useEffect(() => {
-    if (listStatus === "idle") {
+    if (user && listStatus === "idle") {
       return runAfterEffect(() => void refreshList({ loadActiveSnapshot: true }));
     }
     return undefined;
-  }, [listStatus, refreshList]);
+  }, [listStatus, refreshList, user]);
 
   useEffect(() => {
     if (catalogStatus === "idle") {
@@ -626,32 +643,58 @@ export function SaasHomePage() {
     void selectSession(selectedSession.id);
   }, [selectedSession, selectedSnapshot, selectSession, snapshotStatus]);
 
+  const loadJourneyOverview = useCallback(async () => {
+    if (!selectedSession) {
+      setJourneyOverview(null);
+      setJourneyStatus("idle");
+      setJourneyError("");
+      return;
+    }
+
+    setJourneyStatus((current) => (journeyOverview ? current : "loading"));
+    setJourneyError("");
+    try {
+      const result = await getProductJourneyOverview(selectedSession.id);
+      setJourneyOverview(result);
+      setJourneyStatus("ready");
+    } catch (error) {
+      setJourneyError(error instanceof Error ? error.message : copy("The journey overview could not be loaded.", "No fue posible cargar el progreso del journey.", "Nao foi possivel carregar o progresso da jornada."));
+      setJourneyStatus("error");
+    }
+  }, [copy, getProductJourneyOverview, journeyOverview, selectedSession]);
+
   useEffect(() => {
     if (!selectedSession) {
-      return runAfterEffect(() => setOverview(null));
+      return runAfterEffect(() => {
+        setJourneyOverview(null);
+        setJourneyStatus("idle");
+        setJourneyError("");
+      });
     }
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
-      setOverview(null);
-      void getProductOverview(selectedSession.id)
-        .then((result) => {
-          if (!cancelled) setOverview(result);
-        })
-        .catch(() => {
-          if (!cancelled) setOverview(null);
-        });
+      if (!cancelled) {
+        void loadJourneyOverview();
+      }
     }, 0);
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [getProductOverview, selectedSession]);
+  }, [loadJourneyOverview, selectedSession]);
 
-  async function handleCreateBlueprint() {
+  async function handleCreateBlueprint(prefill?: { title?: string; initial_prompt?: string; archetype?: string }) {
     setCreateStatus("creating");
     setCreateError("");
     try {
       const created = await createSession({ loadSnapshot: false });
+      if (prefill && typeof window !== "undefined") {
+        try {
+          window.sessionStorage.setItem(`session_eval_prefill_${created.id}`, JSON.stringify(prefill));
+        } catch {
+          // ignore storage errors
+        }
+      }
       const targetRoute = getSessionProjectRoute(created);
       router.push(targetRoute);
       setCreateStatus("idle");
@@ -662,15 +705,23 @@ export function SaasHomePage() {
   }
 
   async function handleContinue() {
+    if (!user) {
+      router.push("/register?redirect=/projects/new&tier=blueprint");
+      return;
+    }
     if (!selectedSession) {
       await handleCreateBlueprint();
       return;
     }
     await selectSession(selectedSession.id, { loadSnapshot: false, persist: true });
-    router.push(getSessionProjectRoute(selectedSession, selectedSnapshot ?? null));
+    router.push(getSessionProjectRoute(selectedSession, selectedSnapshot ?? null, journeyOverview));
   }
 
   async function handlePlanAction(tier: CommercialTier) {
+    if (!user) {
+      router.push(`/register?tier=${tier}`);
+      return;
+    }
     if (!selectedSession) {
       await handleCreateBlueprint();
       return;
@@ -683,7 +734,7 @@ export function SaasHomePage() {
     if (!selectedSession) {
       return plan.key === "blueprint"
         ? copy("Create free Blueprint", "Crear Blueprint gratis", "Criar Blueprint gratis")
-        : copy("Create project first", "Crear proyecto primero", "Crie o projeto primeiro");
+        : copy("Create project first", "Crear proyecto primero", "Criar projeto primero");
     }
     if (tierRank(activeTier) >= tierRank(plan.key)) {
       return plan.key === "blueprint"
@@ -700,11 +751,11 @@ export function SaasHomePage() {
       : copy("View ACP package", "Ver paquete ACP", "Ver pacote ACP");
   }
 
-  if (listStatus === "loading" && items.length === 0) {
+  if (user && listStatus === "loading" && items.length === 0) {
     return <HomeLoading />;
   }
 
-  if (listStatus === "error" && items.length === 0) {
+  if (user && listStatus === "error" && items.length === 0) {
     return (
       <WorkspaceShell sidebarFooter={<HomeSidebarFooter />}>
         <div className="min-h-screen bg-[#f3f6fa] px-4 py-5 sm:px-6 lg:px-8">
@@ -721,18 +772,70 @@ export function SaasHomePage() {
   }
 
   return (
-    <WorkspaceShell sidebarFooter={<HomeSidebarFooter />}>
+    <WorkspaceShell sidebarFooter={user ? <HomeSidebarFooter /> : null}>
       <div className="min-h-screen w-full min-w-0 max-w-[calc(100vw-2px)] overflow-x-hidden bg-[#f3f6fa] text-[var(--text-primary)] lg:max-w-none">
-        <header className="border-b border-[var(--border-default)] bg-white">
+        <header className="sticky top-0 z-30 border-b border-[var(--border-default)] bg-white/95 backdrop-blur-sm">
           <div className="mx-auto flex max-w-[1360px] flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--brand-primary)]">Lean Agent Builder</p>
-              <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
-                {copy("Home · ", "Inicio · ", "Inicio · ")}
-                {user?.active_workspace_name ?? copy("Current workspace", "Workspace actual", "Workspace atual")}
-              </p>
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--brand-primary)] text-white shadow-xs">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[12px] font-black uppercase tracking-[0.16em] text-[var(--brand-primary)]">Lean Agent Builder</p>
+                <p className="text-[11px] text-[var(--text-secondary)]">
+                  {user
+                    ? `${copy("Workspace · ", "Workspace · ", "Workspace · ")}${user?.active_workspace_name ?? copy("Current workspace", "Workspace actual", "Workspace atual")}`
+                    : copy("AI Agent Design & Packaging", "Diseño y Empaquetado de Agentes de IA", "Design e Empacotamento de Agentes de IA")}
+                </p>
+              </div>
             </div>
-            <TopUtilities />
+
+            {user ? (
+              <TopUtilities />
+            ) : (
+              <div className="flex items-center gap-3 self-end sm:self-auto">
+                <div className="flex items-center gap-1 rounded-[8px] border border-[var(--border-default)] bg-white p-0.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setCurrency("USD")}
+                    className={cn(
+                      "px-2 py-0.5 rounded-[6px] font-bold transition",
+                      currency === "USD" ? "bg-[var(--brand-primary)] text-white" : "text-[var(--text-secondary)] hover:text-black"
+                    )}
+                  >
+                    USD ($)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrency("COP")}
+                    className={cn(
+                      "px-2 py-0.5 rounded-[6px] font-bold transition",
+                      currency === "COP" ? "bg-[var(--brand-primary)] text-white" : "text-[var(--text-secondary)] hover:text-black"
+                    )}
+                  >
+                    COP ($)
+                  </button>
+                </div>
+
+                <LanguageSelector />
+
+                <div className="h-4 w-px bg-[var(--border-default)] mx-1" />
+
+                <Link
+                  href="/login"
+                  className="rounded-lg border border-[var(--border-default)] bg-white px-3.5 py-1.5 text-xs font-bold text-[var(--text-secondary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition"
+                >
+                  {copy("Log in", "Iniciar sesión", "Entrar")}
+                </Link>
+
+                <Link
+                  href="/register"
+                  className="rounded-lg bg-[var(--brand-primary)] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:opacity-90 transition"
+                >
+                  {copy("Sign up free", "Crear cuenta gratis", "Criar conta grátis")}
+                </Link>
+              </div>
+            )}
           </div>
         </header>
 
@@ -787,6 +890,21 @@ export function SaasHomePage() {
                   </div>
                 ) : null}
 
+                {hasProject && journeyStatus === "loading" ? (
+                  <div className="mt-4 rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-4 py-3 text-[12px] text-[var(--text-secondary)]" aria-live="polite">
+                    {copy("Updating your next recommended action...", "Actualizando tu siguiente accion recomendada...", "Atualizando sua proxima acao recomendada...")}
+                  </div>
+                ) : null}
+
+                {hasProject && journeyStatus === "error" ? (
+                  <div className="mt-4 flex flex-col gap-3 rounded-[10px] border border-[#f3d7aa] bg-[#fff8ec] px-4 py-3 text-[12px] text-[#7a4a0a] sm:flex-row sm:items-center sm:justify-between" role="alert">
+                    <span>{journeyError}</span>
+                    <AppButton className="h-8 rounded-[8px]" onClick={() => void loadJourneyOverview()}>
+                      {copy("Retry progress", "Reintentar progreso", "Tentar progresso novamente")}
+                    </AppButton>
+                  </div>
+                ) : null}
+
                 <div className="mt-5 flex flex-wrap gap-3">
                   <AppButton
                     className="h-10 rounded-[9px] px-5"
@@ -814,9 +932,9 @@ export function SaasHomePage() {
                 <ActiveProjectCard
                   planLabel={activePlan.name}
                   progress={progress}
-                  stage={getSessionStageLabel(selectedSession.current_stage, language)}
-                  status={getSessionStatusLabel(selectedSession.status, language)}
-                  title={overview?.project_title ?? selectedSession.title}
+                  stage={journeyOverview?.current_stage.label ?? getSessionStageLabel(selectedSession.current_stage, language)}
+                  status={journeyOverview?.recommended_next_action?.label ?? getSessionStatusLabel(selectedSession.status, language)}
+                  title={journeyOverview?.project_title ?? selectedSession.title}
                 />
               ) : (
                 <FirstValueCard />

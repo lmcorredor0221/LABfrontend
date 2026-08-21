@@ -9,6 +9,10 @@ import {
   type LeanJourneyStage,
 } from "@/features/journey/journey-model";
 import type { ArtifactStatus, SessionSnapshot, SessionStage, SessionSummary } from "@/features/sessions/types";
+import type {
+  ProductJourneyOverview,
+  ProductJourneyRecommendedAction,
+} from "@/features/product-experience/saas/product-journey-overview";
 
 type SessionLabelLanguage = "en" | "es" | "pt";
 
@@ -114,6 +118,16 @@ function getProductLandingSection(snapshot: SessionSnapshot | null): ProjectProd
     return "blueprint_pro";
   }
 
+  return "blueprint";
+}
+
+function getProductLandingSectionFromKey(productKey: string): ProjectProductRouteSection {
+  if (productKey === "acp") {
+    return "acp";
+  }
+  if (productKey === "blueprint_pro") {
+    return "blueprint_pro";
+  }
   return "blueprint";
 }
 
@@ -234,6 +248,51 @@ function recommendProjectStage(
   return "package";
 }
 
+function actionHrefOrProductRoute(sessionId: string, action: ProductJourneyRecommendedAction | null | undefined) {
+  if (!action) {
+    return null;
+  }
+
+  if (action.href.startsWith(`/projects/${sessionId}/`)) {
+    return action.href;
+  }
+
+  if (action.action_key === "open_attention") {
+    return `/projects/${sessionId}/attention`;
+  }
+
+  if (action.action_key === "view_progress") {
+    return `/projects/${sessionId}/activity`;
+  }
+
+  return getProjectProductRoute(sessionId, getProductLandingSectionFromKey(action.product_key));
+}
+
+export function getProjectRouteFromJourneyOverview(
+  sessionId: string,
+  overview: ProductJourneyOverview | null | undefined,
+) {
+  if (!overview) {
+    return null;
+  }
+
+  const action = overview.recommended_next_action;
+  if (action?.action_key === "open_attention" || action?.action_key === "view_progress") {
+    return actionHrefOrProductRoute(sessionId, action);
+  }
+
+  const stageKey = overview.current_stage.stage_key;
+  if (
+    isCanonicalProjectStage(stageKey) &&
+    overview.current_stage.lifecycle !== "completed" &&
+    overview.current_stage.product_key === "blueprint_basic"
+  ) {
+    return getProjectRoute(sessionId, stageKey);
+  }
+
+  return actionHrefOrProductRoute(sessionId, action) ?? getProjectProductRoute(sessionId, "blueprint");
+}
+
 export function persistLastVisitedProjectStage(sessionId: string, stage: LeanJourneyStage) {
   const current = loadStoredStages();
   current[sessionId] = stage;
@@ -265,7 +324,13 @@ export function getPreferredProjectStage(
 export function getSessionProjectRoute(
   session: Pick<SessionSummary, "current_stage" | "id">,
   snapshot: SessionSnapshot | null = null,
+  overview: ProductJourneyOverview | null = null,
 ) {
+  const overviewRoute = getProjectRouteFromJourneyOverview(session.id, overview);
+  if (overviewRoute) {
+    return overviewRoute;
+  }
+
   if (!shouldOpenWorkStage(session, snapshot)) {
     return getProjectProductRoute(session.id, getProductLandingSection(snapshot));
   }

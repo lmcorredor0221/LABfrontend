@@ -73,6 +73,7 @@ type CheckoutProductOptions = {
   cancelUrl?: string;
   idempotencyKey?: string;
   outcome?: CommercialCheckoutCompletionRequest["outcome"];
+  preventRedirect?: boolean;
   providerPaymentId?: string;
   successUrl?: string;
 };
@@ -765,10 +766,16 @@ export function createSessionsStore({
       session_id: sessionId,
       success_url: options.successUrl,
     });
-    return completeSandboxCheckout(checkout.checkout_ref, {
-      outcome: options.outcome ?? "success",
-      provider_payment_id: options.providerPaymentId ?? `sandbox_${checkout.checkout_ref}`,
-    });
+    if (checkout.provider === "sandbox") {
+      return completeSandboxCheckout(checkout.checkout_ref, {
+        outcome: options.outcome ?? "success",
+        provider_payment_id: options.providerPaymentId ?? `sandbox_${checkout.checkout_ref}`,
+      });
+    }
+    if (checkout.checkout_url && typeof window !== "undefined" && !options.preventRedirect) {
+      window.location.assign(checkout.checkout_url);
+    }
+    return getCommercialOrder(checkout.order_id);
   }
 
   async function getCommercialOrder(orderId: string) {
@@ -777,6 +784,10 @@ export function createSessionsStore({
 
   async function getProductOverview(sessionId: string) {
     return client.getProductOverview(sessionId);
+  }
+
+  async function getProductJourneyOverview(sessionId: string) {
+    return client.getProductJourneyOverview(sessionId);
   }
 
   async function getBlueprintResult(sessionId: string) {
@@ -968,6 +979,7 @@ export function createSessionsStore({
     getExportJob,
     getPlanAccess,
     getProductOverview,
+    getProductJourneyOverview,
     getRuntimeSettings,
     createExportJob,
     retryExportJob,

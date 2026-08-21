@@ -53,6 +53,240 @@ function formatTimestamp(value: string) {
   return new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+const DIAGRAM_NOTATION_OPTIONS = [
+  { label: "Flowchart", value: "flowchart" },
+  { label: "Sequence", value: "sequence" },
+  { label: "UML Class", value: "class" },
+  { label: "Entity Relationship", value: "er" },
+  { label: "UML State", value: "state" },
+  { label: "Journey", value: "journey" },
+  { label: "C4", value: "c4" },
+  { label: "BPMN 2.0", value: "bpmn" },
+  { label: "UML Use Case", value: "uml_use_case" },
+  { label: "UML Activity", value: "uml_activity" },
+  { label: "UML Component", value: "uml_component" },
+  { label: "UML Deployment", value: "deployment" },
+  { label: "UML Package", value: "package" },
+  { label: "Capability Map", value: "capability" },
+];
+
+type DiagramNotationProfile = {
+  label: string;
+  notation: string;
+  presentation_contract: string;
+  renderer_key: string;
+  source_contract: string;
+  standard: string;
+  validator_key: string;
+  compatiblePresentationContracts?: string[];
+  compatibleRenderers?: string[];
+  compatibleSourceContracts?: string[];
+  compatibleValidators?: string[];
+};
+
+const NOTATION_PROFILES: Record<string, DiagramNotationProfile> = {
+  flowchart: {
+    compatibleRenderers: ["renderer.mermaid.v1", "renderer.svg.generic.v1", "renderer.agentic_graph.v1"],
+    compatibleSourceContracts: ["mermaid-source.v1", "diagram-model.v1"],
+    compatibleValidators: ["diagram.graph_integrity.v1", "agentic.workflow.semantic.v1"],
+    label: "Flowchart",
+    notation: "flowchart",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.mermaid.v1",
+    source_contract: "mermaid-source.v1",
+    standard: "Mermaid flowchart",
+    validator_key: "diagram.graph_integrity.v1",
+  },
+  sequence: {
+    label: "UML Sequence Diagram",
+    notation: "sequence",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.plantuml.v1",
+    source_contract: "plantuml-source.v1",
+    standard: "UML Sequence Diagram",
+    validator_key: "uml.sequence.semantic.v1",
+  },
+  class: {
+    label: "UML Class Diagram",
+    notation: "class",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.plantuml.v1",
+    source_contract: "plantuml-source.v1",
+    standard: "UML Class Diagram",
+    validator_key: "uml.class.semantic.v1",
+  },
+  er: {
+    label: "Entity Relationship Diagram",
+    notation: "er",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.mermaid.v1",
+    source_contract: "mermaid-source.v1",
+    standard: "Entity Relationship Diagram",
+    validator_key: "data.erd.semantic.v1",
+  },
+  state: {
+    label: "UML State Machine Diagram",
+    notation: "state",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.plantuml.v1",
+    source_contract: "plantuml-source.v1",
+    standard: "UML State Machine",
+    validator_key: "uml.state.semantic.v1",
+  },
+  journey: {
+    label: "User Journey Map",
+    notation: "journey",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.mermaid.v1",
+    source_contract: "mermaid-source.v1",
+    standard: "User Journey Map",
+    validator_key: "diagram.graph_integrity.v1",
+  },
+  c4: {
+    compatibleValidators: ["c4.context.semantic.v1", "c4.container.semantic.v1"],
+    label: "C4 Model",
+    notation: "c4",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.c4.v1",
+    source_contract: "c4-source.v1",
+    standard: "C4 Model",
+    validator_key: "c4.context.semantic.v1",
+  },
+  bpmn: {
+    label: "BPMN 2.0",
+    notation: "bpmn",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.bpmn_js.v1",
+    source_contract: "bpmn-source.v1",
+    standard: "BPMN 2.0",
+    validator_key: "bpmn.2_0.schema_semantic.v1",
+  },
+  uml_use_case: {
+    label: "UML Use Case Diagram",
+    notation: "uml_use_case",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.plantuml.v1",
+    source_contract: "plantuml-source.v1",
+    standard: "UML Use Case Diagram",
+    validator_key: "uml.use_case.semantic.v1",
+  },
+  uml_activity: {
+    label: "UML Activity Diagram",
+    notation: "uml_activity",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.plantuml.v1",
+    source_contract: "plantuml-source.v1",
+    standard: "UML Activity Diagram",
+    validator_key: "uml.activity.semantic.v1",
+  },
+  uml_component: {
+    label: "UML Component Diagram",
+    notation: "uml_component",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.plantuml.v1",
+    source_contract: "plantuml-source.v1",
+    standard: "UML Component Diagram",
+    validator_key: "uml.component.semantic.v1",
+  },
+  deployment: {
+    label: "UML Deployment Diagram",
+    notation: "deployment",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.plantuml.v1",
+    source_contract: "plantuml-source.v1",
+    standard: "UML Deployment Diagram",
+    validator_key: "diagram.graph_integrity.v1",
+  },
+  package: {
+    label: "UML Package Diagram",
+    notation: "package",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.plantuml.v1",
+    source_contract: "plantuml-source.v1",
+    standard: "UML Package Diagram",
+    validator_key: "diagram.graph_integrity.v1",
+  },
+  capability: {
+    compatibleRenderers: ["renderer.svg.generic.v1", "renderer.agentic_graph.v1"],
+    compatibleSourceContracts: ["diagram-model.v1", "mermaid-source.v1"],
+    label: "Capability Map",
+    notation: "capability",
+    presentation_contract: "diagram-presentation.v1",
+    renderer_key: "renderer.svg.generic.v1",
+    source_contract: "diagram-model.v1",
+    standard: "Capability Map",
+    validator_key: "diagram.graph_integrity.v1",
+  },
+};
+
+type PromptScalarKey =
+  | "notation"
+  | "presentation_contract"
+  | "renderer_key"
+  | "source_contract"
+  | "standard"
+  | "validator_key";
+
+type LayoutGuidance = Record<string, unknown>;
+
+const LAYOUT_STRATEGY_OPTIONS_BY_NOTATION: Record<string, { label: string; value: string }[]> = {
+  bpmn: [{ label: "BPMN swimlane", value: "bpmn_swimlane" }, { label: "Split required", value: "split_required" }],
+  uml_activity: [{ label: "UML Activity", value: "uml_activity" }, { label: "Split required", value: "split_required" }],
+  uml_use_case: [{ label: "UML Use Case", value: "uml_use_case" }, { label: "Split required", value: "split_required" }],
+  sequence: [{ label: "Timeline", value: "timeline" }, { label: "Split required", value: "split_required" }],
+  flowchart: [{ label: "Layered", value: "layered" }, { label: "Fixed grid", value: "fixed_grid" }, { label: "Split required", value: "split_required" }],
+};
+
+const DIRECTION_OPTIONS = [
+  { label: "Izquierda a derecha", value: "LR" },
+  { label: "Arriba a abajo", value: "TB" },
+  { label: "Derecha a izquierda", value: "RL" },
+  { label: "Abajo a arriba", value: "BT" },
+];
+
+const DEFAULT_LAYOUT_BY_NOTATION: Record<string, LayoutGuidance> = {
+  bpmn: {
+    enable_adaptive_sizing: true,
+    enable_edge_routing: true,
+    max_edge_density: 0.12,
+    max_edges_per_view: 20,
+    max_nodes_per_view: 14,
+    preferred_direction: "LR",
+    preferred_strategy: "bpmn_swimlane",
+    visual_quality_min_score: 86,
+  },
+  uml_activity: {
+    enable_adaptive_sizing: true,
+    enable_edge_routing: true,
+    max_edge_density: 0.12,
+    max_edges_per_view: 22,
+    max_nodes_per_view: 14,
+    preferred_direction: "TB",
+    preferred_strategy: "uml_activity",
+    visual_quality_min_score: 86,
+  },
+  uml_use_case: {
+    enable_adaptive_sizing: true,
+    enable_edge_routing: true,
+    max_edge_density: 0.14,
+    max_edges_per_view: 24,
+    max_nodes_per_view: 18,
+    preferred_direction: "TB",
+    preferred_strategy: "uml_use_case",
+    visual_quality_min_score: 84,
+  },
+  flowchart: {
+    enable_adaptive_sizing: true,
+    enable_edge_routing: true,
+    max_edge_density: 0.16,
+    max_edges_per_view: 22,
+    max_nodes_per_view: 16,
+    preferred_direction: "LR",
+    preferred_strategy: "layered",
+    visual_quality_min_score: 82,
+  },
+};
+
 function promptText(
   entry: DiagramGovernanceEntry,
   draft: DiagramGovernanceUpdate,
@@ -76,6 +310,100 @@ function setPromptOverride(
   };
 }
 
+function promptScalarText(
+  entry: DiagramGovernanceEntry,
+  draft: DiagramGovernanceUpdate,
+  key: PromptScalarKey,
+) {
+  return String(draft.prompt_override[key] ?? entry.prompt_spec[key] ?? "");
+}
+
+function setPromptScalarOverride(
+  current: DiagramGovernanceUpdate,
+  key: PromptScalarKey,
+  value: string,
+) {
+  const nextOverride = { ...current.prompt_override };
+  const normalized = value.trim();
+  if (normalized) {
+    nextOverride[key] = normalized;
+  } else {
+    delete nextOverride[key];
+  }
+  return {
+    ...current,
+    prompt_override: nextOverride,
+  };
+}
+
+function profileForNotation(notation: string) {
+  return NOTATION_PROFILES[notation] ?? NOTATION_PROFILES.flowchart;
+}
+
+function setPromptProfileOverride(current: DiagramGovernanceUpdate, notation: string) {
+  const profile = profileForNotation(notation);
+  return {
+    ...current,
+    prompt_override: {
+      ...current.prompt_override,
+      notation: profile.notation,
+      presentation_contract: profile.presentation_contract,
+      renderer_key: profile.renderer_key,
+      source_contract: profile.source_contract,
+      standard: profile.standard,
+      validator_key: profile.validator_key,
+      layout_guidance: DEFAULT_LAYOUT_BY_NOTATION[profile.notation] ?? DEFAULT_LAYOUT_BY_NOTATION.flowchart,
+    },
+  };
+}
+
+function compatibleOptions(recommended: string, values: string[], current: string) {
+  const allowed = Array.from(new Set([recommended, ...values].filter(Boolean)));
+  const options = allowed.map((value) => ({
+    label: value === recommended ? `${value} (recomendado)` : value,
+    value,
+  }));
+  if (current && !allowed.includes(current)) {
+    options.push({ label: `${current} (actual, fuera del perfil)`, value: current });
+  }
+  return options;
+}
+
+function hasPromptOverride(draft: DiagramGovernanceUpdate, key: PromptScalarKey) {
+  return Boolean(draft.prompt_override[key]);
+}
+
+function layoutGuidance(entry: DiagramGovernanceEntry, draft: DiagramGovernanceUpdate): LayoutGuidance {
+  const base = entry.prompt_spec.layout_guidance && typeof entry.prompt_spec.layout_guidance === "object"
+    ? entry.prompt_spec.layout_guidance
+    : {};
+  const override = draft.prompt_override.layout_guidance && typeof draft.prompt_override.layout_guidance === "object"
+    ? draft.prompt_override.layout_guidance
+    : {};
+  return { ...base, ...override };
+}
+
+function layoutValue(entry: DiagramGovernanceEntry, draft: DiagramGovernanceUpdate, key: string, fallback: string | number | boolean) {
+  const value = layoutGuidance(entry, draft)[key];
+  return value ?? fallback;
+}
+
+function setLayoutOverride(current: DiagramGovernanceUpdate, key: string, value: string | number | boolean) {
+  const currentLayout = current.prompt_override.layout_guidance && typeof current.prompt_override.layout_guidance === "object"
+    ? current.prompt_override.layout_guidance
+    : {};
+  return {
+    ...current,
+    prompt_override: {
+      ...current.prompt_override,
+      layout_guidance: {
+        ...currentLayout,
+        [key]: value,
+      },
+    },
+  };
+}
+
 function GovernanceCard({
   entry,
   onSaved,
@@ -86,6 +414,37 @@ function GovernanceCard({
   const [draft, setDraft] = useState<DiagramGovernanceUpdate>(() => toDraft(entry));
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState("");
+  const effectiveNotation = promptScalarText(entry, draft, "notation");
+  const effectiveProfile = profileForNotation(effectiveNotation);
+  const effectiveSourceContract = promptScalarText(entry, draft, "source_contract") || entry.prompt_spec.output_contract;
+  const effectivePresentationContract = promptScalarText(entry, draft, "presentation_contract") || "diagram-presentation.v1";
+  const effectiveRendererKey = promptScalarText(entry, draft, "renderer_key") || "renderer.svg.generic.v1";
+  const effectiveValidatorKey = promptScalarText(entry, draft, "validator_key") || "diagram.graph_integrity.v1";
+  const sourceContractOptions = compatibleOptions(
+    effectiveProfile.source_contract,
+    effectiveProfile.compatibleSourceContracts ?? [effectiveProfile.source_contract],
+    effectiveSourceContract,
+  );
+  const presentationContractOptions = compatibleOptions(
+    effectiveProfile.presentation_contract,
+    effectiveProfile.compatiblePresentationContracts ?? [effectiveProfile.presentation_contract],
+    effectivePresentationContract,
+  );
+  const rendererOptions = compatibleOptions(
+    effectiveProfile.renderer_key,
+    effectiveProfile.compatibleRenderers ?? [effectiveProfile.renderer_key],
+    effectiveRendererKey,
+  );
+  const validatorOptions = compatibleOptions(
+    effectiveProfile.validator_key,
+    effectiveProfile.compatibleValidators ?? [effectiveProfile.validator_key],
+    effectiveValidatorKey,
+  );
+  const profileAligned =
+    effectiveSourceContract === effectiveProfile.source_contract
+    && effectivePresentationContract === effectiveProfile.presentation_contract
+    && effectiveRendererKey === effectiveProfile.renderer_key
+    && effectiveValidatorKey === effectiveProfile.validator_key;
 
   async function save() {
     setSaving(true);
@@ -115,7 +474,42 @@ function GovernanceCard({
         </div>
         <div className="text-right">
           <p className="text-[11px] font-semibold text-[var(--text-secondary)]">{entry.required_tier} · preview {entry.preview_mode}</p>
-          <p className="mt-1 text-[10px] text-[var(--text-muted)]">{entry.prompt_spec.notation} · {entry.prompt_spec.required_inputs.length} entradas</p>
+          <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+            {effectiveNotation}
+            {draft.prompt_override.notation ? " · override" : ""}
+            {" · "}
+            {entry.prompt_spec.required_inputs.length} entradas
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-2 border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] px-4 py-3 text-[11px] md:grid-cols-4">
+        <div>
+          <p className="font-mono font-black uppercase tracking-[.14em] text-[var(--text-muted)]">Contrato fuente</p>
+          <p className="mt-1 font-semibold text-[var(--text-primary)]">
+            {effectiveSourceContract}
+            {hasPromptOverride(draft, "source_contract") ? <span className="ml-1 text-[var(--brand-primary)]">override</span> : null}
+          </p>
+        </div>
+        <div>
+          <p className="font-mono font-black uppercase tracking-[.14em] text-[var(--text-muted)]">Presentacion</p>
+          <p className="mt-1 font-semibold text-[var(--text-primary)]">
+            {effectivePresentationContract}
+            {hasPromptOverride(draft, "presentation_contract") ? <span className="ml-1 text-[var(--brand-primary)]">override</span> : null}
+          </p>
+        </div>
+        <div>
+          <p className="font-mono font-black uppercase tracking-[.14em] text-[var(--text-muted)]">Renderer</p>
+          <p className="mt-1 font-semibold text-[var(--text-primary)]">
+            {effectiveRendererKey}
+            {hasPromptOverride(draft, "renderer_key") ? <span className="ml-1 text-[var(--brand-primary)]">override</span> : null}
+          </p>
+        </div>
+        <div>
+          <p className="font-mono font-black uppercase tracking-[.14em] text-[var(--text-muted)]">Validador</p>
+          <p className="mt-1 font-semibold text-[var(--text-primary)]">
+            {effectiveValidatorKey}
+            {hasPromptOverride(draft, "validator_key") ? <span className="ml-1 text-[var(--brand-primary)]">override</span> : null}
+          </p>
         </div>
       </div>
       <details className="group border-t border-[var(--border-subtle)]">
@@ -124,7 +518,7 @@ function GovernanceCard({
           <ChevronDown aria-hidden="true" className="h-4 w-4 transition-transform group-open:rotate-180" />
         </summary>
         <div className="border-t border-[var(--border-subtle)] bg-[var(--surface-muted)] p-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <SelectField
               label="Visibilidad"
               onValueChange={(value) => setDraft((current) => ({ ...current, enabled: value === "enabled" }))}
@@ -152,6 +546,149 @@ function GovernanceCard({
               onValueChange={(value) => setDraft((current) => ({ ...current, preview_mode_override: value }))}
               options={[{ label: "Completa", value: "full" }, { label: "Limitada", value: "limited" }, { label: "Bloqueada", value: "none" }]}
               value={draft.preview_mode_override}
+            />
+            <SelectField
+              label="Notacion"
+              onValueChange={(value) => setDraft((current) => setPromptProfileOverride(current, value))}
+              options={DIAGRAM_NOTATION_OPTIONS}
+              value={effectiveNotation}
+            />
+          </div>
+          <div className="mt-3 rounded-[14px] border border-[var(--border-default)] bg-white p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-mono text-[11px] font-black uppercase tracking-[.14em] text-[var(--text-muted)]">
+                  Perfil de notacion
+                </p>
+                <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                  {effectiveProfile.label}: usa {effectiveProfile.source_contract}, {effectiveProfile.renderer_key} y {effectiveProfile.validator_key}.
+                </p>
+              </div>
+              {!profileAligned ? (
+                <AppButton
+                  onClick={() => setDraft((current) => setPromptProfileOverride(current, effectiveNotation))}
+                  type="button"
+                  variant="secondary"
+                >
+                  Aplicar perfil recomendado
+                </AppButton>
+              ) : (
+                <Badge tone="green">Perfil alineado</Badge>
+              )}
+            </div>
+          </div>
+          <div className="mt-3 rounded-[14px] border border-[var(--border-default)] bg-white p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-mono text-[11px] font-black uppercase tracking-[.14em] text-[var(--text-muted)]">
+                  Legibilidad y layout
+                </p>
+                <p className="mt-1 text-[12px] text-[var(--text-secondary)]">
+                  Controla densidad, direccion y politicas de split para evitar diagramas amontonados.
+                </p>
+              </div>
+              {draft.prompt_override.layout_guidance ? <Badge tone="blue">Layout override</Badge> : <Badge tone="slate">Perfil base</Badge>}
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <SelectField
+                label="Estrategia layout"
+                onValueChange={(value) => setDraft((current) => setLayoutOverride(current, "preferred_strategy", value))}
+                options={LAYOUT_STRATEGY_OPTIONS_BY_NOTATION[effectiveNotation] ?? LAYOUT_STRATEGY_OPTIONS_BY_NOTATION.flowchart}
+                value={String(layoutValue(entry, draft, "preferred_strategy", "layered"))}
+              />
+              <SelectField
+                label="Direccion preferida"
+                onValueChange={(value) => setDraft((current) => setLayoutOverride(current, "preferred_direction", value))}
+                options={DIRECTION_OPTIONS}
+                value={String(layoutValue(entry, draft, "preferred_direction", "LR"))}
+              />
+              <label className="flex flex-col gap-2 text-[14px] font-medium text-[var(--text-primary)]">
+                Nodos antes de split
+                <input
+                  className="h-12 rounded-[14px] border border-[var(--border-default)] bg-white px-4 text-[14px] text-[var(--text-primary)]"
+                  min={4}
+                  max={80}
+                  onChange={(event) => setDraft((current) => setLayoutOverride(current, "max_nodes_per_view", Number(event.target.value)))}
+                  type="number"
+                  value={Number(layoutValue(entry, draft, "max_nodes_per_view", 16))}
+                />
+              </label>
+              <label className="flex flex-col gap-2 text-[14px] font-medium text-[var(--text-primary)]">
+                Aristas antes de split
+                <input
+                  className="h-12 rounded-[14px] border border-[var(--border-default)] bg-white px-4 text-[14px] text-[var(--text-primary)]"
+                  min={4}
+                  max={160}
+                  onChange={(event) => setDraft((current) => setLayoutOverride(current, "max_edges_per_view", Number(event.target.value)))}
+                  type="number"
+                  value={Number(layoutValue(entry, draft, "max_edges_per_view", 22))}
+                />
+              </label>
+              <label className="flex flex-col gap-2 text-[14px] font-medium text-[var(--text-primary)]">
+                Densidad maxima
+                <input
+                  className="h-12 rounded-[14px] border border-[var(--border-default)] bg-white px-4 text-[14px] text-[var(--text-primary)]"
+                  max={1}
+                  min={0.01}
+                  onChange={(event) => setDraft((current) => setLayoutOverride(current, "max_edge_density", Number(event.target.value)))}
+                  step={0.01}
+                  type="number"
+                  value={Number(layoutValue(entry, draft, "max_edge_density", 0.16))}
+                />
+              </label>
+              <label className="flex flex-col gap-2 text-[14px] font-medium text-[var(--text-primary)]">
+                Score visual minimo
+                <input
+                  className="h-12 rounded-[14px] border border-[var(--border-default)] bg-white px-4 text-[14px] text-[var(--text-primary)]"
+                  min={50}
+                  max={100}
+                  onChange={(event) => setDraft((current) => setLayoutOverride(current, "visual_quality_min_score", Number(event.target.value)))}
+                  type="number"
+                  value={Number(layoutValue(entry, draft, "visual_quality_min_score", 82))}
+                />
+              </label>
+              <SelectField
+                label="Sizing adaptativo"
+                onValueChange={(value) => setDraft((current) => setLayoutOverride(current, "enable_adaptive_sizing", value === "true"))}
+                options={[{ label: "Activo", value: "true" }, { label: "Inactivo", value: "false" }]}
+                value={String(layoutValue(entry, draft, "enable_adaptive_sizing", true))}
+              />
+              <SelectField
+                label="Ruteo de aristas"
+                onValueChange={(value) => setDraft((current) => setLayoutOverride(current, "enable_edge_routing", value === "true"))}
+                options={[{ label: "Activo", value: "true" }, { label: "Inactivo", value: "false" }]}
+                value={String(layoutValue(entry, draft, "enable_edge_routing", true))}
+              />
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <SelectField
+              hint={`Opciones compatibles con ${effectiveProfile.label}.`}
+              label="Contrato fuente"
+              onValueChange={(value) => setDraft((current) => setPromptScalarOverride(current, "source_contract", value))}
+              options={sourceContractOptions}
+              value={effectiveSourceContract}
+            />
+            <SelectField
+              hint={`Presentaciones optimas para ${effectiveProfile.label}.`}
+              label="Presentacion"
+              onValueChange={(value) => setDraft((current) => setPromptScalarOverride(current, "presentation_contract", value))}
+              options={presentationContractOptions}
+              value={effectivePresentationContract}
+            />
+            <SelectField
+              hint={`Renderer recomendado por la notacion seleccionada.`}
+              label="Renderer"
+              onValueChange={(value) => setDraft((current) => setPromptScalarOverride(current, "renderer_key", value))}
+              options={rendererOptions}
+              value={effectiveRendererKey}
+            />
+            <SelectField
+              hint={`Validador semantico compatible con ${effectiveProfile.label}.`}
+              label="Validador"
+              onValueChange={(value) => setDraft((current) => setPromptScalarOverride(current, "validator_key", value))}
+              options={validatorOptions}
+              value={effectiveValidatorKey}
             />
           </div>
           <div className="mt-3 grid gap-3 md:grid-cols-2">

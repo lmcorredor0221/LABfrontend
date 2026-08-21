@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -20,11 +20,25 @@ import {
 } from "lucide-react";
 import { useLanguage, type SupportedLanguage } from "@/core/i18n/language-context";
 import { UxaButton } from "@/features/product-experience/design-system";
-import type { DiagramCatalogItem, DiagramGenerationState } from "@/features/diagram-center/domain/types";
+import type {
+  DiagramCatalogItem,
+  DiagramGenerationReason,
+  DiagramGenerationState,
+} from "@/features/diagram-center/domain/types";
 import { useDiagramCenter } from "@/features/diagram-center/application/use-diagram-center";
 import styles from "./diagram-center.module.css";
 
 type ViewMode = "grid" | "list";
+type CanvasZoomMode = "fit" | "actual" | "wide";
+
+type DiagramCenterPageProps = {
+  projectId: string;
+  catalogFilter?: (item: DiagramCatalogItem) => boolean;
+  title?: string;
+  subtitle?: string;
+  engineLabel?: string;
+  initialViewMode?: ViewMode;
+};
 
 const ACCESS_LABELS: Record<SupportedLanguage, Record<"available" | "preview" | "locked" | "stage_locked" | "disabled", string>> = {
   es: { available: "Disponible", preview: "Vista previa", locked: "Por plan", stage_locked: "Por etapa", disabled: "Deshabilitado" },
@@ -36,6 +50,12 @@ const GENERATION_LABELS: Record<SupportedLanguage, Record<DiagramGenerationState
   es: { available: "Disponible", error: "Error", generating: "Generando", pending: "Pendiente", queued: "En cola", updating: "Actualizando" },
   en: { available: "Available", error: "Error", generating: "Generating", pending: "Pending", queued: "Queued", updating: "Updating" },
   pt: { available: "Disponível", error: "Erro", generating: "Gerando", pending: "Pendente", queued: "Na fila", updating: "Atualizando" },
+};
+
+const CANVAS_ZOOM_LABELS: Record<SupportedLanguage, Record<CanvasZoomMode, string>> = {
+  es: { fit: "Ajustar", actual: "Tamano real", wide: "Vista amplia" },
+  en: { fit: "Fit", actual: "Actual size", wide: "Wide view" },
+  pt: { fit: "Ajustar", actual: "Tamanho real", wide: "Vista ampla" },
 };
 
 const DIAGRAM_COPY: Record<
@@ -61,6 +81,9 @@ const DIAGRAM_COPY: Record<
     selectDiagram: string;
     viewerDesc: string;
     regenerate: string;
+    layoutUpgrade: string;
+    layoutUpgradeAvailable: string;
+    layoutUpgradeDesc: string;
     generate: string;
     viewDetail: string;
     generationNeedsAttention: string;
@@ -104,6 +127,9 @@ const DIAGRAM_COPY: Record<
     selectDiagram: "Selecciona un diagrama",
     viewerDesc: "Consulta aquí disponibilidad, beneficio, preview, versiones y acciones permitidas.",
     regenerate: "Regenerar",
+    layoutUpgrade: "Actualizar legibilidad",
+    layoutUpgradeAvailable: "Mejora de legibilidad",
+    layoutUpgradeDesc: "Este diagrama fue creado con una revision anterior del renderer. Puedes generar una nueva version conservando la actual para comparacion.",
     generate: "Generar",
     viewDetail: "Ver detalle",
     generationNeedsAttention: "La generación necesita atención",
@@ -146,6 +172,9 @@ const DIAGRAM_COPY: Record<
     selectDiagram: "Select a diagram",
     viewerDesc: "Check availability, value, preview, versions, and allowed actions here.",
     regenerate: "Regenerate",
+    layoutUpgrade: "Upgrade readability",
+    layoutUpgradeAvailable: "Readability upgrade",
+    layoutUpgradeDesc: "This diagram was created with an older renderer revision. You can generate a new version while keeping the current one for comparison.",
     generate: "Generate",
     viewDetail: "View detail",
     generationNeedsAttention: "Generation needs attention",
@@ -188,6 +217,9 @@ const DIAGRAM_COPY: Record<
     selectDiagram: "Selecione um diagrama",
     viewerDesc: "Consulte disponibilidade, valor, prévia, versões e ações permitidas aqui.",
     regenerate: "Regenerar",
+    layoutUpgrade: "Atualizar legibilidade",
+    layoutUpgradeAvailable: "Melhoria de legibilidade",
+    layoutUpgradeDesc: "Este diagrama foi criado com uma revisao anterior do renderer. Voce pode gerar uma nova versao preservando a atual para comparacao.",
     generate: "Gerar",
     viewDetail: "Ver detalhe",
     generationNeedsAttention: "A geração precisa de atenção",
@@ -261,7 +293,7 @@ function CatalogCard({
   viewMode,
 }: {
   item: DiagramCatalogItem;
-  onGenerate: (regenerate: boolean) => void;
+  onGenerate: (reason: DiagramGenerationReason) => void;
   onSelect: () => void;
   selected: boolean;
   language: SupportedLanguage;
@@ -271,11 +303,15 @@ function CatalogCard({
   const working = ["queued", "generating", "updating"].includes(item.generation_state);
   const canStart = item.access.can_generate && item.generation_state === "pending";
   const canRegenerate = item.access.can_regenerate && item.generation_state === "available";
+  const canUpgradeLayout = canRegenerate && item.needs_layout_upgrade;
+  const generationReason: DiagramGenerationReason = canUpgradeLayout ? "layout_upgrade" : canRegenerate ? "regenerate" : "user_request";
   return (
     <article className={`${styles.card} ${selected ? styles.cardSelected : ""} ${viewMode === "list" ? styles.listCard : ""}`}>
       <div>
         <div className={styles.cardTop}>
           <span className={styles.tag}>{formatToken(item.category)}</span>
+          {item.standard ? <span className={styles.tag}>{item.standard}</span> : null}
+          {item.needs_layout_upgrade ? <span className={styles.upgradeTag}>{copy.layoutUpgradeAvailable}</span> : null}
           <ItemStatus item={item} language={language} />
         </div>
         <button aria-pressed={selected} className={styles.cardTitleButton} onClick={onSelect} type="button">
@@ -288,11 +324,11 @@ function CatalogCard({
           <button
             className={`${styles.cardAction} ${canStart ? styles.cardActionPrimary : ""}`}
             disabled={working}
-            onClick={() => onGenerate(canRegenerate)}
+            onClick={() => onGenerate(generationReason)}
             type="button"
           >
             {canRegenerate ? <RefreshCw aria-hidden="true" size={12} /> : <Sparkles aria-hidden="true" size={12} />}
-            {canRegenerate ? copy.regenerate : copy.generate}
+            {canUpgradeLayout ? copy.layoutUpgrade : canRegenerate ? copy.regenerate : copy.generate}
           </button>
         ) : (
           <button className={styles.cardAction} onClick={onSelect} type="button">
@@ -320,6 +356,8 @@ function ViewerState({ item, language, onGenerate }: { item: DiagramCatalogItem;
     ? copy.workingDesc
     : isError
       ? copy.errorDesc
+      : item.needs_layout_upgrade
+        ? (item.layout_upgrade_reason || copy.layoutUpgradeDesc)
       : item.access.reason;
   return (
     <div className={styles.statePanel}>
@@ -339,7 +377,14 @@ function ViewerState({ item, language, onGenerate }: { item: DiagramCatalogItem;
   );
 }
 
-export function DiagramCenterPage({ projectId }: { projectId: string }) {
+export function DiagramCenterPage({
+  projectId,
+  catalogFilter,
+  title,
+  subtitle,
+  engineLabel,
+  initialViewMode = "grid",
+}: DiagramCenterPageProps) {
   const { language } = useLanguage();
   const copy = DIAGRAM_COPY[language];
   const {
@@ -362,12 +407,25 @@ export function DiagramCenterPage({ projectId }: { projectId: string }) {
   const [stage, setStage] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [availability, setAvailability] = useState("all");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+  const [canvasZoomMode, setCanvasZoomMode] = useState<CanvasZoomMode>("fit");
   const [baseVersionId, setBaseVersionId] = useState("");
   const [targetVersionId, setTargetVersionId] = useState("");
   const [selectedVersionId, setSelectedVersionId] = useState("");
 
-  const entries = useMemo(() => catalog?.entries ?? [], [catalog?.entries]);
+  const catalogEntries = useMemo(() => catalog?.entries ?? [], [catalog?.entries]);
+  const entries = useMemo(
+    () => (catalogFilter ? catalogEntries.filter(catalogFilter) : catalogEntries),
+    [catalogEntries, catalogFilter],
+  );
+  const summary = useMemo(
+    () => ({
+      available: entries.filter((item) => item.access.access_state === "available").length,
+      locked: entries.filter((item) => ["disabled", "locked", "stage_locked"].includes(item.access.access_state)).length,
+      total: entries.length,
+    }),
+    [entries],
+  );
   const categories = useMemo(() => [...new Set(entries.map((item) => item.category))].sort(), [entries]);
   const stages = useMemo(() => [...new Set(entries.map((item) => item.stage))].sort(), [entries]);
   const types = useMemo(() => [...new Set(entries.map((item) => item.type))].sort(), [entries]);
@@ -385,10 +443,22 @@ export function DiagramCenterPage({ projectId }: { projectId: string }) {
     });
   }, [availability, category, entries, query, stage, typeFilter]);
   const selectedItem = entries.find((item) => item.key === selectedKey) ?? null;
-  const svgSource = detail?.renderings.svg
+  const detailMatchesSelected = detail?.item.key === selectedItem?.key;
+  const svgSource = detailMatchesSelected && detail?.renderings.svg
     ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(detail.renderings.svg)}`
     : "";
-  const versions = detail?.versions ?? [];
+  const canvasZoomLabels = CANVAS_ZOOM_LABELS[language];
+  const canvasClassName = `${styles.canvas} ${styles[`canvas_${canvasZoomMode}`]}`;
+  const versions = detailMatchesSelected ? detail?.versions ?? [] : [];
+
+  useEffect(() => {
+    if (!entries.length) {
+      return;
+    }
+    if (!selectedKey || !entries.some((item) => item.key === selectedKey)) {
+      setSelectedKey(entries[0].key);
+    }
+  }, [entries, selectedKey, setSelectedKey]);
 
   function selectItem(item: DiagramCatalogItem) {
     setSelectedKey(item.key);
@@ -397,22 +467,25 @@ export function DiagramCenterPage({ projectId }: { projectId: string }) {
     setSelectedVersionId("");
   }
 
-  async function startGeneration(regenerate = false) {
+  async function startGeneration(reason: DiagramGenerationReason = "user_request") {
     if (!selectedItem) return;
-    await generate(selectedItem.key, regenerate);
+    await generate(selectedItem.key, reason);
   }
 
   return (
     <section aria-labelledby="diagram-center-title" className={styles.root}>
       <header className={styles.hero}>
         <div className="flex flex-wrap items-center gap-3 min-w-0">
-          <h2 id="diagram-center-title" className="text-[16px] font-bold text-[var(--text-primary)]">{copy.title}</h2>
-          <span className={styles.eyebrow}>{copy.engine}</span>
+          <div>
+            <h2 id="diagram-center-title" className="text-[16px] font-bold text-[var(--text-primary)]">{title ?? copy.title}</h2>
+            {subtitle ? <p className="mt-1 max-w-2xl text-[11px] leading-5 text-[var(--text-secondary)]">{subtitle}</p> : null}
+          </div>
+          <span className={styles.eyebrow}>{engineLabel ?? copy.engine}</span>
         </div>
         <div aria-label="Resumen del catálogo" className={styles.summary}>
-          <div className={styles.summaryItem}><strong>{catalog?.total_count ?? "—"}</strong><span>{copy.inCatalog}</span></div>
-          <div className={styles.summaryItem}><strong>{catalog?.available_count ?? "—"}</strong><span>{copy.availableCount}</span></div>
-          <div className={styles.summaryItem}><strong>{catalog?.locked_count ?? "—"}</strong><span>{copy.lockedCount}</span></div>
+          <div className={styles.summaryItem}><strong>{catalogStatus === "loading" && !catalog ? "—" : summary.total}</strong><span>{copy.inCatalog}</span></div>
+          <div className={styles.summaryItem}><strong>{catalogStatus === "loading" && !catalog ? "—" : summary.available}</strong><span>{copy.availableCount}</span></div>
+          <div className={styles.summaryItem}><strong>{catalogStatus === "loading" && !catalog ? "—" : summary.locked}</strong><span>{copy.lockedCount}</span></div>
         </div>
       </header>
 
@@ -474,9 +547,9 @@ export function DiagramCenterPage({ projectId }: { projectId: string }) {
                 <CatalogCard
                   item={item}
                   key={item.key}
-                  onGenerate={(regenerate) => {
+                  onGenerate={(reason) => {
                     selectItem(item);
-                    void generate(item.key, regenerate);
+                    void generate(item.key, reason);
                   }}
                   onSelect={() => selectItem(item)}
                   selected={selectedKey === item.key}
@@ -503,23 +576,46 @@ export function DiagramCenterPage({ projectId }: { projectId: string }) {
               </div>
               <div className={styles.viewerMeta}>
                 <span className={styles.tag}>{formatToken(selectedItem.category)}</span>
+                {selectedItem.standard ? <span className={styles.tag}>{selectedItem.standard}</span> : null}
+                {selectedItem.source_contract ? <span className={styles.tag}>{selectedItem.source_contract}</span> : null}
                 <span className={styles.tag}>{formatToken(selectedItem.stage)}</span>
                 <span className={styles.tag}>{formatToken(selectedItem.complexity)}</span>
                 <span className={styles.tag}>{formatToken(selectedItem.required_tier)}</span>
               </div>
               {detailStatus === "loading" ? (
                 <div className={styles.skeleton} />
-              ) : detail?.model && svgSource ? (
+              ) : detailMatchesSelected && detail?.model && svgSource ? (
                 <>
+                  <div aria-label="Controles de visualizacion del diagrama" className={styles.canvasToolbar} role="group">
+                    {(["fit", "actual", "wide"] as CanvasZoomMode[]).map((mode) => (
+                      <button
+                        aria-pressed={canvasZoomMode === mode}
+                        className={`${styles.canvasTool} ${canvasZoomMode === mode ? styles.canvasToolActive : ""}`}
+                        key={mode}
+                        onClick={() => setCanvasZoomMode(mode)}
+                        type="button"
+                      >
+                        {canvasZoomLabels[mode]}
+                      </button>
+                    ))}
+                  </div>
                   <div
                     aria-label={`Vista desplazable de ${detail.model.title}`}
-                    className={styles.canvas}
+                    className={canvasClassName}
+                    onContextMenu={!selectedItem.access.can_download ? (e) => e.preventDefault() : undefined}
                     role="region"
                     tabIndex={0}
                   >
                     {/* SVG travels as an image resource; scripts and active markup are not injected into the DOM. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img alt={`Diagrama ${detail.model.title}`} src={svgSource} />
+                    <img
+                      alt={`Diagrama ${detail.model.title}`}
+                      className={!selectedItem.access.can_download ? "select-none pointer-events-none" : undefined}
+                      draggable={selectedItem.access.can_download}
+                      onContextMenu={!selectedItem.access.can_download ? (e) => e.preventDefault() : undefined}
+                      onDragStart={!selectedItem.access.can_download ? (e) => e.preventDefault() : undefined}
+                      src={svgSource}
+                    />
                     {selectedItem.access.access_state === "preview" ? <span className={styles.watermark}>{copy.preview}</span> : null}
                   </div>
                   {detail.quality ? (
@@ -530,18 +626,33 @@ export function DiagramCenterPage({ projectId }: { projectId: string }) {
                   ) : null}
                 </>
               ) : (
-                <ViewerState item={selectedItem} language={language} onGenerate={() => void startGeneration(false)} />
+                <ViewerState item={selectedItem} language={language} onGenerate={() => void startGeneration("user_request")} />
               )}
 
               <div className={styles.actionRow}>
                 {selectedItem.access.can_regenerate && selectedItem.current_version ? (
-                  <UxaButton onClick={() => void startGeneration(true)} size="sm" variant="primary"><RefreshCw aria-hidden="true" className="h-3.5 w-3.5" /> {copy.regenerate}</UxaButton>
+                  <UxaButton
+                    onClick={() => void startGeneration(selectedItem.needs_layout_upgrade ? "layout_upgrade" : "regenerate")}
+                    size="sm"
+                    variant="primary"
+                  >
+                    <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" /> {selectedItem.needs_layout_upgrade ? copy.layoutUpgrade : copy.regenerate}
+                  </UxaButton>
                 ) : null}
                 {selectedItem.access.can_download && selectedItem.current_version ? (
                   <UxaButton onClick={() => void download(selectedItem.key, "svg")} size="sm" variant="secondary"><Download aria-hidden="true" className="h-3.5 w-3.5" /> SVG</UxaButton>
                 ) : null}
                 {selectedItem.access.can_download && selectedItem.current_version ? (
                   <UxaButton onClick={() => void download(selectedItem.key, "json")} size="sm" variant="ghost">JSON</UxaButton>
+                ) : null}
+                {!selectedItem.access.can_download && selectedItem.current_version ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-[var(--uxa-radius-sm)] border border-slate-200 bg-slate-100/80 px-2.5 py-1 text-[11px] font-semibold text-slate-500 cursor-not-allowed"
+                    title={language === "es" ? "Descarga y exportación disponibles en Blueprint Pro y ACP" : "Download & export available in Blueprint Pro & ACP"}
+                  >
+                    <LockKeyhole className="h-3 w-3 text-slate-400" />
+                    {language === "es" ? "Descarga protegida (Blueprint Pro)" : "Protected download (Blueprint Pro)"}
+                  </span>
                 ) : null}
               </div>
 

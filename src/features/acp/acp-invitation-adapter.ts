@@ -79,12 +79,12 @@ export function buildAcpInvitationMetrics(report?: EstimationReportArtifact | nu
     findScenario(report, "traditional_blueprint") ??
     buildScenario({
       cost_savings_vs_traditional: 0,
-      description: "Equipo humano implementa con el Blueprint como guia de diseno.",
+      description: "Equipo humano implementa de forma tradicional; sirve como linea base de comparacion.",
       estimated_cost: traditionalCost,
       estimated_duration_weeks: report?.traditional.estimated_duration_weeks ?? 8,
       estimated_hours_total: traditionalHours,
       human_intervention_percent: 100,
-      label: "Tradicional + Blueprint",
+      label: "Desarrollo tradicional",
       scenario_key: "traditional_blueprint",
     });
 

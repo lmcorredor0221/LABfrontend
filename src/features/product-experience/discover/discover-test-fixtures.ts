@@ -229,6 +229,7 @@ export function createDiscoverRouteFixture({
         session_id: "session-uxa7",
         workspace_id: "workspace-1",
       },
+      stageOperation: null,
     }),
     requestId: 1,
     route: {

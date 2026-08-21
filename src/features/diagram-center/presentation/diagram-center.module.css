@@ -310,6 +310,21 @@
   color: var(--uxa-color-ink-soft);
 }
 
+.upgradeTag {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--uxa-state-warning-bg);
+  color: var(--uxa-state-warning);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
 .statusAvailable { background: var(--uxa-state-success-bg); color: var(--uxa-state-success); }
 .statusPreview { background: var(--uxa-state-info-bg); color: var(--uxa-state-info); }
 .statusLocked { background: var(--uxa-state-neutral-bg); color: var(--uxa-color-ink-soft); }
@@ -368,12 +383,39 @@
   flex-wrap: wrap;
 }
 
+.canvasToolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.canvasTool {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--uxa-color-border);
+  border-radius: 999px;
+  background: var(--uxa-color-panel);
+  color: var(--uxa-color-ink-soft);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.canvasToolActive {
+  border-color: color-mix(in srgb, var(--uxa-color-brand) 42%, var(--uxa-color-border));
+  background: var(--uxa-color-brand-soft);
+  color: var(--uxa-color-brand);
+}
+
 .canvas {
   position: relative;
   display: grid;
-  min-height: 310px;
-  place-items: center;
+  min-height: clamp(340px, 58vh, 680px);
+  align-items: start;
+  justify-items: center;
   overflow: auto;
+  padding: 16px;
   border: 1px solid var(--uxa-color-border-soft);
   border-radius: var(--uxa-radius-md);
   background:
@@ -391,8 +433,27 @@
 .canvas img {
   display: block;
   width: 100%;
-  min-width: 620px;
+  max-width: 100%;
+  min-width: min(620px, 100%);
   height: auto;
+}
+
+.canvas_fit img {
+  width: 100%;
+  max-width: 100%;
+  min-width: min(620px, 100%);
+}
+
+.canvas_actual img {
+  width: auto;
+  max-width: none;
+  min-width: min(960px, 100%);
+}
+
+.canvas_wide img {
+  width: 140%;
+  max-width: none;
+  min-width: 1120px;
 }
 
 .watermark {

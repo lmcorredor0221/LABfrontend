@@ -9,6 +9,7 @@ import {
   ChevronDown,
   FolderKanban,
   Globe,
+  Inbox,
   LayoutDashboard,
   LogOut,
   RefreshCw,
@@ -33,7 +34,11 @@ import {
   type UxaStageRailItem,
 } from "@/features/product-experience/design-system";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
-import type { ProductOperationActionSnapshot } from "@/features/product-experience/operations/operation-model";
+import { ProductOperationPanel } from "@/features/product-experience/operations/operation-panel";
+import {
+  buildProductOperationEnvelope,
+  type ProductOperationActionSnapshot,
+} from "@/features/product-experience/operations/operation-model";
 import type { ProductAttentionActionState } from "@/features/product-experience/shell/use-product-experience-route";
 import {
   getProductExperienceProductNav,
@@ -45,6 +50,10 @@ import {
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { cn } from "@/lib/utils";
 
+const BLUEPRINT_WORK_STAGE_ORDER: ProjectRouteStage[] = PROJECT_STAGE_ORDER.filter(
+  (stage): stage is ProjectRouteStage => stage !== "validate" && stage !== "package",
+);
+
 type ProjectWorkspaceShellProps = {
   activeProduct: ProductExperienceProductSection;
   activeRoute: ProductExperienceRouteSnapshot | null;
@@ -52,7 +61,9 @@ type ProjectWorkspaceShellProps = {
   attentionAction?: ProductAttentionActionState;
   children: ReactNode;
   onResolveAttentionItem?: ResolveAttentionItemHandler;
+  onCancelOperation?: (operationId: string) => void | Promise<void>;
   onReload?: () => void;
+  onRetryOperation?: (operationId: string) => void | Promise<void>;
   operationAction?: ProductOperationActionSnapshot | null;
   sessionId: string;
 };
@@ -62,7 +73,7 @@ function buildStageRailItems(
   activeStage: ProjectRouteStage,
   t?: (key: TranslationKey, fallback?: string) => string,
 ): UxaStageRailItem[] {
-  return PROJECT_STAGE_ORDER.map((stage) => {
+  return BLUEPRINT_WORK_STAGE_ORDER.map((stage) => {
     const definition = getProductExperienceStage(stage, t);
     return {
       description: definition.subtitle,
@@ -107,6 +118,10 @@ function getSessionStatusLabel(language: "es" | "en" | "pt", status?: string | n
 function getIsProductShellNavActive(pathname: string, href: string) {
   if (href === "/") {
     return pathname === "/";
+  }
+
+  if (href === "/projects") {
+    return pathname === "/projects";
   }
 
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -200,7 +215,8 @@ function ProjectUserMenu() {
   const globalNav = [
     { href: "/", icon: LayoutDashboard, label: t("nav.home", "Inicio") },
     { href: "/projects", icon: FolderKanban, label: t("nav.projects", "Proyectos") },
-    { href: "/settings", icon: Settings, label: t("nav.settings", "Configuracion") },
+    { href: "/admin/requests", icon: Inbox, label: t("nav.requests", "Gestión de solicitudes") },
+    { href: "/settings", icon: Settings, label: t("nav.settings", "Configuración") },
   ];
 
   useEffect(() => {
@@ -382,8 +398,10 @@ export function ProjectWorkspaceShell({
   activeStage,
   attentionAction,
   children,
+  onCancelOperation,
   onResolveAttentionItem,
   onReload,
+  onRetryOperation,
   operationAction,
   sessionId,
 }: ProjectWorkspaceShellProps) {
@@ -412,6 +430,7 @@ export function ProjectWorkspaceShell({
   const processingActivity = activeAttention
     ? t("processing.attention.activity", "HITL")
     : t("processing.backendActivity", "Backend/LLM");
+  const operationPanelVisible = Boolean(buildProductOperationEnvelope({ actionState: operationAction, activeRoute }));
 
   function openAttention(source: HTMLElement) {
     attentionReturnFocusRef.current = source;
@@ -460,6 +479,15 @@ export function ProjectWorkspaceShell({
             </aside>
           ) : null}
           <main className="min-w-0 space-y-4" id="project-workspace-main" tabIndex={-1}>
+            {operationPanelVisible ? (
+              <ProductOperationPanel
+                actionState={operationAction}
+                activeRoute={activeRoute}
+                onCancelOperation={onCancelOperation}
+                onReload={onReload}
+                onRetryOperation={onRetryOperation}
+              />
+            ) : null}
             {children}
           </main>
         </div>

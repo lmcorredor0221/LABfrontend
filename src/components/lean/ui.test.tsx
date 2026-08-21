@@ -35,6 +35,24 @@ describe("lean ui controls", () => {
     expect(handleValueChange).toHaveBeenCalled();
   });
 
+  it("associates text input hints and errors with aria-describedby", () => {
+    render(
+      <TextField
+        error="Correo requerido"
+        hint="Usa tu correo profesional."
+        label="Correo electrÃ³nico"
+      />,
+    );
+
+    const input = screen.getByLabelText("Correo electrÃ³nico");
+    const hint = screen.getByText("Usa tu correo profesional.");
+    const error = screen.getByText("Correo requerido");
+
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input.getAttribute("aria-describedby")).toContain(hint.id);
+    expect(input.getAttribute("aria-describedby")).toContain(error.id);
+  });
+
   it("renders a real textarea and emits value changes", async () => {
     const user = userEvent.setup();
     const handleValueChange = vi.fn();

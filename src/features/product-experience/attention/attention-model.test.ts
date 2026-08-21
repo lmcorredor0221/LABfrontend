@@ -2,6 +2,7 @@ import type { AttentionItemV2, AttentionResponseV2 } from "@/features/attention/
 import {
   DEFAULT_ATTENTION_FILTERS,
   buildAttentionResolutionPayload,
+  categorizeAttentionItems,
   filterAttentionItems,
   getContextualAttentionItems,
   parseAttentionFilters,
@@ -114,5 +115,49 @@ describe("attention model UXA6", () => {
     expect(payload.selected_option_key).toBe("supervisor");
     expect(payload.was_suggested_answer_used).toBe(false);
     expect(payload.source_artifact_version).toBe(3);
+  });
+
+  it("categorizes items into needsResponse and recommended correctly", () => {
+    const blockingGap = createItem({
+      blocking: true,
+      key: "gap-1",
+      severity: "blocking",
+      type: "gap",
+      unblocks: "Desbloquea definicion de requisitos y especificacion del Blueprint",
+      resume_action: "define_requirements",
+    });
+    const questionItem = createItem({
+      blocking: false,
+      key: "q-1",
+      severity: "warning",
+      type: "question",
+      action: {
+        can_resolve_inline: true,
+        href: "/projects/session-1/tools",
+        kind: "answer",
+        label: "Responder",
+        return_href: "/projects/session-1/tools",
+      },
+    });
+    const infoFinding = createItem({
+      blocking: false,
+      key: "info-1",
+      severity: "info",
+      type: "inconsistency",
+      action: {
+        can_resolve_inline: false,
+        href: "/projects/session-1/tools",
+        kind: "navigate",
+        label: "Abrir",
+        return_href: "/projects/session-1/tools",
+      },
+    });
+
+    const { needsResponse, recommended } = categorizeAttentionItems([blockingGap, questionItem, infoFinding]);
+
+    expect(needsResponse.map((item) => item.key)).toEqual(["gap-1", "q-1"]);
+    expect(recommended.map((item) => item.key)).toEqual(["info-1"]);
+    expect(blockingGap.unblocks).toContain("Desbloquea");
+    expect(blockingGap.resume_action).toBe("define_requirements");
   });
 });

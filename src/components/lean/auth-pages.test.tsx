@@ -160,4 +160,32 @@ describe("LoginPage", () => {
     expect(root).toHaveAttribute("data-auth-build", "auth-compact-20");
     expect(root).toHaveAttribute("data-auth-density", "compact-20");
   });
+
+  it("does not expose an inert forgot-password action", async () => {
+    const authStore = createAuthStore({
+      api: {
+        login: vi.fn(),
+        logout: vi.fn(),
+        me: vi.fn(),
+        selectWorkspace: vi.fn(),
+      },
+      clearToken: vi.fn(),
+      loadToken: () => null,
+      persistToken: vi.fn(),
+    });
+
+    render(
+      <LanguageProvider>
+        <AuthProvider store={authStore}>
+          <LoginPage />
+        </AuthProvider>
+      </LanguageProvider>,
+    );
+
+    await waitFor(() => expect(runtimeApi.health).toHaveBeenCalled());
+
+    expect(
+      screen.queryByRole("button", { name: /olvidaste|forgot/i }),
+    ).not.toBeInTheDocument();
+  });
 });

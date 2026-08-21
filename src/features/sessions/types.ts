@@ -159,6 +159,7 @@ export type CommercialCheckoutSessionRequest = {
   idempotency_key?: string;
   price_code?: string;
   product_key: string;
+  provider?: "sandbox" | "hotmart";
   session_id: string;
   success_url?: string;
 };
@@ -234,6 +235,10 @@ export type AccessRequestResponse = {
   target_tier: CommercialTier;
   updated_at: string;
   workspace_id: string;
+  project_title?: string;
+  workspace_name?: string;
+  requester_name?: string;
+  requester_email?: string;
 };
 
 export type ProductOverviewItem = {

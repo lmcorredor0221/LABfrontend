@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { getProjectProductRoute } from "@/core/routing/routes";
+import { ProjectRootRedirect } from "@/features/sessions/project-root-redirect";
 
 type PageProps = {
   params: Promise<{
@@ -9,5 +8,5 @@ type PageProps = {
 
 export default async function Page({ params }: PageProps) {
   const { id } = await params;
-  redirect(getProjectProductRoute(id, "blueprint"));
+  return <ProjectRootRedirect sessionId={id} />;
 }

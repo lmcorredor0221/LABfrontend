@@ -1,11 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { LanguageProvider } from "@/core/i18n/language-context";
+import type { ProductJourneyOverview } from "@/features/product-experience/saas/product-journey-overview";
 import { SaasHomePage } from "@/features/productization/saas-home-page";
 import type { ProductCatalogResponse } from "@/features/sessions/types";
 
 const mocks = vi.hoisted(() => ({
   authState: { current: {} as Record<string, unknown> },
   createSession: vi.fn(),
+  getProductJourneyOverview: vi.fn(),
   getProductOverview: vi.fn(),
   listCommercialProducts: vi.fn(),
   push: vi.fn(),
@@ -41,7 +44,7 @@ const CATALOG: ProductCatalogResponse[] = [
     name: "Blueprint",
     price: {
       billing_period: "free",
-      currency: "COP",
+      currency: "USD",
       price_code: "blueprint-free-v1",
       unit_amount_cents: 0,
       version: 1,
@@ -62,7 +65,7 @@ const CATALOG: ProductCatalogResponse[] = [
       billing_period: "one_time",
       currency: "COP",
       price_code: "blueprint-pro-cop-v1",
-      unit_amount_cents: 24900000,
+      unit_amount_cents: 4900,
       version: 1,
     },
     product_key: "blueprint_pro",
@@ -79,9 +82,9 @@ const CATALOG: ProductCatalogResponse[] = [
     name: "Agent Construction Package",
     price: {
       billing_period: "one_time",
-      currency: "COP",
+      currency: "USD",
       price_code: "acp-premium-cop-v1",
-      unit_amount_cents: 89900000,
+      unit_amount_cents: 14900,
       version: 1,
     },
     product_key: "acp",
@@ -97,6 +100,7 @@ function buildSessionState(overrides: Record<string, unknown> = {}) {
     activeSessionId: null,
     activeSnapshot: null,
     createSession: mocks.createSession,
+    getProductJourneyOverview: mocks.getProductJourneyOverview,
     getProductOverview: mocks.getProductOverview,
     items: [],
     listCommercialProducts: mocks.listCommercialProducts,
@@ -107,6 +111,14 @@ function buildSessionState(overrides: Record<string, unknown> = {}) {
     snapshotStatus: "ready",
     ...overrides,
   };
+}
+
+function renderSaasHomePage() {
+  return render(
+    <LanguageProvider initialLanguage="es">
+      <SaasHomePage />
+    </LanguageProvider>,
+  );
 }
 
 describe("SaasHomePage", () => {
@@ -120,22 +132,23 @@ describe("SaasHomePage", () => {
       },
     };
     mocks.listCommercialProducts.mockResolvedValue(CATALOG);
+    mocks.getProductJourneyOverview.mockResolvedValue(null);
     mocks.sessionState.current = buildSessionState();
   });
 
   it("presenta el recorrido y los tres niveles comerciales a un usuario sin proyectos", async () => {
-    render(<SaasHomePage />);
+    renderSaasHomePage();
 
     expect(screen.getByRole("heading", { name: /De una necesidad de negocio/i })).toBeInTheDocument();
     expect(screen.queryByText("Nueva entrada SaaS")).not.toBeInTheDocument();
     expect(screen.queryByText("Paleta heredada")).not.toBeInTheDocument();
 
-    expect(await screen.findByText("$249.000")).toBeInTheDocument();
-    expect(screen.getByText("$899.000")).toBeInTheDocument();
+    expect((await screen.findAllByText(/\$\s*155\.425/)).length).toBeGreaterThan(0);
+    expect(screen.getByText(/\$\s*472\.618/)).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Crear Blueprint gratis" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Crear proyecto primero" })).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: /Qué recibes en cada nivel/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Que recibes en cada nivel/i }));
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(screen.getAllByRole("row")).toHaveLength(8);
   });
@@ -153,7 +166,7 @@ describe("SaasHomePage", () => {
     };
     mocks.createSession.mockResolvedValue(createdSession);
 
-    render(<SaasHomePage />);
+    renderSaasHomePage();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Crear Blueprint gratis" })[0]);
 
@@ -172,11 +185,96 @@ describe("SaasHomePage", () => {
       updated_at: "2026-08-05T11:00:00Z",
       workspace_id: "workspace-1",
     };
-    mocks.getProductOverview.mockResolvedValue({
-      access: { tier: "blueprint_pro", tier_label: "Blueprint Profesional" },
-      lean_progress_percent: 72,
+    const journeyOverview: ProductJourneyOverview = {
+      achieved_outcomes: [],
+      active_operation: null,
+      blocking_attention_count: 0,
+      contract_version: "product-journey-overview.v2",
+      current_stage: {
+        label: "Herramientas pendientes",
+        lifecycle: "running",
+        product_key: "blueprint_basic",
+        progress_percent: 41,
+        stage_key: "tools",
+      },
+      deliverable_summary: {
+        attention_count: 0,
+        available_count: 1,
+        error_count: 0,
+        locked_count: 2,
+        pending_count: 4,
+        running_count: 1,
+        stale_count: 0,
+        total_count: 8,
+      },
+      generated_at: "2026-08-05T11:00:00Z",
+      products: [
+        {
+          access_state: "allowed",
+          active_operation: null,
+          available_deliverable_count: 1,
+          blocking_attention_count: 0,
+          is_purchased: true,
+          lifecycle: "running",
+          primary_action: null,
+          product_key: "blueprint_basic",
+          product_label: "Blueprint",
+          progress_percent: 41,
+          purchase_required: false,
+          technical_error_count: 0,
+          total_deliverable_count: 5,
+          warning_attention_count: 0,
+        },
+        {
+          access_state: "allowed",
+          active_operation: null,
+          available_deliverable_count: 0,
+          blocking_attention_count: 0,
+          is_purchased: true,
+          lifecycle: "ready_to_start",
+          primary_action: null,
+          product_key: "blueprint_pro",
+          product_label: "Blueprint Profesional",
+          progress_percent: 0,
+          purchase_required: false,
+          technical_error_count: 0,
+          total_deliverable_count: 2,
+          warning_attention_count: 0,
+        },
+        {
+          access_state: "locked",
+          active_operation: null,
+          available_deliverable_count: 0,
+          blocking_attention_count: 0,
+          is_purchased: false,
+          lifecycle: "locked",
+          primary_action: null,
+          product_key: "acp",
+          product_label: "ACP Premium",
+          progress_percent: 0,
+          purchase_required: true,
+          technical_error_count: 0,
+          total_deliverable_count: 1,
+          warning_attention_count: 0,
+        },
+      ],
       project_title: session.title,
-    });
+      recommended_next_action: {
+        action_key: "continue_current_stage",
+        href: "/projects/session-1/work/tools",
+        label: "Continuar herramientas",
+        primary: true,
+        product_key: "blueprint_basic",
+        reason: "La etapa actual requiere completar herramientas.",
+        state: "recommended",
+      },
+      session_id: session.id,
+      source_contracts: ["product-build-status.v1"],
+      technical_error_count: 0,
+      warning_attention_count: 0,
+      workspace_id: "workspace-1",
+    };
+    mocks.getProductJourneyOverview.mockResolvedValue(journeyOverview);
     mocks.sessionState.current = buildSessionState({
       activeSessionId: session.id,
       activeSnapshot: {
@@ -186,13 +284,19 @@ describe("SaasHomePage", () => {
       items: [session],
     });
 
-    render(<SaasHomePage />);
+    renderSaasHomePage();
 
-    expect(screen.getByRole("heading", { name: /Continúa tu diseño/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Continua tu diseno/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continuar proyecto" })).toBeInTheDocument();
     expect(screen.getAllByText("Asistente de soporte TI")).toHaveLength(2);
-    await waitFor(() => expect(mocks.getProductOverview).toHaveBeenCalledWith("session-1"));
-    expect(await screen.findByText("$249.000")).toBeInTheDocument();
+    await waitFor(() => expect(mocks.getProductJourneyOverview).toHaveBeenCalledWith("session-1"));
+    expect(await screen.findByText(/Herramientas pendientes/)).toBeInTheDocument();
+    expect(screen.getByText("41%")).toBeInTheDocument();
+    expect((await screen.findAllByText(/\$\s*155\.425/)).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuar proyecto" }));
+    await waitFor(() => expect(mocks.selectSession).toHaveBeenCalledWith("session-1", { loadSnapshot: false, persist: true }));
+    expect(mocks.push).toHaveBeenCalledWith("/projects/session-1/work/tools");
 
     fireEvent.click(screen.getByRole("button", { name: "Abrir Blueprint Profesional" }));
     await waitFor(() => expect(mocks.selectSession).toHaveBeenCalledWith("session-1", { loadSnapshot: false, persist: true }));

@@ -2,6 +2,7 @@ import {
   getProjectDiagramsRoute,
   getProjectProductRoute,
   getProjectRoute,
+  isPublicRoute,
   parseProjectRoute,
   resolveProjectStage,
 } from "@/core/routing/routes";
@@ -59,5 +60,14 @@ describe("project routes", () => {
       stage: "discover",
     });
     expect(parseProjectRoute("/monitoring")).toBeNull();
+  });
+
+  it("identifies public routes correctly including landing page /", () => {
+    expect(isPublicRoute("/")).toBe(true);
+    expect(isPublicRoute("/login")).toBe(true);
+    expect(isPublicRoute("/register")).toBe(true);
+    expect(isPublicRoute("/boot")).toBe(true);
+    expect(isPublicRoute("/projects")).toBe(false);
+    expect(isPublicRoute("/projects/session-1/work/discover")).toBe(false);
   });
 });

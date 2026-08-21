@@ -25,7 +25,6 @@ export function SessionsProvider({
 
   useEffect(() => {
     if (auth.status === "authenticated") {
-      sessionsStore.reset();
       if (!isProductExperienceRoute) {
         void sessionsStore.refreshList({ loadActiveSnapshot: false }).catch(() => undefined);
       }
@@ -126,6 +125,7 @@ export function useSessions() {
     getEstimationCalibration: store.getEstimationCalibration,
     getMonitoringWorkspace: store.getMonitoringWorkspace,
     getProductOverview: store.getProductOverview,
+    getProductJourneyOverview: store.getProductJourneyOverview,
     getRuntimeSettings: store.getRuntimeSettings,
     hydrateRouteSession: store.hydrateRouteSession,
     defineRequirements: store.defineRequirements,

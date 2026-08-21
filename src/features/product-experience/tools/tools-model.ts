@@ -7,6 +7,7 @@ import type {
   ToolRecommendationFinding,
   ToolRecommendationGap,
 } from "@/features/sessions/session-contracts";
+import type { CommercialTier } from "@/features/sessions/types";
 
 export type ToolsSection = "decisions" | "coverage" | "catalog" | "contracts";
 
@@ -20,12 +21,21 @@ export type ToolsStageStatus =
   | "stale"
   | "waiting_review";
 
+export type ToolsDecisionReference = {
+  key: string;
+  source: "gap" | "finding" | "needs_information";
+  title: string;
+};
+
 export type ToolsDecisionItem = {
   action: string;
   detail: string;
   key: string;
+  mode: "assumption" | "enrichment" | "required" | "blocker";
+  occurrenceCount: number;
   severity: "info" | "warning" | "blocking";
   source: "gap" | "finding" | "needs_information";
+  sourceReferences: ToolsDecisionReference[];
   title: string;
 };
 
@@ -40,6 +50,7 @@ export type ToolsViewModel = {
   approvedDigest: ApprovedToolsDigest | null;
   canGenerate: boolean;
   canPromote: boolean;
+  commercialTier: CommercialTier;
   decisions: ToolsDecisionItem[];
   designApproved: boolean;
   latestDesignArtifact: JourneyStageArtifactEntry | null;
@@ -99,26 +110,153 @@ function unique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function toDecisionFromGap(source: "gap" | "needs_information", gap: ToolRecommendationGap): ToolsDecisionItem {
+function resolveCommercialTier(activeRoute: ProductExperienceRouteSnapshot | null): CommercialTier {
+  const snapshot = activeRoute?.snapshot.data ?? null;
+  const tier = snapshot?.commercial_access?.tier ?? snapshot?.session.commercial_tier;
+  return tier === "blueprint_pro" || tier === "acp" ? tier : "blueprint";
+}
+
+function getDecisionMode(
+  tier: CommercialTier,
+  source: ToolsDecisionItem["source"],
+  severity: ToolsDecisionItem["severity"],
+): ToolsDecisionItem["mode"] {
+  if (tier === "blueprint") {
+    return "enrichment";
+  }
+
+  return severity === "blocking" ? "blocker" : "required";
+}
+
+function toDecisionFromGap(
+  source: "gap" | "needs_information",
+  gap: ToolRecommendationGap,
+  tier: CommercialTier,
+): ToolsDecisionItem {
+  const severity: ToolsDecisionItem["severity"] =
+    tier === "blueprint"
+      ? (gap.severity === "blocking" ? "warning" : gap.severity === "warning" ? "warning" : "info")
+      : (gap.severity === "blocking" ? "blocking" : gap.severity === "warning" ? "warning" : "info");
+  const action =
+    tier === "blueprint"
+      ? (gap.question ? `${gap.question} · Diferido a [Enriquecer en Premium]` : "Diferido a [Enriquecer en Premium]")
+      : gap.question;
   return {
-    action: gap.question,
+    action,
     detail: gap.reason || gap.impact,
     key: gap.gap_key,
-    severity: gap.severity === "blocking" ? "blocking" : gap.severity === "warning" ? "warning" : "info",
+    mode: getDecisionMode(tier, source, severity),
+    occurrenceCount: 1,
+    severity,
     source,
+    sourceReferences: [{ key: gap.gap_key, source, title: gap.title }],
     title: gap.title,
   };
 }
 
-function toDecisionFromFinding(finding: ToolRecommendationFinding): ToolsDecisionItem {
+function toDecisionFromFinding(finding: ToolRecommendationFinding, tier: CommercialTier): ToolsDecisionItem {
+  const severity: ToolsDecisionItem["severity"] =
+    tier === "blueprint"
+      ? (finding.severity === "blocking" ? "warning" : finding.severity)
+      : finding.severity;
+  const action =
+    tier === "blueprint"
+      ? (finding.suggested_action ? `${finding.suggested_action} · Diferido a [Enriquecer en Premium]` : "Diferido a [Enriquecer en Premium]")
+      : finding.suggested_action;
   return {
-    action: finding.suggested_action,
+    action,
     detail: finding.detail,
     key: finding.finding_key,
-    severity: finding.severity,
+    mode: getDecisionMode(tier, "finding", severity),
+    occurrenceCount: 1,
+    severity,
     source: "finding",
+    sourceReferences: [{ key: finding.finding_key, source: "finding", title: finding.title }],
     title: finding.title,
   };
+}
+
+const SEVERITY_RANK: Record<ToolsDecisionItem["severity"], number> = {
+  info: 0,
+  warning: 1,
+  blocking: 2,
+};
+
+const MODE_RANK: Record<ToolsDecisionItem["mode"], number> = {
+  assumption: 0,
+  enrichment: 1,
+  required: 2,
+  blocker: 3,
+};
+
+function normalizeDecisionText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function stableHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function decisionFingerprint(item: ToolsDecisionItem) {
+  const topic = normalizeDecisionText(item.title);
+  const message = normalizeDecisionText([item.detail, item.action].filter(Boolean).join(" "));
+  return [topic, message].filter(Boolean).join("|");
+}
+
+function mergeDecisionReferences(
+  current: ToolsDecisionReference[],
+  incoming: ToolsDecisionReference[],
+): ToolsDecisionReference[] {
+  const merged = new Map<string, ToolsDecisionReference>();
+  for (const reference of [...current, ...incoming]) {
+    const key = `${reference.source}:${reference.key || reference.title}`;
+    if (!merged.has(key)) {
+      merged.set(key, reference);
+    }
+  }
+  return Array.from(merged.values());
+}
+
+export function consolidateToolsDecisions(items: ToolsDecisionItem[]): ToolsDecisionItem[] {
+  const consolidated = new Map<string, ToolsDecisionItem>();
+
+  for (const item of items) {
+    const fingerprint = decisionFingerprint(item);
+    const existing = consolidated.get(fingerprint);
+    if (!existing) {
+      consolidated.set(fingerprint, {
+        ...item,
+        key: `decision:${stableHash(fingerprint || item.key)}`,
+        occurrenceCount: item.occurrenceCount || 1,
+        sourceReferences: mergeDecisionReferences([], item.sourceReferences),
+      });
+      continue;
+    }
+
+    const higherSeverity =
+      SEVERITY_RANK[item.severity] > SEVERITY_RANK[existing.severity] ? item.severity : existing.severity;
+    const higherMode = MODE_RANK[item.mode] > MODE_RANK[existing.mode] ? item.mode : existing.mode;
+    consolidated.set(fingerprint, {
+      ...existing,
+      action: existing.action || item.action,
+      detail: existing.detail || item.detail,
+      mode: higherMode,
+      occurrenceCount: existing.occurrenceCount + (item.occurrenceCount || 1),
+      severity: higherSeverity,
+      sourceReferences: mergeDecisionReferences(existing.sourceReferences, item.sourceReferences),
+    });
+  }
+
+  return Array.from(consolidated.values());
 }
 
 export function parseToolsSection(value?: string | null): ToolsSection {
@@ -159,16 +297,19 @@ export function mergeToolsArtifactState(
   };
 }
 
-export function buildToolsDecisions(recommendation?: ToolRecommendationArtifact | null): ToolsDecisionItem[] {
+export function buildToolsDecisions(
+  recommendation?: ToolRecommendationArtifact | null,
+  tier: CommercialTier = "blueprint",
+): ToolsDecisionItem[] {
   if (!recommendation) {
     return [];
   }
 
-  return [
-    ...asArray(recommendation.coverage_gaps).map((gap) => toDecisionFromGap("gap", gap)),
-    ...asArray(recommendation.needs_information).map((gap) => toDecisionFromGap("needs_information", gap)),
-    ...asArray(recommendation.evaluation?.findings).map(toDecisionFromFinding),
-  ];
+  return consolidateToolsDecisions([
+    ...asArray(recommendation.coverage_gaps).map((gap) => toDecisionFromGap("gap", gap, tier)),
+    ...asArray(recommendation.needs_information).map((gap) => toDecisionFromGap("needs_information", gap, tier)),
+    ...asArray(recommendation.evaluation?.findings).map((finding) => toDecisionFromFinding(finding, tier)),
+  ]);
 }
 
 export function buildToolsViewModel(
@@ -182,6 +323,7 @@ export function buildToolsViewModel(
   const latestDesignArtifact = snapshot?.journey_latest_artifacts?.design ?? null;
   const latestToolsArtifact = snapshot?.journey_latest_artifacts?.tools ?? null;
   const persistedRecommendation = snapshot?.latest_tool_recommendation ?? null;
+  const commercialTier = resolveCommercialTier(activeRoute);
   const designApproved = isApprovedArtifact(latestDesignArtifact);
   const stale = hasStaleness(latestDesignArtifact) || hasStaleness(latestToolsArtifact);
   const recommendation =
@@ -195,8 +337,14 @@ export function buildToolsViewModel(
     designApproved && !stale
       ? (recommendation?.approved_tools_digest ?? persistedRecommendation?.approved_tools_digest ?? null)
       : null;
-  const decisions = buildToolsDecisions(recommendation);
+  const decisions = buildToolsDecisions(recommendation, commercialTier);
   const promotionBlocked = Boolean(recommendation?.evaluation?.promotion_blocked);
+  const shouldBlockPromotion = commercialTier === "blueprint" ? false : promotionBlocked;
+  const stageOperation = activeRoute?.operation?.data?.stageOperation ?? null;
+  const isStageOperationActive =
+    stageOperation?.stage_key === "tools" &&
+    (stageOperation.status === "queued" || stageOperation.status === "running");
+  const isProcessing = Boolean(options.processing || isStageOperationActive);
   const status: ToolsStageStatus = (() => {
     if (!snapshotResource || snapshotResource.status === "idle" || snapshotResource.status === "loading") {
       return "loading";
@@ -206,7 +354,7 @@ export function buildToolsViewModel(
       return "error";
     }
 
-    if (options.processing) {
+    if (isProcessing) {
       return "processing";
     }
 
@@ -250,9 +398,10 @@ export function buildToolsViewModel(
       latestToolsArtifact &&
         recommendation &&
         status === "waiting_review" &&
-        !promotionBlocked &&
+        !shouldBlockPromotion &&
         !recommendation.is_stale,
     ),
+    commercialTier,
     decisions,
     designApproved,
     latestDesignArtifact,

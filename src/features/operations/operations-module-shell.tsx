@@ -13,6 +13,7 @@ export function OperationsModuleShell({
   children,
   description,
   eyebrow,
+  frameless = false,
   moduleLabel,
   selectedSession,
   sessionDescription,
@@ -26,6 +27,7 @@ export function OperationsModuleShell({
   children: ReactNode;
   description: string;
   eyebrow?: string;
+  frameless?: boolean;
   moduleLabel: string;
   selectedSession?: {
     current_stage: SessionStage;
@@ -40,6 +42,10 @@ export function OperationsModuleShell({
   onSessionChange?: (value: string) => void;
 }) {
   const { language, t } = useLanguage();
+
+  if (frameless) {
+    return <>{children}</>;
+  }
 
   return (
     <WorkspaceShell variant="icon" moduleLabel={moduleLabel}>

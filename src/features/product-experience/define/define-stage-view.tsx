@@ -24,7 +24,11 @@ import {
   type UxaTone,
 } from "@/features/product-experience/design-system";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
-import { LeanStageScreen, type LeanStageScreenContract } from "@/features/product-experience/stage-screen";
+import {
+  LeanGeneratedDeliverable,
+  LeanStageScreen,
+  type LeanStageScreenContract,
+} from "@/features/product-experience/stage-screen";
 import {
   buildDefineViewModel,
   parseDefineSection,
@@ -47,6 +51,7 @@ import type {
   AcceptanceCriterion,
   Dependency,
   Assumption,
+  OpenQuestion,
 } from "@/features/sessions/session-contracts";
 import { useLanguage, type SupportedLanguage } from "@/core/i18n/language-context";
 import { cn } from "@/lib/utils";
@@ -224,9 +229,9 @@ function getSectionCopy(language: SupportedLanguage, key: DefineSection) {
     },
     questions: {
       description: byLanguage(language, {
-        en: "Questions and blockers movable to Attention.",
-        es: "Preguntas y bloqueos movibles a Atencion.",
-        pt: "Perguntas e bloqueios moviveis para Atencao.",
+        en: "Actionable questions according to the active product.",
+        es: "Preguntas accionables segun el producto activo.",
+        pt: "Perguntas acionaveis conforme o produto ativo.",
       }),
       label: byLanguage(language, { en: "Questions", es: "Preguntas", pt: "Perguntas" }),
     },
@@ -330,8 +335,36 @@ function EntityCard({ children, entity }: { children: ReactNode; entity: Definit
   );
 }
 
-function EmptyDefinition({ canGenerate }: { canGenerate: boolean }) {
+function EmptyDefinition({ canGenerate, processing = false }: { canGenerate: boolean; processing?: boolean }) {
   const { language } = useLanguage();
+  if (processing) {
+    return (
+      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+        <div className="flex items-center gap-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--uxa-color-brand-soft)] text-[var(--uxa-color-brand)]">
+            <Loader2 aria-hidden="true" className="h-5 w-5 animate-spin" />
+          </span>
+          <div>
+            <UxaBadge tone="info">{byLanguage(language, { en: "In progress", es: "En progreso", pt: "Em progresso" })}</UxaBadge>
+            <h3 className="mt-2 text-[18px] font-black text-[var(--uxa-color-ink)]">
+              {byLanguage(language, {
+                en: "Generating Canvas and requirements...",
+                es: "Generando Canvas y requisitos funcionales...",
+                pt: "Gerando Canvas e requisitos funcionais...",
+              })}
+            </h3>
+            <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {byLanguage(language, {
+                en: "The LLM is processing the approved Discover context and structuring requirements. The screen updates automatically.",
+                es: "El LLM esta procesando el contexto aprobado de Discover y estructurando requisitos. La pantalla se actualiza automaticamente.",
+                pt: "O LLM esta processando o contexto aprovado de Discover e estruturando requisitos. A tela se actualiza automaticamente.",
+              })}
+            </p>
+          </div>
+        </div>
+      </UxaSurface>
+    );
+  }
   return (
     <UxaEmptyState
       description={canGenerate
@@ -392,6 +425,79 @@ function DefinitionSummary({ definition, onChange }: { definition: DefinitionArt
         </UxaSurface>
       </div>
     </div>
+  );
+}
+
+function DefinitionDeliverable({
+  definition,
+  deferredQualityIssues,
+  validation,
+}: {
+  definition: DefinitionArtifact;
+  deferredQualityIssues: string[];
+  validation: ReturnType<typeof buildDefineViewModel>["validation"];
+}) {
+  const { language } = useLanguage();
+  const requirementCount =
+    definition.functional_requirements.length +
+    definition.non_functional_requirements.length +
+    definition.business_rules.length +
+    definition.acceptance_criteria.length;
+  const coverage = Math.round((validation.coverage_ratio || 0) * 100);
+  const acceptedQuestions = definition.open_questions.filter((question) => question.status === "accepted").length;
+  const deferredCount = deferredQualityIssues.length + definition.open_questions.filter((question) => question.status !== "accepted" && question.status !== "rejected").length;
+
+  return (
+    <LeanGeneratedDeliverable
+      badge={{
+        label: byLanguage(language, { en: "Consolidated proposal", es: "Propuesta consolidada", pt: "Proposta consolidada" }),
+        tone: deferredCount ? "warning" : "success",
+      }}
+      metrics={[
+        {
+          helper: byLanguage(language, { en: "Functional, non-functional, rules, and criteria.", es: "Funcionales, no funcionales, reglas y criterios.", pt: "Funcionais, nao funcionais, regras e criterios." }),
+          label: byLanguage(language, { en: "Defined items", es: "Items definidos", pt: "Itens definidos" }),
+          tone: "info",
+          value: requirementCount,
+        },
+        {
+          helper: byLanguage(language, { en: "Source-to-requirement coverage.", es: "Cobertura fuente a requisito.", pt: "Cobertura fonte a requisito." }),
+          label: byLanguage(language, { en: "Traceability", es: "Trazabilidad", pt: "Rastreabilidade" }),
+          tone: coverage >= 70 ? "success" : "warning",
+          value: `${coverage}%`,
+        },
+        {
+          helper: byLanguage(language, { en: "Accepted now or kept as enrichment.", es: "Aceptadas ahora o conservadas para enriquecer.", pt: "Aceitas agora ou mantidas para enriquecimento." }),
+          label: byLanguage(language, { en: "Questions", es: "Preguntas", pt: "Perguntas" }),
+          tone: deferredCount ? "warning" : "success",
+          value: `${acceptedQuestions}/${definition.open_questions.length}`,
+        },
+      ]}
+      nextUse={byLanguage(language, {
+        en: "Design will use these requirements, rules, assumptions, and criteria as the approved context to select agentic patterns and architecture.",
+        es: "Disenar usara estos requisitos, reglas, supuestos y criterios como contexto aprobado para seleccionar patrones agentivos y arquitectura.",
+        pt: "Design usara estes requisitos, regras, suposicoes e criterios como contexto aprovado para selecionar padroes agenticos e arquitetura.",
+      })}
+      sections={[
+        {
+          items: definition.measurable_objectives,
+          title: byLanguage(language, { en: "Measurable goals", es: "Objetivos medibles", pt: "Objetivos mensuraveis" }),
+        },
+        {
+          items: definition.functional_requirements.map((item) => `${item.key}: ${item.title}`),
+          title: byLanguage(language, { en: "Functional backbone", es: "Backbone funcional", pt: "Backbone funcional" }),
+        },
+        {
+          items: [
+            ...definition.business_rules.map((item) => `${item.key}: ${item.title}`),
+            ...definition.acceptance_criteria.map((item) => `${item.key}: ${item.title}`),
+          ],
+          title: byLanguage(language, { en: "Rules and acceptance", es: "Reglas y aceptacion", pt: "Regras e aceitacao" }),
+        },
+      ]}
+      summary={definition.summary}
+      title={byLanguage(language, { en: "Define deliverable", es: "Entrega de Definir", pt: "Entrega de Definir" })}
+    />
   );
 }
 
@@ -494,18 +600,22 @@ function Criteria({
 }
 
 function Questions({
-  definition,
+  emptyTitle,
+  items,
   onQuestionStatus,
+  readOnly = false,
   sessionId,
 }: {
-  definition: DefinitionArtifact;
+  emptyTitle?: string;
+  items: OpenQuestion[];
   onQuestionStatus(key: string, status: "accepted" | "rejected" | "needs_input"): void;
+  readOnly?: boolean;
   sessionId: string;
 }) {
   const { language } = useLanguage();
   return (
     <div className="space-y-3">
-      {definition.open_questions.map((item) => (
+      {items.map((item) => (
         <article className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4" key={item.key}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -536,20 +646,22 @@ function Questions({
               ))}
             </div>
           ) : null}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <UxaButton onClick={() => onQuestionStatus(item.key, "accepted")} size="sm" variant="secondary">{byLanguage(language, { en: "Mark resolved", es: "Marcar resuelta", pt: "Marcar resolvida" })}</UxaButton>
-            <UxaButton onClick={() => onQuestionStatus(item.key, "needs_input")} size="sm" variant="ghost">{byLanguage(language, { en: "Keep pending", es: "Mantener pendiente", pt: "Manter pendente" })}</UxaButton>
-            <UxaButton onClick={() => onQuestionStatus(item.key, "rejected")} size="sm" variant="ghost">{byLanguage(language, { en: "Dismiss", es: "Descartar", pt: "Descartar" })}</UxaButton>
-            <Link className="uxa-button uxa-button--ghost uxa-button--sm" href={getProductExperienceProductHref(sessionId, "attention")}>
-              {byLanguage(language, { en: "View in Attention", es: "Ver en Atencion", pt: "Ver em Atencao" })}
-            </Link>
-          </div>
+          {!readOnly ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <UxaButton onClick={() => onQuestionStatus(item.key, "accepted")} size="sm" variant="secondary">{byLanguage(language, { en: "Mark resolved", es: "Marcar resuelta", pt: "Marcar resolvida" })}</UxaButton>
+              <UxaButton onClick={() => onQuestionStatus(item.key, "needs_input")} size="sm" variant="ghost">{byLanguage(language, { en: "Keep pending", es: "Mantener pendiente", pt: "Manter pendente" })}</UxaButton>
+              <UxaButton onClick={() => onQuestionStatus(item.key, "rejected")} size="sm" variant="ghost">{byLanguage(language, { en: "Dismiss", es: "Descartar", pt: "Descartar" })}</UxaButton>
+              <Link className="uxa-button uxa-button--ghost uxa-button--sm" href={getProductExperienceProductHref(sessionId, "attention")}>
+                {byLanguage(language, { en: "View in Attention", es: "Ver en Atencion", pt: "Ver em Atencao" })}
+              </Link>
+            </div>
+          ) : null}
         </article>
       ))}
-      {!definition.open_questions.length ? (
+      {!items.length ? (
         <UxaSurface className="p-[var(--uxa-panel-padding-lg)] text-center" muted>
           <CheckCircle2 aria-hidden="true" className="mx-auto h-6 w-6 text-[var(--uxa-state-success)]" />
-          <p className="mt-2 text-[13px] font-black">{byLanguage(language, { en: "There are no pending questions in Define.", es: "Sin preguntas pendientes en Definir.", pt: "Nao ha perguntas pendentes em Definir." })}</p>
+          <p className="mt-2 text-[13px] font-black">{emptyTitle ?? byLanguage(language, { en: "There are no pending questions in Define.", es: "Sin preguntas pendientes en Definir.", pt: "Nao ha perguntas pendentes em Definir." })}</p>
         </UxaSurface>
       ) : null}
     </div>
@@ -585,17 +697,21 @@ function Traceability({ definition }: { definition: DefinitionArtifact }) {
 }
 
 function ValidationPanel({
-  blockerCount,
+  approvalBlockingIssues,
+  deferredQualityIssues,
   sessionId,
   validation,
 }: {
-  blockerCount: number;
+  approvalBlockingIssues: string[];
+  deferredQualityIssues: string[];
   sessionId: string;
   validation: ReturnType<typeof buildDefineViewModel>["validation"];
 }) {
   const { language } = useLanguage();
+  const blockerCount = approvalBlockingIssues.length;
   const hasWarnings =
-    validation.blocking_issues.length ||
+    approvalBlockingIssues.length ||
+    deferredQualityIssues.length ||
     validation.missing_acceptance.length ||
     validation.untraced_items.length ||
     validation.vague_nfrs.length;
@@ -610,15 +726,22 @@ function ValidationPanel({
           <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
             {blockerCount
               ? byLanguage(language, { en: "There are issues that must be resolved before approving the definition.", es: "Hay asuntos que deben resolverse antes de aprobar la definicion.", pt: "Ha assuntos que precisam ser resolvidos antes de aprovar a definicao." })
+              : deferredQualityIssues.length
+                ? byLanguage(language, { en: "Basic Blueprint can continue. These findings remain registered for Premium enrichment.", es: "Blueprint Basico puede continuar. Estos hallazgos quedan registrados para enriquecimiento Premium.", pt: "Blueprint Basico pode continuar. Estes achados ficam registrados para enriquecimento Premium." })
               : byLanguage(language, { en: "No critical blockers were detected before promoting to Design.", es: "No se detectan bloqueos criticos para promover a Disenar.", pt: "Nao ha bloqueios criticos para promover para Design." })}
           </p>
         </div>
       </div>
       {hasWarnings ? (
         <div className="mt-4 space-y-2">
-          {validation.blocking_issues.map((item, index) => (
+          {approvalBlockingIssues.map((item, index) => (
             <p className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-danger)] bg-[var(--uxa-state-danger-bg)] p-3 text-[12px]" key={`${item}-${index}`}>
               {item}
+            </p>
+          ))}
+          {deferredQualityIssues.map((item, index) => (
+            <p className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)] p-3 text-[12px]" key={`deferred-${item}-${index}`}>
+              {byLanguage(language, { en: "Deferred for Premium enrichment", es: "Diferido para enriquecimiento Premium", pt: "Diferido para enriquecimento Premium" })}: {item}
             </p>
           ))}
           {validation.missing_acceptance.map((item, index) => (
@@ -645,14 +768,18 @@ function DefinitionSection({
   definition,
   onChange,
   onQuestionStatus,
+  questions,
   sessionId,
 }: {
   activeSection: DefineSection;
   definition: DefinitionArtifact;
   onChange(next: DefinitionArtifact): void;
   onQuestionStatus(key: string, status: "accepted" | "rejected" | "needs_input"): void;
+  questions: OpenQuestion[];
   sessionId: string;
 }) {
+  const { language } = useLanguage();
+
   if (activeSection === "summary") {
     return <DefinitionSummary definition={definition} onChange={onChange} />;
   }
@@ -680,7 +807,18 @@ function DefinitionSection({
   }
 
   if (activeSection === "questions") {
-    return <Questions definition={definition} onQuestionStatus={onQuestionStatus} sessionId={sessionId} />;
+    return (
+      <Questions
+        emptyTitle={byLanguage(language, {
+          en: "There are no actionable questions in Define.",
+          es: "No hay preguntas accionables en Definir.",
+          pt: "Nao ha perguntas acionaveis em Definir.",
+        })}
+        items={questions}
+        onQuestionStatus={onQuestionStatus}
+        sessionId={sessionId}
+      />
+    );
   }
 
   return <Traceability definition={definition} />;
@@ -737,17 +875,15 @@ export function DefineStageView({ actionState, activeRoute, actions }: DefineSta
         ),
         status: "error",
       });
-      throw error;
     }
   }
 
   async function handleGenerate() {
     await runLocal(copy(
-      "Generating canvas and requirements with the backend.",
-      "Generando Canvas y requisitos con backend.",
-      "Gerando canvas e requisitos com o backend.",
+      "Starting Canvas and requirements generation in the background.",
+      "Iniciando Canvas y requisitos en segundo plano.",
+      "Iniciando canvas e requisitos em segundo plano.",
     ), async () => {
-      await actions?.buildCanvas();
       await actions?.defineRequirements();
     });
   }
@@ -821,32 +957,41 @@ export function DefineStageView({ actionState, activeRoute, actions }: DefineSta
 
   if (viewModel.status === "error") {
     return <DefineErrorState message={activeRoute?.snapshot.error?.message ?? byLanguage(language, { en: "The snapshot could not be loaded.", es: "No se pudo cargar el snapshot.", pt: "Nao foi possivel carregar o snapshot." })} />;
-  }
-
-  const progress = viewModel.status === "approved" ? 100 : viewModel.status === "waiting_review" ? 72 : viewModel.status === "empty" ? 38 : viewModel.status === "blocked" ? 16 : 48;
+  }  const progress = viewModel.status === "approved" ? 100 : viewModel.status === "waiting_review" ? 72 : viewModel.status === "empty" ? 38 : viewModel.status === "blocked" ? 16 : 48;
   const primaryLabel =
-    viewModel.status === "approved"
-      ? byLanguage(language, { en: "Continue to Design", es: "Continuar a Disenar", pt: "Continuar para Design" })
-      : viewModel.definition
-        ? byLanguage(language, { en: "Approve Define", es: "Aprobar Definir", pt: "Aprovar Definir" })
-        : viewModel.status === "blocked"
-          ? byLanguage(language, { en: "Back to Discover", es: "Volver a Descubrir", pt: "Voltar para Descobrir" })
-          : byLanguage(language, { en: "Generate Definition", es: "Generar Definicion", pt: "Gerar Definicao" });
-  const primaryDescription =
-    viewModel.status === "approved"
-      ? byLanguage(language, { en: "The definition is already approved and can drive architecture and behavior.", es: "La definicion ya esta aprobada y puede alimentar arquitectura y comportamiento.", pt: "A definicao ja esta aprovada e pode alimentar arquitetura e comportamento." })
-      : viewModel.status === "blocked"
-        ? byLanguage(language, { en: "Define needs an approved Discover before asking the LLM to consolidate requirements.", es: "Definir necesita un Discover aprobado antes de pedirle al LLM que consolide requisitos.", pt: "Definir precisa de um Discover aprovado antes de pedir ao LLM que consolide requisitos." })
+    viewModel.status === "processing"
+      ? byLanguage(language, { en: "Generating Definition...", es: "Generando Definicion...", pt: "Gerando Definicao..." })
+      : viewModel.status === "approved"
+        ? byLanguage(language, { en: "Continue to Design", es: "Continuar a Disenar", pt: "Continuar para Design" })
         : viewModel.definition
-          ? byLanguage(language, { en: "Review requirements, rules, NFRs, questions, and traceability before approving.", es: "Revisa requisitos, reglas, NFR, preguntas y trazabilidad antes de aprobar.", pt: "Revise requisitos, regras, NFR, perguntas e rastreabilidade antes de aprovar." })
-          : byLanguage(language, { en: "Generate goals, scope, and requirements from the approved Discovery.", es: "Genera objetivos, alcance y requisitos a partir del Discovery aprobado.", pt: "Gere objetivos, escopo e requisitos a partir do Discovery aprovado." });
+          ? byLanguage(language, { en: "Approve Define", es: "Aprobar Definir", pt: "Aprovar Definir" })
+          : viewModel.status === "blocked"
+            ? byLanguage(language, { en: "Back to Discover", es: "Volver a Descubrir", pt: "Voltar para Descobrir" })
+            : byLanguage(language, { en: "Generate Definition", es: "Generar Definicion", pt: "Gerar Definicao" });
+  const primaryDescription =
+    viewModel.status === "processing"
+      ? byLanguage(language, { en: "The LLM is generating the canvas, goals, scope, and requirements in the background.", es: "El LLM esta generando el Canvas, objetivos, alcance y requisitos en segundo plano.", pt: "O LLM esta gerando o Canvas, objetivos, escopo e requisitos em segundo plano." })
+      : viewModel.status === "approved"
+        ? byLanguage(language, { en: "The definition is already approved and can drive architecture and behavior.", es: "La definicion ya esta aprobada y puede alimentar arquitectura y comportamiento.", pt: "A definicao ja esta aprovada e pode alimentar arquitetura e comportamento." })
+        : viewModel.status === "blocked"
+          ? byLanguage(language, { en: "Define needs an approved Discover before asking the LLM to consolidate requirements.", es: "Definir necesita un Discover aprobado antes de pedirle al LLM que consolide requisitos.", pt: "Definir precisa de um Discover aprovado antes de pedir ao LLM que consolide requisitos." })
+          : viewModel.definition
+            ? byLanguage(language, { en: "Review requirements, rules, NFRs, questions, and traceability before approving.", es: "Revisa requisitos, reglas, NFR, preguntas y trazabilidad antes de aprobar.", pt: "Revise requisitos, regras, NFR, perguntas e rastreabilidade antes de aprovar." })
+            : byLanguage(language, { en: "Generate goals, scope, and requirements from the approved Discovery.", es: "Genera objetivos, alcance y requisitos a partir del Discovery aprobado.", pt: "Gere objetivos, escopo e requisitos a partir do Discovery aprovado." });
   const contract: LeanStageScreenContract = {
     attentionItems: [
-      ...viewModel.validation.blocking_issues.slice(0, 4).map((item) => ({
+      ...viewModel.approvalBlockingIssues.slice(0, 4).map((item) => ({
         description: byLanguage(language, { en: "This blocks or degrades the quality of the definition.", es: "Bloquea o degrada la calidad de la definicion.", pt: "Isto bloqueia ou degrada a qualidade da definicao." }),
         href: getProductExperienceProductHref(viewModel.sessionId, "attention"),
         label: byLanguage(language, { en: "Blocker", es: "Bloqueo", pt: "Bloqueio" }),
         tone: "danger" as const,
+        value: item,
+      })),
+      ...viewModel.deferredQualityIssues.slice(0, 4).map((item) => ({
+        description: byLanguage(language, { en: "Basic Blueprint keeps this as a Premium enrichment opportunity.", es: "Blueprint Basico conserva esto como oportunidad de enriquecimiento Premium.", pt: "Blueprint Basico conserva isto como oportunidade de enriquecimento Premium." }),
+        href: getProductExperienceProductHref(viewModel.sessionId, "attention"),
+        label: byLanguage(language, { en: "Deferred finding", es: "Hallazgo diferido", pt: "Achado diferido" }),
+        tone: "warning" as const,
         value: item,
       })),
       ...viewModel.warnings.slice(0, 3).map((warning) => ({
@@ -947,22 +1092,32 @@ export function DefineStageView({ actionState, activeRoute, actions }: DefineSta
               definition={viewModel.definition}
               onChange={setDraftDefinition}
               onQuestionStatus={handleQuestionStatus}
+              questions={viewModel.actionableOpenQuestions}
               sessionId={viewModel.sessionId}
             />
           </div>
         ) : (
-          <EmptyDefinition canGenerate={viewModel.canGenerate} />
+          <EmptyDefinition canGenerate={viewModel.canGenerate} processing={viewModel.status === "processing"} />
         ),
       },
       {
-        badge: viewModel.validation.blocking_issues.length,
-        description: byLanguage(language, { en: "Quality, coverage, and promotion status.", es: "Calidad, cobertura y estado de promocion.", pt: "Qualidade, cobertura e estado de promocao." }),
+        badge: viewModel.approvalBlockingIssues.length + viewModel.deferredQualityIssues.length,
+        description: byLanguage(language, { en: "Consolidated requirements deliverable produced by the LLM.", es: "Entregable consolidado de requisitos producido por el LLM.", pt: "Entregavel consolidado de requisitos produzido pelo LLM." }),
         key: "result",
-        label: byLanguage(language, { en: "Generated result", es: "Resultado generado", pt: "Resultado gerado" }),
+        label: byLanguage(language, { en: "Generated deliverable", es: "Entrega generada", pt: "Entrega gerada" }),
         children: viewModel.definition ? (
           <div className="space-y-4">
-            <DefinitionSummary definition={viewModel.definition} onChange={setDraftDefinition} />
-            <ValidationPanel blockerCount={viewModel.openBlockerCount} sessionId={viewModel.sessionId} validation={viewModel.validation} />
+            <DefinitionDeliverable
+              deferredQualityIssues={viewModel.deferredQualityIssues}
+              definition={viewModel.definition}
+              validation={viewModel.validation}
+            />
+            <ValidationPanel
+              approvalBlockingIssues={viewModel.approvalBlockingIssues}
+              deferredQualityIssues={viewModel.deferredQualityIssues}
+              sessionId={viewModel.sessionId}
+              validation={viewModel.validation}
+            />
           </div>
         ) : (
           <EmptyDefinition canGenerate={viewModel.canGenerate} />
@@ -975,7 +1130,13 @@ export function DefineStageView({ actionState, activeRoute, actions }: DefineSta
         label: byLanguage(language, { en: "Evidence and traceability", es: "Evidencia y trazabilidad", pt: "Evidencia e rastreabilidade" }),
         children: viewModel.definition ? (
           <div className="space-y-4">
-            <Questions definition={viewModel.definition} onQuestionStatus={handleQuestionStatus} sessionId={viewModel.sessionId} />
+            <Questions
+              emptyTitle={byLanguage(language, { en: "No traceable questions have been recorded for Define.", es: "No hay preguntas trazables registradas para Definir.", pt: "Nao ha perguntas rastreaveis registradas para Definir." })}
+              items={viewModel.traceableOpenQuestions}
+              onQuestionStatus={handleQuestionStatus}
+              readOnly
+              sessionId={viewModel.sessionId}
+            />
             <Traceability definition={viewModel.definition} />
             <UxaSurface className="p-4">
               <p className="text-[13px] font-black">{byLanguage(language, { en: "Available context", es: "Contexto disponible", pt: "Contexto disponivel" })}</p>
@@ -1012,11 +1173,13 @@ export function DefineStageView({ actionState, activeRoute, actions }: DefineSta
             </UxaButton>
           ) : (
             <UxaButton disabled={!viewModel.canGenerate || processing} isLoading={processing} onClick={() => void handleGenerate()} variant="primary">
-              {byLanguage(language, { en: "Generate Definition", es: "Generar Definicion", pt: "Gerar Definicao" })} <Sparkles aria-hidden="true" className="h-4 w-4" />
+              {viewModel.status === "processing"
+                ? byLanguage(language, { en: "Generating Definition...", es: "Generando Definicion...", pt: "Gerando Definicao..." })
+                : byLanguage(language, { en: "Generate Definition", es: "Generar Definicion", pt: "Gerar Definicao" })} <Sparkles aria-hidden="true" className="h-4 w-4" />
             </UxaButton>
           )}
           <UxaButton disabled={!viewModel.canGenerate || processing} onClick={() => void handleGenerate()} variant="secondary">
-            <RefreshCw aria-hidden="true" className="h-4 w-4" /> {byLanguage(language, { en: "Regenerate", es: "Regenerar", pt: "Regenerar" })}
+            <RefreshCw aria-hidden="true" className={cn("h-4 w-4", processing && "animate-spin")} /> {byLanguage(language, { en: "Regenerate", es: "Regenerar", pt: "Regenerar" })}
           </UxaButton>
           <UxaButton disabled={!viewModel.definition || processing} onClick={() => void handleSave()} variant="secondary">
             {byLanguage(language, { en: "Save review", es: "Guardar revision", pt: "Salvar revisao" })}

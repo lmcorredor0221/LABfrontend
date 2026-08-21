@@ -1,5 +1,6 @@
 export type DiagramAccessState = "available" | "preview" | "locked" | "stage_locked" | "disabled";
 export type DiagramGenerationState = "pending" | "queued" | "generating" | "available" | "error" | "updating";
+export type DiagramGenerationReason = "user_request" | "regenerate" | "layout_upgrade";
 
 export type DiagramPolicyDecision = {
   access_state: DiagramAccessState;
@@ -37,13 +38,20 @@ export type DiagramCatalogItem = {
   family: string;
   generation_state: DiagramGenerationState;
   key: string;
+  layout_upgrade_reason: string;
+  needs_layout_upgrade: boolean;
   notation: string;
+  presentation_contract?: string;
   products: string[];
   required_tier: string;
+  renderer_key?: string;
+  source_contract?: string;
   stage: string;
+  standard?: string;
   title: string;
   type: string;
   updated_at: string | null;
+  validator_key?: string;
 };
 
 export type DiagramCatalog = {
@@ -80,6 +88,23 @@ export type DiagramEdge = {
   target: string;
 };
 
+export type DiagramLane = {
+  description: string;
+  id: string;
+  label: string;
+  metadata: Record<string, unknown>;
+  source_refs: string[];
+};
+
+export type DiagramPool = {
+  description: string;
+  id: string;
+  label: string;
+  lanes: DiagramLane[];
+  metadata: Record<string, unknown>;
+  source_refs: string[];
+};
+
 export type DiagramModel = {
   assumptions: string[];
   description: string;
@@ -91,6 +116,7 @@ export type DiagramModel = {
   metadata: Record<string, unknown>;
   nodes: DiagramNode[];
   notation: string;
+  pools: DiagramPool[];
   schema_version: "diagram-model.v1";
   source_refs: string[];
   title: string;
@@ -139,4 +165,3 @@ export type DiagramVersionComparison = {
   removed_nodes: DiagramNode[];
   target_version_id: string;
 };
-

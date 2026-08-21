@@ -1,4 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LanguageProvider } from "@/core/i18n/language-context";
+import type { ProductExperienceStageOperation } from "@/features/product-experience/core/server-state";
 import { DefineStageView } from "@/features/product-experience/define/define-stage-view";
 import { DesignStageView } from "@/features/product-experience/design/design-stage-view";
 import {
@@ -21,6 +24,39 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockUseSearchParams(),
 }));
 
+function createStageOperation(overrides: Partial<ProductExperienceStageOperation> = {}): ProductExperienceStageOperation {
+  return {
+    action: "propose_design",
+    attempt_count: 1,
+    can_cancel: true,
+    can_retry: false,
+    cancel_requested_at: null,
+    cancel_url: "/api/v1/sessions/session-uxa8/stage-operations/operation-design/cancel",
+    completed_at: null,
+    created_at: "2026-08-16T10:00:00Z",
+    current_step: "queued",
+    detail: "Solicitud recibida.",
+    error_message: "",
+    expires_at: "2026-08-16T10:30:00Z",
+    heartbeat_at: "2026-08-16T10:00:00Z",
+    id: "operation-design",
+    idempotency_key: "design-once",
+    is_stale: false,
+    recover_url: "/api/v1/sessions/session-uxa8/stage-operations/operation-design/recover",
+    result: null,
+    result_artifact_id: null,
+    retry_url: "",
+    session_id: "session-uxa8",
+    stage_key: "design",
+    status: "queued",
+    steps: [],
+    technical_detail: "",
+    updated_at: "2026-08-16T10:00:00Z",
+    workspace_id: "workspace-1",
+    ...overrides,
+  };
+}
+
 function createActions(): ProductStageActions {
   return {
     approveStageArtifact: vi.fn(async (stageKey) =>
@@ -31,17 +67,39 @@ function createActions(): ProductStageActions {
     approveMemoryProfile: vi.fn(async () => createDefineRouteFixture().snapshot.data!),
     approveToolsSelection: vi.fn(async () => createDefineRouteFixture().snapshot.data!),
     buildCanvas: vi.fn(async () => ({ status: "ready" } as CanvasEnvelope)),
-    defineRequirements: vi.fn(async () => createDefineArtifactFixture()),
+    defineRequirements: vi.fn(async () => createStageOperation({
+      action: "define_requirements",
+      id: "operation-define",
+      stage_key: "define",
+    })),
+    generateEstimationReport: vi.fn(async () => createStageOperation({
+      action: "generate_estimation_report",
+      id: "operation-estimate",
+      stage_key: "estimate",
+    })),
+    prepareBlueprintCommercialResult: vi.fn(async () => createDefineRouteFixture().snapshot.data!),
     patchStageArtifact: vi.fn(async (stageKey) =>
       stageKey === "design" ? createDesignArtifactFixture({ state: "reviewed" }) : createDefineArtifactFixture({ state: "reviewed" }),
     ),
-    proposeDesign: vi.fn(async () => createDesignArtifactFixture()),
-    recommendMemory: vi.fn(async () => createDesignArtifactFixture({ stage_key: "memory" })),
-    recommendTools: vi.fn(async () => ({ status: "ready" }) as never),
+    proposeDesign: vi.fn(async () => createStageOperation()),
+    recommendMemory: vi.fn(async () => createStageOperation({
+      action: "recommend_memory",
+      id: "operation-memory",
+      stage_key: "memory",
+    })),
+    recommendTools: vi.fn(async () => createStageOperation({
+      action: "recommend_tools",
+      id: "operation-tools",
+      stage_key: "tools",
+    })),
     rejectStageArtifact: vi.fn(async (stageKey) =>
       stageKey === "design" ? createDesignArtifactFixture({ state: "rejected" }) : createDefineArtifactFixture({ state: "rejected" }),
     ),
   };
+}
+
+function renderWithLanguage(ui: ReactElement) {
+  return render(<LanguageProvider>{ui}</LanguageProvider>);
 }
 
 describe("DefineStageView and DesignStageView UXA8", () => {
@@ -51,9 +109,9 @@ describe("DefineStageView and DesignStageView UXA8", () => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams());
   });
 
-  it("generates Define by building Canvas and requirements", async () => {
+  it("starts Define as a persistent operation that includes Canvas and requirements", async () => {
     const actions = createActions();
-    render(
+    renderWithLanguage(
       <DefineStageView
         actionState={{ status: "idle" }}
         actions={actions}
@@ -63,13 +121,13 @@ describe("DefineStageView and DesignStageView UXA8", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Generar Definicion/i }));
 
-    await waitFor(() => expect(actions.buildCanvas).toHaveBeenCalledTimes(1));
-    expect(actions.defineRequirements).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(actions.defineRequirements).toHaveBeenCalledTimes(1));
+    expect(actions.buildCanvas).not.toHaveBeenCalled();
   });
 
   it("approves Define and navigates to Design", async () => {
     const actions = createActions();
-    render(
+    renderWithLanguage(
       <DefineStageView
         actionState={{ status: "idle" }}
         actions={actions}
@@ -94,7 +152,7 @@ describe("DefineStageView and DesignStageView UXA8", () => {
 
   it("preserves Define section in the URL", () => {
     const actions = createActions();
-    render(
+    renderWithLanguage(
       <DefineStageView
         actionState={{ status: "idle" }}
         actions={actions}
@@ -112,7 +170,7 @@ describe("DefineStageView and DesignStageView UXA8", () => {
 
   it("generates Design from approved Define", async () => {
     const actions = createActions();
-    render(
+    renderWithLanguage(
       <DesignStageView
         actionState={{ status: "idle" }}
         actions={actions}
@@ -132,7 +190,7 @@ describe("DefineStageView and DesignStageView UXA8", () => {
   it("selects and approves a Design alternative before navigating to Tools", async () => {
     mockUsePathname.mockReturnValue("/projects/session-uxa8/work/design");
     const actions = createActions();
-    render(
+    renderWithLanguage(
       <DesignStageView
         actionState={{ status: "idle" }}
         actions={actions}

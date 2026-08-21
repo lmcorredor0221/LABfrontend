@@ -3,6 +3,7 @@ import type {
   DiagramCatalog,
   DiagramDetail,
   DiagramGenerationJob,
+  DiagramGenerationReason,
   DiagramVersionComparison,
 } from "@/features/diagram-center/domain/types";
 
@@ -18,7 +19,7 @@ export const diagramCenterApi = {
       `${projectPath(projectId)}/diagrams/${encodeURIComponent(diagramKey)}${query}`,
     );
   },
-  generate(projectId: string, diagramKey: string, reason: "user_request" | "regenerate") {
+  generate(projectId: string, diagramKey: string, reason: DiagramGenerationReason) {
     return apiClient.post<DiagramGenerationJob>(
       `${projectPath(projectId)}/diagrams/${encodeURIComponent(diagramKey)}/generate`,
       {
@@ -49,4 +50,3 @@ export const diagramCenterApi = {
     );
   },
 };
-

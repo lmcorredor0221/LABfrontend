@@ -1,4 +1,6 @@
 import { render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LanguageProvider } from "@/core/i18n/language-context";
 import { ProjectExperienceBoundary } from "@/features/product-experience/shell/project-experience-boundary";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 
@@ -15,6 +17,20 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockUseSearchParams(),
 }));
 
+vi.mock("@/core/auth/auth-context", () => ({
+  useAuth: () => ({
+    logout: vi.fn(),
+    user: {
+      active_workspace_id: "workspace-1",
+      active_workspace_name: "Lean Builder",
+      email: "admin@example.com",
+      full_name: "Admin UXA",
+      id: "user-1",
+      workspaces: [],
+    },
+  }),
+}));
+
 vi.mock("@/features/product-experience/shell/use-product-experience-route", () => ({
   useProductExperienceRoute: mockUseProductExperienceRoute,
 }));
@@ -28,6 +44,10 @@ function resource<T>(data: T) {
     updatedAt: Date.now(),
     version: "v1",
   };
+}
+
+function renderWithLanguage(ui: ReactElement) {
+  return render(<LanguageProvider>{ui}</LanguageProvider>);
 }
 
 function createRoute(flagEnabled: boolean | "missing"): ProductExperienceRouteSnapshot {
@@ -94,6 +114,7 @@ function createRoute(flagEnabled: boolean | "missing"): ProductExperienceRouteSn
         session_id: "session-uxa5",
         workspace_id: "workspace-1",
       },
+      stageOperation: null,
     }),
     requestId: 1,
     route: {
@@ -157,6 +178,10 @@ describe("ProjectExperienceBoundary UXA5", () => {
       discoverAction: null,
       discoverActions: {},
       loadError: null,
+      operationControls: {
+        cancelOperation: vi.fn(),
+        retryOperation: vi.fn(),
+      },
       reload: vi.fn(),
       resolveAttentionItem: vi.fn(),
       stageAction: null,
@@ -178,7 +203,7 @@ describe("ProjectExperienceBoundary UXA5", () => {
   it("renders the new shell even when the deprecated env gate is off", () => {
     vi.stubEnv("NEXT_PUBLIC_PRODUCT_EXPERIENCE_V2_GATE", "false");
 
-    render(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
+    renderWithLanguage(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
 
     expect(mockUseProductExperienceRoute).toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1, name: "Proyecto UXA5" })).toBeInTheDocument();
@@ -192,6 +217,10 @@ describe("ProjectExperienceBoundary UXA5", () => {
       discoverAction: null,
       discoverActions: {},
       loadError: null,
+      operationControls: {
+        cancelOperation: vi.fn(),
+        retryOperation: vi.fn(),
+      },
       reload: vi.fn(),
       resolveAttentionItem: vi.fn(),
       stageAction: null,
@@ -202,7 +231,7 @@ describe("ProjectExperienceBoundary UXA5", () => {
       },
     });
 
-    render(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
+    renderWithLanguage(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Proyecto UXA5" })).toBeInTheDocument();
   });
@@ -211,7 +240,7 @@ describe("ProjectExperienceBoundary UXA5", () => {
     vi.stubEnv("NEXT_PUBLIC_PRODUCT_EXPERIENCE_V2_GATE", "true");
     vi.stubEnv("NEXT_PUBLIC_PRODUCT_EXPERIENCE_ROLLBACK", "true");
 
-    render(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
+    renderWithLanguage(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Proyecto UXA5" })).toBeInTheDocument();
   });
@@ -220,7 +249,7 @@ describe("ProjectExperienceBoundary UXA5", () => {
     vi.stubEnv("NEXT_PUBLIC_PRODUCT_EXPERIENCE_V2_GATE", "true");
     vi.stubEnv("NEXT_PUBLIC_PRODUCT_EXPERIENCE_ROLLOUT_PERCENT", "0");
 
-    render(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
+    renderWithLanguage(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Proyecto UXA5" })).toBeInTheDocument();
   });
@@ -228,7 +257,7 @@ describe("ProjectExperienceBoundary UXA5", () => {
   it("renders the new shell as the only project experience", () => {
     vi.stubEnv("NEXT_PUBLIC_PRODUCT_EXPERIENCE_V2_GATE", "true");
 
-    render(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
+    renderWithLanguage(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Proyecto UXA5" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Navegacion de producto" })).toBeInTheDocument();
@@ -241,6 +270,10 @@ describe("ProjectExperienceBoundary UXA5", () => {
       discoverAction: null,
       discoverActions: {},
       loadError: null,
+      operationControls: {
+        cancelOperation: vi.fn(),
+        retryOperation: vi.fn(),
+      },
       reload: vi.fn(),
       resolveAttentionItem: vi.fn(),
       stageAction: null,
@@ -251,7 +284,7 @@ describe("ProjectExperienceBoundary UXA5", () => {
       },
     });
 
-    render(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
+    renderWithLanguage(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Proyecto UXA5" })).toBeInTheDocument();
   });

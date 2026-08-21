@@ -101,7 +101,11 @@ export function getDiscoverStageStatus(
     return "error";
   }
 
-  if (options.processing) {
+  const stageOperation = activeRoute?.operation?.data?.stageOperation ?? null;
+  const isStageOperationActive =
+    stageOperation?.stage_key === "discover" &&
+    (stageOperation.status === "queued" || stageOperation.status === "running");
+  if (options.processing || isStageOperationActive) {
     return "processing";
   }
 
@@ -133,14 +137,20 @@ export function buildDiscoverViewModel(
   } = {},
 ): DiscoverViewModel {
   const snapshot = activeRoute?.snapshot.data ?? null;
-  const formValues = options.formValues ?? createDiscoveryFormValues(snapshot?.discovery);
+  const latestArtifact = snapshot?.journey_latest_artifacts?.discover ?? null;
+  const analysisArtifact = parseDiscoveryAnalysisArtifact(latestArtifact);
+  const candidateDiscovery =
+    latestArtifact?.proposal_payload &&
+    typeof latestArtifact.proposal_payload === "object" &&
+    "normalized_discovery_candidate" in latestArtifact.proposal_payload
+      ? (latestArtifact.proposal_payload.normalized_discovery_candidate as DiscoveryArtifact)
+      : null;
+  const formValues = options.formValues ?? createDiscoveryFormValues(snapshot?.discovery ?? candidateDiscovery);
   const input = buildDiscoveryInput(formValues);
   const missingFields = getDiscoveryInputMissingFields(input);
   const checklist = getDiscoveryChecklist(formValues);
   const completedChecklistItems = checklist.filter((item) => item.state === "done").length;
   const discoveryValidation = (snapshot?.validations ?? []).find((entry) => entry.artifact_name === "discovery") ?? null;
-  const latestArtifact = snapshot?.journey_latest_artifacts?.discover ?? null;
-  const analysisArtifact = parseDiscoveryAnalysisArtifact(latestArtifact);
   const warnings = [
     ...(discoveryValidation?.warnings ?? []),
     ...(latestArtifact?.warnings ?? []),

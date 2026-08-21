@@ -556,6 +556,7 @@ export function BootPage() {
 
 export function LoginPage() {
   const router = useRouter();
+  const [redirectTarget, setRedirectTarget] = useState("/projects");
   const auth = useAuth();
   const { language, t } = useLanguage();
   const localize = (en: string, es: string, pt: string) =>
@@ -574,10 +575,20 @@ export function LoginPage() {
   });
 
   useEffect(() => {
-    if (auth.status === "authenticated") {
-      router.replace(HOME_ROUTE);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get("redirect");
+      if (redirect) {
+        setRedirectTarget(redirect);
+      }
     }
-  }, [auth.status, router]);
+  }, []);
+
+  useEffect(() => {
+    if (auth.status === "authenticated") {
+      router.replace(redirectTarget);
+    }
+  }, [auth.status, redirectTarget, router]);
 
   useEffect(() => {
     let isMounted = true;
@@ -660,7 +671,7 @@ export function LoginPage() {
         email: formValues.email.trim(),
         password: formValues.password,
       });
-      router.replace(HOME_ROUTE);
+      router.replace(redirectTarget);
     } catch (error) {
       setSubmitError(
         getRuntimeMessage(
@@ -768,13 +779,13 @@ export function LoginPage() {
 
   return (
     <div
-      className="auth-viewport h-[100dvh] overflow-hidden bg-[#07152c] p-3 sm:p-4 lg:p-4 [@media(max-height:900px)]:p-2.5"
+      className="auth-viewport min-h-[100dvh] overflow-y-auto bg-[#07152c] p-3 sm:p-4 lg:p-4 [@media(max-height:900px)]:p-2.5"
       data-auth-build="auth-compact-20"
       data-auth-density="compact-20"
       data-auth-surface="login"
     >
-      <div className="auth-shell mx-auto grid h-full max-w-[1500px] overflow-hidden rounded-[28px] border border-white/15 bg-white lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.48fr)] [@media(max-height:900px)]:rounded-[24px]">
-        <section className="auth-marketing-shell sidebar-sheen surface-noise relative overflow-hidden px-6 py-5 text-white sm:px-7 lg:px-8 lg:py-6 [@media(max-height:900px)]:px-6 [@media(max-height:900px)]:py-4">
+      <div className="auth-shell mx-auto grid min-h-[calc(100dvh-24px)] max-w-[1500px] overflow-hidden rounded-[28px] border border-white/15 bg-white lg:min-h-[calc(100dvh-32px)] lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.48fr)] [@media(max-height:900px)]:rounded-[24px]">
+        <section className="auth-marketing-shell sidebar-sheen surface-noise relative order-2 px-6 py-5 text-white sm:px-7 lg:order-1 lg:overflow-hidden lg:px-8 lg:py-6 [@media(max-height:900px)]:px-6 [@media(max-height:900px)]:py-4">
           <div className="relative z-10 flex h-full flex-col">
             <div className="auth-brand-row mb-4 flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-[15px] bg-[var(--gradient-primary)] shadow-[0_14px_28px_rgba(79,70,245,0.25)]">
@@ -874,7 +885,7 @@ export function LoginPage() {
           </div>
         </section>
 
-        <section className="auth-form-stage grid min-h-0 grid-rows-[40px_minmax(0,1fr)_auto_auto] bg-[linear-gradient(180deg,#ffffff_0%,#f9fbff_100%)] px-5 py-4 sm:px-6 lg:px-8 lg:py-4 [@media(max-height:900px)]:px-5 [@media(max-height:900px)]:py-3">
+        <section className="auth-form-stage order-1 grid min-h-0 grid-rows-[40px_minmax(0,1fr)_auto_auto] overflow-y-auto bg-[linear-gradient(180deg,#ffffff_0%,#f9fbff_100%)] px-5 py-4 sm:px-6 lg:order-2 lg:px-8 lg:py-4 [@media(max-height:900px)]:px-5 [@media(max-height:900px)]:py-3">
           <div className="auth-toolbar relative z-20 flex h-10 items-center justify-end">
             <LanguageSelector compact className="auth-language-selector z-30" />
           </div>
@@ -915,12 +926,6 @@ export function LoginPage() {
                   <div className="space-y-0.5">
                     <div className="flex items-center justify-between text-[11px] font-medium">
                       <span>{t("login.passwordLabel")}</span>
-                      <button
-                        type="button"
-                        className="text-[var(--brand-primary)]"
-                      >
-                        {t("login.forgotPassword")}
-                      </button>
                     </div>
                     <TextField
                       autoComplete="current-password"
@@ -941,7 +946,9 @@ export function LoginPage() {
                   </div>
 
                   {submitError ? (
-                    <InlineFieldError>{submitError}</InlineFieldError>
+                    <InlineFieldError aria-live="assertive" role="alert">
+                      {submitError}
+                    </InlineFieldError>
                   ) : null}
 
                   <AppButton
@@ -979,7 +986,7 @@ export function LoginPage() {
                   <div className="pt-0 text-center text-[11px] text-[var(--text-secondary)]">
                     <span>{t("login.noAccount")} </span>
                     <a
-                      href="/register"
+                      href={redirectTarget && redirectTarget !== "/projects" ? `/register?redirect=${encodeURIComponent(redirectTarget)}` : "/register"}
                       className="font-semibold text-[var(--brand-primary)] hover:underline"
                     >
                       {t("login.registerFree")}

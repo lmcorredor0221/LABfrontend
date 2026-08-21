@@ -32,9 +32,15 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [trm, setTrm] = useState<TRMData>(DEFAULT_TRM);
 
   useEffect(() => {
-    const savedCurrency = localStorage.getItem("lean_app_currency") as Currency | null;
-    if (savedCurrency === "USD" || savedCurrency === "COP") {
-      setCurrencyState(savedCurrency);
+    try {
+      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.getItem === "function") {
+        const savedCurrency = window.localStorage.getItem("lean_app_currency") as Currency | null;
+        if (savedCurrency === "USD" || savedCurrency === "COP") {
+          setCurrencyState(savedCurrency);
+        }
+      }
+    } catch {
+      // Ignore storage errors in test or SSR environments
     }
     void loadTRM();
   }, []);
@@ -46,7 +52,13 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   function setCurrency(c: Currency) {
     setCurrencyState(c);
-    localStorage.setItem("lean_app_currency", c);
+    try {
+      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
+        window.localStorage.setItem("lean_app_currency", c);
+      }
+    } catch {
+      // Ignore storage errors
+    }
   }
 
   function formatPrice(usdAmount: number, fallbackCopAmount?: number): string {

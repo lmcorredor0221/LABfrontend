@@ -6,11 +6,18 @@ import type {
   DiagramCatalog,
   DiagramDetail,
   DiagramGenerationJob,
+  DiagramGenerationReason,
   DiagramVersionComparison,
 } from "@/features/diagram-center/domain/types";
 import { diagramCenterApi } from "@/features/diagram-center/infrastructure/diagram-center-api";
 
 type AsyncStatus = "idle" | "loading" | "ready" | "error";
+type CatalogLoadOptions = {
+  silent?: boolean;
+};
+
+const AUTO_REFRESH_INTERVAL_MS = 2_000;
+const AUTO_REFRESH_MAX_ATTEMPTS = 120;
 
 function errorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError) {
@@ -19,8 +26,13 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
+function isActiveGenerationState(state: DiagramCatalog["entries"][number]["generation_state"]) {
+  return state === "queued" || state === "generating" || state === "updating";
+}
+
 export function useDiagramCenter(projectId: string) {
   const mounted = useRef(true);
+  const autoRefreshAttempts = useRef(0);
   const [catalog, setCatalog] = useState<DiagramCatalog | null>(null);
   const [catalogStatus, setCatalogStatus] = useState<AsyncStatus>("idle");
   const [detail, setDetail] = useState<DiagramDetail | null>(null);
@@ -37,9 +49,14 @@ export function useDiagramCenter(projectId: string) {
     };
   }, []);
 
-  const loadCatalog = useCallback(async () => {
-    setCatalogStatus("loading");
-    setError("");
+  const loadCatalog = useCallback(async (options?: CatalogLoadOptions) => {
+    const silent = Boolean(options?.silent);
+    if (!silent) {
+      setCatalogStatus("loading");
+      setError("");
+    } else {
+      setCatalogStatus((current) => (current === "idle" ? "loading" : current));
+    }
     try {
       const response = await diagramCenterApi.catalog(projectId);
       if (!mounted.current) return;
@@ -56,8 +73,10 @@ export function useDiagramCenter(projectId: string) {
       });
     } catch (requestError) {
       if (!mounted.current) return;
-      setCatalogStatus("error");
-      setError(errorMessage(requestError, "No se pudo cargar el catálogo de diagramas."));
+      if (!silent) {
+        setCatalogStatus("error");
+        setError(errorMessage(requestError, "No se pudo cargar el catálogo de diagramas."));
+      }
     }
   }, [projectId]);
 
@@ -87,17 +106,57 @@ export function useDiagramCenter(projectId: string) {
   }, [loadCatalog]);
 
   useEffect(() => {
+    const hasActiveAutomaticWork = Boolean(catalog?.entries.some((item) => isActiveGenerationState(item.generation_state)));
+    if (!hasActiveAutomaticWork) {
+      autoRefreshAttempts.current = 0;
+      return;
+    }
+    if (autoRefreshAttempts.current >= AUTO_REFRESH_MAX_ATTEMPTS) {
+      return;
+    }
+
+    const task = window.setTimeout(() => {
+      autoRefreshAttempts.current += 1;
+      void loadCatalog({ silent: true });
+    }, AUTO_REFRESH_INTERVAL_MS);
+
+    return () => window.clearTimeout(task);
+  }, [catalog, loadCatalog]);
+
+  useEffect(() => {
     if (!selectedKey) return;
     const task = window.setTimeout(() => void loadDetail(selectedKey), 0);
     return () => window.clearTimeout(task);
   }, [loadDetail, selectedKey]);
 
+  const selectedCatalogVersionId =
+    catalog?.entries.find((item) => item.key === selectedKey)?.current_version?.id ?? "";
+  const loadedDetailVersionId = detail?.versions[0]?.id ?? "";
+  const loadedDetailKey = detail?.item.key ?? "";
+  const detailHasModel = Boolean(detail?.model);
+
+  useEffect(() => {
+    if (!selectedKey || !selectedCatalogVersionId) return;
+    if (loadedDetailKey === selectedKey && loadedDetailVersionId === selectedCatalogVersionId && detailHasModel) {
+      return;
+    }
+
+    const task = window.setTimeout(() => void loadDetail(selectedKey, selectedCatalogVersionId), 0);
+    return () => window.clearTimeout(task);
+  }, [detailHasModel, loadDetail, loadedDetailKey, loadedDetailVersionId, selectedCatalogVersionId, selectedKey]);
+
   const generate = useCallback(
-    async (diagramKey: string, regenerate = false) => {
+    async (diagramKey: string, reasonOrRegenerate: DiagramGenerationReason | boolean = false) => {
+      const reason: DiagramGenerationReason =
+        typeof reasonOrRegenerate === "string"
+          ? reasonOrRegenerate
+          : reasonOrRegenerate
+            ? "regenerate"
+            : "user_request";
       setError("");
       setComparison(null);
       try {
-        const created = await diagramCenterApi.generate(projectId, diagramKey, regenerate ? "regenerate" : "user_request");
+        const created = await diagramCenterApi.generate(projectId, diagramKey, reason);
         if (!mounted.current) return;
         setJob(created);
         setCatalog((current) =>

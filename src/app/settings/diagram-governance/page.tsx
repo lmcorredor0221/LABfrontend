@@ -1,6 +1,5 @@
-import { DiagramGovernancePage } from "@/features/diagram-center/presentation/diagram-governance-page";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <DiagramGovernancePage />;
+  redirect("/settings?section=product-governance&tab=diagrams");
 }
-

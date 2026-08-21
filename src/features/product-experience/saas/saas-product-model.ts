@@ -67,10 +67,14 @@ export type ProductSaasViewModel = {
     tone: SaasTone;
   }>;
   artifactCards: Array<{
+    contentText: string;
     detail: string;
     exportFormat: string;
+    isCommercial: boolean;
+    isDiagram: boolean;
     key: string;
     label: string;
+    metadata: Record<string, unknown>;
     stage: string;
     versionLabel: string;
   }>;
@@ -210,8 +214,8 @@ function getProductCards(
       href: `/projects/${sessionId}/blueprint`,
       key: "blueprint",
       label: "Blueprint",
-      progress: 90,
-      tone: "success",
+      progress: 0,
+      tone: "info",
     },
     {
       detail: copy(
@@ -278,19 +282,12 @@ export function buildEstimateReadiness(
 
   if (!report) {
     return {
-      blockers: [
-        copy(
-          language,
-          "There is no consolidated estimate for this session yet.",
-          "Aun no existe estimacion consolidada para esta sesion.",
-          "Ainda nao existe estimativa consolidada para esta sessao.",
-        ),
-      ],
+      blockers: [],
       detail: copy(
         language,
-        "Generate Estimate after approving the Blueprint to show commercial value.",
-        "Genera Estimar despues de aprobar el Blueprint para mostrar el valor comercial.",
-        "Gere Estimar depois de aprovar o Blueprint para mostrar o valor comercial.",
+        "No consolidated estimate exists yet. Generate it from the approved Blueprint inputs to show commercial value.",
+        "Aun no existe estimacion consolidada. Generala desde los insumos aprobados del Blueprint para mostrar valor comercial.",
+        "Ainda nao existe estimativa consolidada. Gere-a a partir dos insumos aprovados do Blueprint para mostrar valor comercial.",
       ),
       metrics: [],
       nextHref: `/projects/${activeRoute?.route.sessionId ?? ""}/work/estimate`,
@@ -302,7 +299,6 @@ export function buildEstimateReadiness(
 
   const blockers = [
     ...report.stale_reasons,
-    ...report.package_policy.package_block_reasons,
     ...getOpenJourneyBlockers(snapshot, ["estimate"]),
   ];
   const agenticSavings = Math.max(0, report.agentic.net_savings_vs_traditional);
@@ -372,7 +368,7 @@ export function buildEstimateReadiness(
         value: formatPercent(report.agentic.acp_package_readiness_percent),
       },
     ],
-    nextHref: `/projects/${activeRoute?.route.sessionId ?? ""}/blueprint`,
+    nextHref: `/projects/${activeRoute?.route.sessionId ?? ""}/blueprint?surface=commercial`,
     nextLabel: copy(language, "View Blueprint result", "Ver resultado Blueprint", "Ver resultado do Blueprint"),
     stateLabel: report.is_stale
       ? copy(language, "Stale", "Desactualizada", "Desatualizada")
@@ -463,7 +459,7 @@ export function buildValidationReadiness(
         value: simulation?.final_status?.replaceAll("_", " ") ?? copy(language, "Pending", "Pendiente", "Pendente"),
       },
     ],
-    nextHref: `/projects/${activeRoute?.route.sessionId ?? ""}/work/package`,
+    nextHref: `/projects/${activeRoute?.route.sessionId ?? ""}/acp?acp_tab=package`,
     nextLabel: blockers.length
       ? copy(language, "Resolve gates", "Resolver gates", "Resolver gates")
       : copy(language, "Continue to Package", "Continuar a Package", "Continuar para Package"),
@@ -476,12 +472,23 @@ function getStageArtifact(snapshot: SessionSnapshot | null, stage: string): Jour
   return (snapshot?.journey_artifacts ?? []).find((artifact) => artifact.stage_key === stage) ?? null;
 }
 
+function isCommercialBlueprintMetadata(metadata: Record<string, unknown> | null | undefined, artifactKey: string) {
+  return (
+    artifactKey.startsWith("Blueprint/commercial/") ||
+    (metadata?.product === "blueprint" && metadata?.surface === "commercial")
+  );
+}
+
 function buildArtifactCards(snapshot: SessionSnapshot | null, language: SupportedLanguage) {
   const exportedArtifacts = (snapshot?.artifact_records ?? []).map((record) => ({
+    contentText: record.content_text,
     detail: record.content_text.slice(0, 170) || record.artifact_kind,
     exportFormat: record.export_format,
+    isCommercial: isCommercialBlueprintMetadata(record.artifact_metadata, record.artifact_key),
+    isDiagram: Boolean(record.artifact_metadata?.diagram) || record.artifact_kind.includes("diagram") || record.export_format === "mermaid",
     key: record.id || record.artifact_key,
     label: record.artifact_title || record.artifact_key,
+    metadata: record.artifact_metadata,
     stage: record.stage,
     versionLabel: record.blueprint_version_number
       ? `Blueprint v${record.blueprint_version_number}`
@@ -489,10 +496,14 @@ function buildArtifactCards(snapshot: SessionSnapshot | null, language: Supporte
   }));
 
   const journeyArtifacts = (snapshot?.journey_artifacts ?? []).map((artifact) => ({
+    contentText: [artifact.state, artifact.model, artifact.source_action].filter(Boolean).join(" - "),
     detail: [artifact.state, artifact.model, artifact.source_action].filter(Boolean).join(" · "),
     exportFormat: artifact.schema_version,
+    isCommercial: false,
+    isDiagram: false,
     key: artifact.id,
     label: `${artifact.stage_key} · ${artifact.artifact_kind}`,
+    metadata: {},
     stage: artifact.stage_key,
     versionLabel: artifact.provider_key,
   }));
@@ -564,12 +575,20 @@ function scenarioTone(scenario: EstimationConstructionScenario): SaasTone {
     return "success";
   }
 
+  if (scenario.scenario_key === "done_for_you_factory") {
+    return "info";
+  }
+
   if (scenario.scenario_key === "acp_manual") {
     return "info";
   }
 
-  if (scenario.scenario_key === "agentic_blueprint") {
+  if (scenario.scenario_key === "blueprint_premium" || scenario.scenario_key === "agentic_blueprint") {
     return "warning";
+  }
+
+  if (scenario.scenario_key === "blueprint_basic") {
+    return "neutral";
   }
 
   return "neutral";
@@ -627,10 +646,14 @@ function buildActivityItems(activeRoute: ProductExperienceRouteSnapshot | null, 
 
 function buildArtifactCardsLocalized(snapshot: SessionSnapshot | null, language: SupportedLanguage) {
   const exportedArtifacts = (snapshot?.artifact_records ?? []).map((record) => ({
+    contentText: record.content_text,
     detail: record.content_text.slice(0, 170) || record.artifact_kind,
     exportFormat: record.export_format,
+    isCommercial: isCommercialBlueprintMetadata(record.artifact_metadata, record.artifact_key),
+    isDiagram: Boolean(record.artifact_metadata?.diagram) || record.artifact_kind.includes("diagram") || record.export_format === "mermaid",
     key: record.id || record.artifact_key,
     label: record.artifact_title || record.artifact_key,
+    metadata: record.artifact_metadata,
     stage: record.stage,
     versionLabel: record.blueprint_version_number
       ? `Blueprint v${record.blueprint_version_number}`
@@ -638,10 +661,14 @@ function buildArtifactCardsLocalized(snapshot: SessionSnapshot | null, language:
   }));
 
   const journeyArtifacts = (snapshot?.journey_artifacts ?? []).map((artifact) => ({
+    contentText: [artifact.state, artifact.model, artifact.source_action].filter(Boolean).join(" - "),
     detail: [artifact.state, artifact.model, artifact.source_action].filter(Boolean).join(" · "),
     exportFormat: artifact.schema_version,
+    isCommercial: false,
+    isDiagram: false,
     key: artifact.id,
     label: `${artifact.stage_key} · ${artifact.artifact_kind}`,
+    metadata: {},
     stage: artifact.stage_key,
     versionLabel: artifact.provider_key,
   }));

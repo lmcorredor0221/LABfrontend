@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FolderKanban, RefreshCcw, Settings } from "lucide-react";
+import { CreditCard, FolderKanban, RefreshCcw, Settings } from "lucide-react";
 import { AppButton, Badge, KeyValue, Panel, SimpleTable, StatRow } from "@/components/lean/ui";
 import { OperationsModuleShell } from "@/features/operations/operations-module-shell";
 import { buildIntegrationsSummary, formatDateTime, getStatusTone } from "@/features/operations/operations-adapter";
@@ -288,6 +288,9 @@ export function IntegrationsWorkspacePage() {
                 </AppButton>
                 <AppButton className="w-full" onClick={() => router.push("/library")}>
                   Ir a Biblioteca
+                </AppButton>
+                <AppButton className="w-full" icon={<CreditCard className="h-4 w-4" />} onClick={() => router.push("/settings?section=configuration&config=commerce&subtab=hotmart")}>
+                  Administrar Hotmart en Settings
                 </AppButton>
                 <AppButton className="w-full" variant="primary" icon={<Settings className="h-4 w-4" />} onClick={() => router.push("/settings")}>
                   Ir a Configuracion

@@ -445,6 +445,7 @@ export function createDefineRouteFixture({
         session_id: "session-uxa8",
         workspace_id: "workspace-1",
       },
+      stageOperation: null,
     }),
     requestId: 1,
     route: {

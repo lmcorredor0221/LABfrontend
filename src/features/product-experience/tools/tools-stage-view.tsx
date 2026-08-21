@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { cn } from "@/lib/utils";
 import {
   ArrowRight,
   CheckCircle2,
@@ -13,23 +14,25 @@ import {
   RefreshCw,
   ShieldAlert,
   Sparkles,
+  X,
 } from "lucide-react";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 import {
   UxaBadge,
   UxaButton,
   UxaEmptyState,
-  UxaSectionNav,
   UxaSurface,
   UxaTextareaField,
   type UxaTone,
 } from "@/features/product-experience/design-system";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
-import { LeanStageScreen, type LeanStageScreenContract } from "@/features/product-experience/stage-screen";
+import {
+  LeanGeneratedDeliverable,
+  LeanStageScreen,
+  type LeanStageScreenContract,
+} from "@/features/product-experience/stage-screen";
 import {
   buildToolsViewModel,
-  parseToolsSection,
-  type ToolsSection,
   type ToolsStageStatus,
 } from "@/features/product-experience/tools/tools-model";
 import { getProductExperienceProductHref, getProductExperienceStageHref } from "@/features/product-experience/shell/experience-model";
@@ -63,6 +66,17 @@ function getToolClassificationLabel(language: SupportedLanguage, value: string) 
       return byLanguage(language, { en: "Unnecessary", es: "Innecesaria", pt: "Desnecessaria" });
     default:
       return value;
+  }
+}
+
+function getToolTypeLabel(language: SupportedLanguage, value?: string | null) {
+  switch ((value ?? "").toLowerCase()) {
+    case "internal":
+      return byLanguage(language, { en: "Internal", es: "Interna", pt: "Interna" });
+    case "external":
+      return byLanguage(language, { en: "External", es: "Externa", pt: "Externa" });
+    default:
+      return byLanguage(language, { en: "Contract pending", es: "Contrato pendiente", pt: "Contrato pendente" });
   }
 }
 
@@ -141,10 +155,82 @@ function isSubmitting(actionState?: ProductStageActionState, localAction?: Local
   return actionState?.status === "submitting" || localAction?.status === "submitting";
 }
 
+function hasActiveServerOperation(
+  activeRoute: ProductExperienceRouteSnapshot | null,
+  stageKey: string,
+  actions: string[],
+) {
+  const operation = activeRoute?.operation.data?.stageOperation ?? null;
+  return Boolean(
+    operation &&
+      operation.stage_key === stageKey &&
+      actions.includes(operation.action) &&
+      ["queued", "running", "waiting_for_user"].includes(operation.status),
+  );
+}
+
 function payload(recommendation: ToolRecommendationArtifact): Record<string, unknown> {
   return recommendation as unknown as Record<string, unknown>;
 }
 
+function listValue(values?: string[] | null) {
+  return Array.isArray(values) ? values.filter(Boolean) : [];
+}
+
+function emptyCopy(language: SupportedLanguage) {
+  return byLanguage(language, { en: "Not defined", es: "No definido", pt: "Nao definido" });
+}
+
+function yesNoCopy(language: SupportedLanguage, value?: boolean | null) {
+  return value
+    ? byLanguage(language, { en: "Yes", es: "Si", pt: "Sim" })
+    : byLanguage(language, { en: "No", es: "No", pt: "Nao" });
+}
+
+function DetailField({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <div className="rounded-[16px] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)]/65 px-3 py-2.5">
+      <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-ink-muted)]">{label}</p>
+      <div className="mt-1.5 text-[12px] leading-5 text-[var(--uxa-color-ink)]">{children}</div>
+    </div>
+  );
+}
+
+function TokenList({
+  emptyLabel,
+  values,
+}: {
+  emptyLabel: string;
+  values?: string[] | null;
+}) {
+  const items = listValue(values);
+  if (!items.length) {
+    return <span className="text-[var(--uxa-color-ink-soft)]">{emptyLabel}</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((item, index) => (
+        <span
+          className="rounded-full border border-[var(--uxa-color-border)] bg-white px-2 py-1 text-[10px] font-bold text-[var(--uxa-color-ink-soft)]"
+          key={`${item}-${index}`}
+        >
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function getToolContractName(tool: ToolRecommendationEntry) {
+  return tool.contract_seed?.name ?? tool.tool_label;
+}
 
 function LoadingState() {
   const { language } = useLanguage();
@@ -166,37 +252,6 @@ function LoadingState() {
   );
 }
 
-function SectionNav({
-  activeSection,
-  onSectionChange,
-  sections,
-}: {
-  activeSection: ToolsSection;
-  onSectionChange(section: ToolsSection): void;
-  sections: ReturnType<typeof buildToolsViewModel>["sections"];
-}) {
-  const { language } = useLanguage();
-  return (
-    <UxaSurface as="aside" className="h-fit p-3 lg:sticky lg:top-6">
-      <p className="px-2 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
-        {byLanguage(language, { en: "Sections", es: "Secciones", pt: "Secoes" })}
-      </p>
-      <div className="mt-3">
-        <UxaSectionNav
-          activeKey={activeSection}
-          ariaLabel={byLanguage(language, {
-            en: "Tools sections",
-            es: "Secciones de Herramientas",
-            pt: "Secoes de Ferramentas",
-          })}
-          items={sections}
-          onSelect={(key) => onSectionChange(key as ToolsSection)}
-        />
-      </div>
-    </UxaSurface>
-  );
-}
-
 function EmptyTools({ canGenerate }: { canGenerate: boolean }) {
   const { language } = useLanguage();
   return (
@@ -211,21 +266,171 @@ function EmptyTools({ canGenerate }: { canGenerate: boolean }) {
   );
 }
 
-function Decisions({ decisions, sessionId }: { decisions: ReturnType<typeof buildToolsViewModel>["decisions"]; sessionId: string }) {
+function getDecisionSourceLabel(language: SupportedLanguage, source: ReturnType<typeof buildToolsViewModel>["decisions"][number]["source"]) {
+  switch (source) {
+    case "gap":
+      return byLanguage(language, { en: "Coverage gap", es: "Gap de cobertura", pt: "Gap de cobertura" });
+    case "needs_information":
+      return byLanguage(language, { en: "More context", es: "Mas contexto", pt: "Mais contexto" });
+    case "finding":
+      return byLanguage(language, { en: "Finding", es: "Hallazgo", pt: "Achado" });
+    default:
+      return source;
+  }
+}
+
+function getDecisionModeLabel(language: SupportedLanguage, mode: ReturnType<typeof buildToolsViewModel>["decisions"][number]["mode"]) {
+  switch (mode) {
+    case "assumption":
+      return byLanguage(language, { en: "Assumption kept", es: "Supuesto conservado", pt: "Suposicao mantida" });
+    case "enrichment":
+      return byLanguage(language, { en: "Deferred to [Enrich in Premium]", es: "Diferido a [Enriquecer en Premium]", pt: "Diferido para [Enriquecer no Premium]" });
+    case "required":
+      return byLanguage(language, { en: "Requires decision", es: "Requiere decision", pt: "Requer decisao" });
+    case "blocker":
+      return byLanguage(language, { en: "Blocks promotion", es: "Bloquea promocion", pt: "Bloqueia promocao" });
+    default:
+      return mode;
+  }
+}
+
+function getDecisionModeTone(mode: ReturnType<typeof buildToolsViewModel>["decisions"][number]["mode"]): UxaTone {
+  return mode === "blocker" ? "danger" : mode === "required" ? "warning" : mode === "enrichment" ? "info" : "success";
+}
+
+function Decisions({
+  commercialTier,
+  decisions,
+  sessionId,
+}: {
+  commercialTier: ReturnType<typeof buildToolsViewModel>["commercialTier"];
+  decisions: ReturnType<typeof buildToolsViewModel>["decisions"];
+  sessionId: string;
+}) {
   const { language } = useLanguage();
+  const isBasicBlueprint = commercialTier === "blueprint";
   return (
     <div className="space-y-3">
+      {decisions.length ? (
+        <UxaSurface className="p-4" muted>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-brand)]">
+                {isBasicBlueprint
+                  ? byLanguage(language, { en: "Basic Blueprint behavior", es: "Comportamiento Blueprint Basico", pt: "Comportamento Blueprint Basico" })
+                  : byLanguage(language, { en: "Actionable decisions", es: "Decisiones accionables", pt: "Decisoes acionaveis" })}
+              </p>
+              <h4 className="mt-1 text-[16px] font-black">
+                {isBasicBlueprint
+                  ? byLanguage(language, {
+                      en: "Deferred to [Enrich in Premium]",
+                      es: "Diferir a [Enriquecer en Premium]",
+                      pt: "Diferir para [Enriquecer no Premium]",
+                    })
+                  : byLanguage(language, {
+                      en: "Resolve before promoting when required",
+                      es: "Resolver antes de promover cuando aplique",
+                      pt: "Resolver antes de promover quando aplicavel",
+                    })}
+              </h4>
+              <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                {isBasicBlueprint
+                  ? byLanguage(language, {
+                      en: "In the Basic Blueprint, all technical assumptions and enrichment opportunities are deferred to [Enrich in Premium] (Blueprint Pro / ACP). The platform preserves traceable assumptions without blocking the basic product flow.",
+                      es: "En el Blueprint Basico, todos los supuestos y oportunidades de enriquecimiento se difieren a [Enriquecer en Premium] (Blueprint Pro / ACP). La plataforma conserva estos supuestos trazables para no bloquear el avance del producto basico.",
+                      pt: "No Blueprint Basico, todas as suposicoes e oportunidades de enriquecimento sao diferidas para [Enriquecer no Premium] (Blueprint Pro / ACP). A plataforma mantem estas suposicoes rastreaveis sem bloquear o fluxo basico.",
+                    })
+                  : byLanguage(language, {
+                      en: "These items need a user decision or review because this product level enriches or prepares construction artifacts.",
+                      es: "Estos items necesitan decision o revision del usuario porque este nivel de producto enriquece o prepara artefactos de construccion.",
+                      pt: "Estes itens precisam de decisao ou revisao do usuario porque este nivel de produto enriquece ou prepara artefatos de construcao.",
+                    })}
+              </p>
+            </div>
+            <UxaBadge tone={isBasicBlueprint ? "info" : "warning"}>
+              {isBasicBlueprint
+                ? byLanguage(language, { en: "Deferred to Premium", es: "Diferido a Premium", pt: "Diferido para Premium" })
+                : byLanguage(language, { en: "Review needed", es: "Requiere revision", pt: "Requer revisao" })}
+            </UxaBadge>
+          </div>
+        </UxaSurface>
+      ) : null}
       {decisions.map((item) => (
         <article className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4" key={item.key}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{item.source}</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
+                {getDecisionSourceLabel(language, item.source)}
+              </p>
               <h4 className="mt-1 text-[15px] font-black">{item.title}</h4>
             </div>
-          <UxaBadge tone={item.severity === "blocking" ? "danger" : item.severity === "warning" ? "warning" : "info"}>{getDecisionSeverityLabel(language, item.severity)}</UxaBadge>
+            <div className="flex flex-wrap gap-2">
+              {item.occurrenceCount > 1 ? (
+                <UxaBadge tone="info">
+                  {byLanguage(language, {
+                    en: `${item.occurrenceCount} consolidated signals`,
+                    es: `${item.occurrenceCount} senales consolidadas`,
+                    pt: `${item.occurrenceCount} sinais consolidados`,
+                  })}
+                </UxaBadge>
+              ) : null}
+              <UxaBadge tone={getDecisionModeTone(item.mode)}>{getDecisionModeLabel(language, item.mode)}</UxaBadge>
+              <UxaBadge tone={item.severity === "blocking" ? "danger" : item.severity === "warning" ? "warning" : "info"}>
+                {getDecisionSeverityLabel(language, item.severity)}
+              </UxaBadge>
+            </div>
           </div>
-          <p className="mt-3 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{item.detail}</p>
-          <p className="mt-3 rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px]">{item.action}</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <DetailField label={byLanguage(language, { en: "Why it matters", es: "Por que importa", pt: "Por que importa" })}>
+              {item.detail || byLanguage(language, { en: "The item improves precision or traceability.", es: "El item mejora precision o trazabilidad.", pt: "O item melhora precisao ou rastreabilidade." })}
+            </DetailField>
+            <DetailField
+              label={isBasicBlueprint
+                ? byLanguage(language, { en: "Basic Blueprint behavior", es: "Comportamiento Basico", pt: "Comportamento Basico" })
+                : byLanguage(language, { en: "Required closure", es: "Cierre requerido", pt: "Fechamento requerido" })}
+            >
+              {isBasicBlueprint
+                ? byLanguage(language, {
+                    en: "The system keeps a traceable assumption and defers enrichment to [Enrich in Premium] without blocking this product.",
+                    es: "El sistema conserva un supuesto trazable y difiere el enriquecimiento a [Enriquecer en Premium] sin bloquear este producto.",
+                    pt: "O sistema mantem uma suposicao rastreavel e difere o enriquecimento para [Enriquecer no Premium] sem bloquear este produto.",
+                  })
+                : byLanguage(language, {
+                    en: "Review or resolve this item before using it as a construction-grade decision.",
+                    es: "Revisa o resuelve este item antes de usarlo como decision de nivel construccion.",
+                    pt: "Revise ou resolva este item antes de usa-lo como decisao de nivel construcao.",
+                  })}
+            </DetailField>
+            <DetailField label={byLanguage(language, { en: "Suggested action", es: "Accion sugerida", pt: "Acao sugerida" })}>
+              {item.action || byLanguage(language, { en: "Deferred to Premium.", es: "Diferido a Premium.", pt: "Diferido para Premium." })}
+            </DetailField>
+          </div>
+          {item.sourceReferences.length > 1 ? (
+            <p className="mt-3 text-[11px] leading-5 text-[var(--uxa-color-ink-muted)]">
+              {byLanguage(language, {
+                en: "Consolidated from",
+                es: "Consolidado desde",
+                pt: "Consolidado de",
+              })}{" "}
+              {item.sourceReferences.map((reference) => `${getDecisionSourceLabel(language, reference.source)}:${reference.key}`).join(" · ")}
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {isBasicBlueprint ? (
+              <>
+                <span className="inline-flex min-h-9 items-center rounded-full bg-[var(--uxa-state-success-soft)] px-3 text-[12px] font-black text-[var(--uxa-state-success)]">
+                  {byLanguage(language, { en: "Deferred to [Enrich in Premium]", es: "Diferido a [Enriquecer en Premium]", pt: "Diferido para [Enriquecer no Premium]" })}
+                </span>
+                <Link className="uxa-button uxa-button--primary uxa-button--sm" href={getProductExperienceProductHref(sessionId, "blueprint")}>
+                  {byLanguage(language, { en: "Enrich in Premium", es: "Enriquecer en Premium", pt: "Enriquecer no Premium" })}
+                </Link>
+              </>
+            ) : (
+              <Link className="uxa-button uxa-button--secondary uxa-button--sm" href={getProductExperienceProductHref(sessionId, "attention")}>
+                {byLanguage(language, { en: "Resolve in Attention", es: "Resolver en Atencion", pt: "Resolver em Atencao" })}
+              </Link>
+            )}
+          </div>
         </article>
       ))}
       {!decisions.length ? (
@@ -239,7 +444,7 @@ function Decisions({ decisions, sessionId }: { decisions: ReturnType<typeof buil
             })}
           </p>
         </UxaSurface>
-      ) : (
+      ) : !isBasicBlueprint ? (
         <Link className="uxa-button uxa-button--secondary" href={getProductExperienceProductHref(sessionId, "attention")}>
           {byLanguage(language, {
             en: "Manage in Attention",
@@ -247,17 +452,19 @@ function Decisions({ decisions, sessionId }: { decisions: ReturnType<typeof buil
             pt: "Gerenciar em Atencao",
           })}
         </Link>
-      )}
+      ) : null}
     </div>
   );
 }
 
 function ToolCard({
+  isSelected,
   optionalSelected,
   tool,
   onOpen,
   onToggleOptional,
 }: {
+  isSelected?: boolean;
   optionalSelected?: boolean;
   tool: ToolRecommendationEntry;
   onOpen(tool: ToolRecommendationEntry): void;
@@ -265,87 +472,337 @@ function ToolCard({
 }) {
   const { language } = useLanguage();
   const tone: UxaTone = tool.classification === "mandatory" ? "success" : tool.classification === "optional" ? "warning" : "neutral";
+  const detailButtonLabel = isSelected
+    ? byLanguage(language, { en: "Detail open", es: "Detalle abierto", pt: "Detalhe aberto" })
+    : byLanguage(language, { en: "View detail", es: "Ver detalle", pt: "Ver detalhe" });
+  const optionalButtonLabel = optionalSelected
+    ? byLanguage(language, { en: "Optional included", es: "Opcional incluido", pt: "Opcional incluido" })
+    : byLanguage(language, { en: "Include optional", es: "Incluir opcional", pt: "Incluir opcional" });
+  const empty = emptyCopy(language);
+
   return (
-    <article className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <details
+      className={[
+        "group bg-white transition",
+        isSelected ? "shadow-[inset_3px_0_0_var(--uxa-color-brand)]" : "hover:bg-[var(--uxa-color-muted-panel)]/40",
+      ].join(" ")}
+    >
+      <summary className="grid cursor-pointer list-none gap-3 px-4 py-3 text-[12px] lg:grid-cols-[minmax(230px,1.7fr)_120px_115px_120px_120px_74px_92px] lg:items-center [&::-webkit-details-marker]:hidden">
+        <div className="min-w-0 lg:pr-2">
+          <h4 className="truncate text-[14px] font-black text-[var(--uxa-color-ink)]">{tool.tool_label}</h4>
+          <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--uxa-color-ink-muted)]">
+            {tool.tool_key}
+          </p>
+        </div>
         <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{tool.tool_key}</p>
-          <h4 className="mt-1 text-[16px] font-black">{tool.tool_label}</h4>
-        </div>
-        <div className="flex flex-wrap gap-2">
           <UxaBadge tone={tone}>{getToolClassificationLabel(language, tool.classification)}</UxaBadge>
-          <UxaBadge tone="neutral">{Math.round(tool.confidence * 100)}%</UxaBadge>
+        </div>
+        <span className="text-[12px] font-bold text-[var(--uxa-color-ink-soft)]">
+          {getToolTypeLabel(language, tool.contract_seed?.tool_type)}
+        </span>
+        <div>
+          <UxaBadge tone={tool.contract_seed?.has_side_effects ? "danger" : "success"}>
+            {tool.contract_seed?.has_side_effects
+              ? byLanguage(language, { en: "Side effect", es: "Efecto lateral", pt: "Efeito colateral" })
+              : byLanguage(language, { en: "Read-only", es: "Solo lectura", pt: "Somente leitura" })}
+          </UxaBadge>
+        </div>
+        <div>
+          <UxaBadge tone={tool.contract_seed?.requires_approval ? "warning" : "neutral"}>
+            {tool.contract_seed?.requires_approval
+              ? byLanguage(language, { en: "Approval", es: "Aprobacion", pt: "Aprovacao" })
+              : byLanguage(language, { en: "Autonomous", es: "Autonoma", pt: "Autonoma" })}
+          </UxaBadge>
+        </div>
+        <span className="text-[13px] font-black text-[var(--uxa-color-ink)]">{Math.round(tool.confidence * 100)}%</span>
+        <span className="inline-flex items-center justify-start gap-1 text-[12px] font-black text-[var(--uxa-color-brand)] lg:justify-end">
+          {byLanguage(language, { en: "Open", es: "Abrir", pt: "Abrir" })}
+          <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 transition group-open:rotate-90" />
+        </span>
+      </summary>
+      <div className="border-t border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)]/45 px-4 py-4">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px]">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
+              {byLanguage(language, { en: "Capability", es: "Capacidad", pt: "Capacidade" })}
+            </p>
+            <p className="mt-1 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{tool.capability_covered}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
+              {byLanguage(language, { en: "Why it was selected", es: "Por que se propone", pt: "Por que foi proposta" })}
+            </p>
+            <p className="mt-1 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{tool.decision_reason}</p>
+          </div>
+          <div className="flex flex-col gap-2 lg:items-end">
+            {onToggleOptional ? (
+              <UxaButton
+                aria-label={`${optionalButtonLabel}: ${tool.tool_label}`}
+                className="w-full justify-center lg:w-auto"
+                onClick={() => onToggleOptional(tool.tool_key)}
+                size="sm"
+                variant={optionalSelected ? "primary" : "secondary"}
+              >
+                {optionalButtonLabel}
+              </UxaButton>
+            ) : null}
+            <UxaButton
+              aria-label={`${detailButtonLabel}: ${tool.tool_label}`}
+              className="w-full justify-center lg:w-auto"
+              onClick={() => onOpen(tool)}
+              size="sm"
+              variant={isSelected ? "primary" : "secondary"}
+            >
+              {detailButtonLabel}
+            </UxaButton>
+          </div>
+        </div>
+        <div className="mt-3 grid gap-2 md:grid-cols-3">
+          <DetailField label={byLanguage(language, { en: "Purpose", es: "Proposito", pt: "Proposito" })}>
+            {tool.contract_seed?.purpose ?? tool.capability_covered}
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Dependencies", es: "Dependencias", pt: "Dependencias" })}>
+            <TokenList emptyLabel={empty} values={tool.dependencies} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Evidence", es: "Evidencia", pt: "Evidencia" })}>
+            <TokenList emptyLabel={empty} values={tool.source_evidence} />
+          </DetailField>
         </div>
       </div>
-      <p className="mt-3 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{tool.capability_covered}</p>
-      <p className="mt-3 rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px]">{tool.decision_reason}</p>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {onToggleOptional ? (
-          <UxaButton onClick={() => onToggleOptional(tool.tool_key)} size="sm" variant={optionalSelected ? "primary" : "secondary"}>
-            {optionalSelected
-              ? byLanguage(language, { en: "Optional included", es: "Opcional incluido", pt: "Opcional incluido" })
-              : byLanguage(language, { en: "Include optional", es: "Incluir opcional", pt: "Incluir opcional" })}
-          </UxaButton>
-        ) : null}
-        <UxaButton onClick={() => onOpen(tool)} size="sm" variant="ghost">
-          {byLanguage(language, { en: "View contract", es: "Ver contrato", pt: "Ver contrato" })}
-        </UxaButton>
+    </details>
+  );
+}
+
+function ToolTable({
+  emptyMessage,
+  optionalKeys,
+  selectedToolKey,
+  title,
+  tools,
+  onOpenTool,
+  onToggleOptional,
+}: {
+  emptyMessage: string;
+  optionalKeys?: string[];
+  selectedToolKey?: string | null;
+  title: string;
+  tools: ToolRecommendationEntry[];
+  onOpenTool(tool: ToolRecommendationEntry): void;
+  onToggleOptional?(toolKey: string): void;
+}) {
+  const { language } = useLanguage();
+  return (
+    <section className="overflow-hidden rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--uxa-color-border)] px-4 py-3">
+        <h4 className="text-[14px] font-black">{title}</h4>
+        <UxaBadge tone="neutral">{tools.length}</UxaBadge>
       </div>
-    </article>
+      <div className="hidden grid-cols-[minmax(230px,1.7fr)_120px_115px_120px_120px_74px_92px] gap-3 bg-[var(--uxa-color-muted-panel)] px-4 py-2 text-[9px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)] lg:grid">
+        <span>{byLanguage(language, { en: "Tool", es: "Herramienta", pt: "Ferramenta" })}</span>
+        <span>{byLanguage(language, { en: "Class", es: "Clase", pt: "Classe" })}</span>
+        <span>{byLanguage(language, { en: "Type", es: "Tipo", pt: "Tipo" })}</span>
+        <span>{byLanguage(language, { en: "Mode", es: "Modo", pt: "Modo" })}</span>
+        <span>{byLanguage(language, { en: "Control", es: "Control", pt: "Controle" })}</span>
+        <span>{byLanguage(language, { en: "Fit", es: "Fit", pt: "Fit" })}</span>
+        <span className="text-right">{byLanguage(language, { en: "Action", es: "Accion", pt: "Acao" })}</span>
+      </div>
+      <div className="divide-y divide-[var(--uxa-color-border)]">
+        {tools.map((tool) => (
+          <ToolCard
+            isSelected={selectedToolKey === tool.tool_key}
+            key={tool.tool_key}
+            onOpen={onOpenTool}
+            onToggleOptional={onToggleOptional}
+            optionalSelected={optionalKeys?.includes(tool.tool_key)}
+            tool={tool}
+          />
+        ))}
+        {!tools.length ? <p className="px-4 py-5 text-[12px] text-[var(--uxa-color-ink-soft)]">{emptyMessage}</p> : null}
+      </div>
+    </section>
   );
 }
 
 function Catalog({
   optionalKeys,
   recommendation,
+  selectedToolKey,
   onOpenTool,
   onToggleOptional,
 }: {
   optionalKeys: string[];
   recommendation: ToolRecommendationArtifact;
+  selectedToolKey?: string | null;
   onOpenTool(tool: ToolRecommendationEntry): void;
   onToggleOptional(toolKey: string): void;
 }) {
   const { language } = useLanguage();
   return (
     <div className="space-y-5">
-      <div>
-        <p className="mb-3 text-[13px] font-black">
-          {byLanguage(language, { en: "Mandatory", es: "Obligatorias", pt: "Obrigatorias" })}
-        </p>
-        <div className="grid gap-3 xl:grid-cols-2">
-          {recommendation.recommended_tools.map((tool) => (
-            <ToolCard key={tool.tool_key} onOpen={onOpenTool} tool={tool} />
-          ))}
+      <UxaSurface className="p-4" muted>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-brand)]">
+              {byLanguage(language, { en: "Proposed toolset", es: "Herramientas propuestas", pt: "Ferramentas propostas" })}
+            </p>
+            <h3 className="mt-1 text-[20px] font-black">
+              {byLanguage(language, {
+                en: "Minimum capabilities to operate the agent",
+                es: "Capacidades minimas para operar el agente",
+                pt: "Capacidades minimas para operar o agente",
+              })}
+            </h3>
+            <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{recommendation.summary}</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-[var(--uxa-radius-md)] bg-white px-3 py-2">
+              <p className="text-[18px] font-black">{recommendation.recommended_tools.length}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, { en: "Mandatory", es: "Oblig.", pt: "Obrig." })}
+              </p>
+            </div>
+            <div className="rounded-[var(--uxa-radius-md)] bg-white px-3 py-2">
+              <p className="text-[18px] font-black">{recommendation.optional_tools.length}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, { en: "Optional", es: "Opc.", pt: "Opc." })}
+              </p>
+            </div>
+            <div className="rounded-[var(--uxa-radius-md)] bg-white px-3 py-2">
+              <p className="text-[18px] font-black">{recommendation.rejected_tools.length}</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, { en: "Out", es: "Fuera", pt: "Fora" })}
+              </p>
+            </div>
+          </div>
         </div>
-      </div>
-      <div>
-        <p className="mb-3 text-[13px] font-black">
-          {byLanguage(language, { en: "Resolvable optional", es: "Opcionales resolubles", pt: "Opcionais resolviveis" })}
-        </p>
-        <div className="grid gap-3 xl:grid-cols-2">
-          {recommendation.optional_tools.map((tool) => (
-            <ToolCard
-              key={tool.tool_key}
-              onOpen={onOpenTool}
-              onToggleOptional={onToggleOptional}
-              optionalSelected={optionalKeys.includes(tool.tool_key)}
-              tool={tool}
-            />
-          ))}
-        </div>
-      </div>
-      <details className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4">
+      </UxaSurface>
+      <ToolTable
+        emptyMessage={byLanguage(language, {
+          en: "No mandatory tools were recommended.",
+          es: "No se recomendaron herramientas obligatorias.",
+          pt: "Nenhuma ferramenta obrigatoria foi recomendada.",
+        })}
+        onOpenTool={onOpenTool}
+        selectedToolKey={selectedToolKey}
+        title={byLanguage(language, { en: "Mandatory", es: "Obligatorias", pt: "Obrigatorias" })}
+        tools={recommendation.recommended_tools}
+      />
+      <ToolTable
+        emptyMessage={byLanguage(language, {
+          en: "No optional tools were needed for the minimum viable operation.",
+          es: "No se detectaron herramientas opcionales necesarias para la operacion minima.",
+          pt: "Nao foram detectadas ferramentas opcionais necessarias para a operacao minima.",
+        })}
+        onOpenTool={onOpenTool}
+        onToggleOptional={onToggleOptional}
+        optionalKeys={optionalKeys}
+        selectedToolKey={selectedToolKey}
+        title={byLanguage(language, { en: "Resolvable optional", es: "Opcionales resolubles", pt: "Opcionais resolviveis" })}
+        tools={recommendation.optional_tools}
+      />
+      <details className="overflow-hidden rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white">
         <summary className="cursor-pointer text-[14px] font-black">
-          {byLanguage(language, { en: "Unnecessary or rejected", es: "Innecesarias o rechazadas", pt: "Desnecessarias ou rejeitadas" })}
+          <span className="block px-4 py-3">
+            {byLanguage(language, { en: "Unnecessary or rejected", es: "Innecesarias o rechazadas", pt: "Desnecessarias ou rejeitadas" })} ({recommendation.rejected_tools.length})
+          </span>
         </summary>
-        <div className="mt-3 grid gap-3 xl:grid-cols-2">
-          {recommendation.rejected_tools.map((tool) => (
-            <ToolCard key={tool.tool_key} onOpen={onOpenTool} tool={tool} />
-          ))}
-        </div>
+        <ToolTable
+          emptyMessage={byLanguage(language, {
+            en: "No redundant or unnecessary tools were flagged.",
+            es: "No se marcaron herramientas redundantes o innecesarias.",
+            pt: "Nao foram marcadas ferramentas redundantes ou desnecessarias.",
+          })}
+          onOpenTool={onOpenTool}
+          selectedToolKey={selectedToolKey}
+          title={byLanguage(language, { en: "Out of scope", es: "Fuera de alcance", pt: "Fora de escopo" })}
+          tools={recommendation.rejected_tools}
+        />
       </details>
     </div>
+  );
+}
+
+function ToolsDeliverable({
+  decisionCount,
+  recommendation,
+}: {
+  decisionCount: number;
+  recommendation: ToolRecommendationArtifact;
+}) {
+  const { language } = useLanguage();
+  const mandatory = recommendation.recommended_tools;
+  const optional = recommendation.optional_tools;
+  const rejected = recommendation.rejected_tools;
+  const contractCount = [...mandatory, ...optional].filter((tool) => tool.contract_seed).length;
+  const confidence = Math.round(recommendation.confidence.overall * 100);
+  const coverageItems = recommendation.requirements_coverage.length + recommendation.design_role_coverage.length;
+
+  return (
+    <LeanGeneratedDeliverable
+      badge={{
+        label: byLanguage(language, { en: "Minimum toolset", es: "Set minimo definido", pt: "Conjunto minimo definido" }),
+        tone: recommendation.evaluation.promotion_blocked ? "warning" : "success",
+      }}
+      metrics={[
+        {
+          helper: byLanguage(language, { en: "Strictly needed for operation.", es: "Estrictamente necesarias para operar.", pt: "Estritamente necessarias para operar." }),
+          label: byLanguage(language, { en: "Mandatory", es: "Obligatorias", pt: "Obrigatorias" }),
+          tone: "success",
+          value: mandatory.length,
+        },
+        {
+          helper: byLanguage(language, { en: "Kept available without overprovisioning.", es: "Disponibles sin sobreaprovisionar.", pt: "Disponiveis sem superprovisionar." }),
+          label: byLanguage(language, { en: "Optional", es: "Opcionales", pt: "Opcionais" }),
+          tone: optional.length ? "info" : "neutral",
+          value: optional.length,
+        },
+        {
+          helper: byLanguage(language, { en: "Request/response seeds visible in Evidence or detail drawer.", es: "Semillas request/response visibles en Evidencia o detalle.", pt: "Sementes request/response visiveis em Evidencia ou detalhe." }),
+          label: byLanguage(language, { en: "Contracts", es: "Contratos", pt: "Contratos" }),
+          tone: contractCount ? "success" : "warning",
+          value: contractCount,
+        },
+        {
+          helper: recommendation.confidence.band,
+          label: byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
+          tone: confidence >= 70 ? "success" : "warning",
+          value: `${confidence}%`,
+        },
+      ]}
+      nextUse={byLanguage(language, {
+        en: "Memory will consume the approved digest to decide RAG, source ingestion, retrieval scopes, side effects, and context budget dependencies.",
+        es: "Memoria consumira el digest aprobado para decidir RAG, ingesta de fuentes, scopes de recuperacion, efectos laterales y dependencias de presupuesto de contexto.",
+        pt: "Memoria consumira o digest aprovado para decidir RAG, ingestao de fontes, escopos de recuperacao, efeitos laterais e dependencias de orcamento de contexto.",
+      })}
+      sections={[
+        {
+          items: mandatory.map((tool) => `${tool.tool_label}: ${tool.capability_covered}`),
+          title: byLanguage(language, { en: "Approved minimum", es: "Minimo aprobado", pt: "Minimo aprovado" }),
+        },
+        {
+          items: recommendation.evaluation.recommended_actions,
+          title: byLanguage(language, { en: "Recommended actions", es: "Acciones recomendadas", pt: "Acoes recomendadas" }),
+        },
+        {
+          items: [
+            byLanguage(language, {
+              en: `${coverageItems} requirements or roles covered.`,
+              es: `${coverageItems} requisitos o roles cubiertos.`,
+              pt: `${coverageItems} requisitos ou papeis cobertos.`,
+            }),
+            byLanguage(language, {
+              en: `${decisionCount} assumptions, findings, or enrichment opportunities registered.`,
+              es: `${decisionCount} supuestos, findings u oportunidades de enriquecimiento registradas.`,
+              pt: `${decisionCount} suposicoes, findings ou oportunidades de enriquecimento registradas.`,
+            }),
+            ...rejected.slice(0, 3).map((tool) => `${tool.tool_label}: ${tool.decision_reason}`),
+          ],
+          title: byLanguage(language, { en: "Minimality evidence", es: "Evidencia de minimalidad", pt: "Evidencia de minimalidade" }),
+        },
+      ]}
+      summary={recommendation.evaluation.summary || recommendation.summary}
+      title={byLanguage(language, { en: "Tools deliverable", es: "Entrega de Herramientas", pt: "Entrega de Ferramentas" })}
+    />
   );
 }
 
@@ -399,17 +856,115 @@ function Contracts({
               <h4 className="text-[15px] font-black">{tool.contract_seed?.name ?? tool.tool_label}</h4>
               <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{tool.contract_seed?.purpose}</p>
             </div>
-            <UxaBadge tone={tool.contract_seed?.has_side_effects ? "danger" : "success"}>
-              {tool.contract_seed?.has_side_effects
-                ? byLanguage(language, { en: "Side effect", es: "Efecto lateral", pt: "Efeito colateral" })
-                : byLanguage(language, { en: "read-only", es: "solo lectura", pt: "somente leitura" })}
-            </UxaBadge>
+            <div className="flex flex-wrap gap-2">
+              <UxaBadge tone={tool.contract_seed?.tool_type === "external" ? "info" : "neutral"}>
+                {getToolTypeLabel(language, tool.contract_seed?.tool_type)}
+              </UxaBadge>
+              <UxaBadge tone={tool.contract_seed?.has_side_effects ? "danger" : "success"}>
+                {tool.contract_seed?.has_side_effects
+                  ? byLanguage(language, { en: "Side effect", es: "Efecto lateral", pt: "Efeito colateral" })
+                  : byLanguage(language, { en: "read-only", es: "solo lectura", pt: "somente leitura" })}
+              </UxaBadge>
+            </div>
           </div>
           <UxaButton className="mt-4" onClick={() => onOpenTool(tool)} size="sm" variant="secondary">
             {byLanguage(language, { en: "Open resource panel", es: "Abrir panel del recurso", pt: "Abrir painel do recurso" })}
           </UxaButton>
         </article>
       ))}
+    </div>
+  );
+}
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasSchemaValue(value?: Record<string, unknown> | null) {
+  return isRecordValue(value) && Object.keys(value).length > 0;
+}
+
+function getSchemaProperties(schema?: Record<string, unknown> | null) {
+  const properties = isRecordValue(schema?.properties) ? schema.properties : {};
+  const required = Array.isArray(schema?.required) ? schema.required.filter((item): item is string => typeof item === "string") : [];
+  return Object.entries(properties).map(([key, value]) => {
+    const field = isRecordValue(value) ? value : {};
+    return {
+      description: typeof field.description === "string" ? field.description : "",
+      key,
+      required: required.includes(key),
+      type: typeof field.type === "string" ? field.type : "object",
+    };
+  });
+}
+
+function JsonBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: unknown;
+}) {
+  return (
+    <div className="rounded-[16px] border border-[#18223d] bg-[#0d1428] p-3 text-white shadow-[0_12px_28px_rgba(7,17,38,0.12)]">
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/60">{label}</p>
+      <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5">
+        {JSON.stringify(value ?? {}, null, 2)}
+      </pre>
+    </div>
+  );
+}
+
+function SchemaPanel({
+  empty,
+  example,
+  label,
+  schema,
+}: {
+  empty: string;
+  example?: unknown;
+  label: string;
+  schema?: Record<string, unknown> | null;
+}) {
+  const { language } = useLanguage();
+  const fields = getSchemaProperties(schema);
+
+  if (!hasSchemaValue(schema)) {
+    return (
+      <DetailField label={label}>
+        <span className="text-[var(--uxa-color-ink-soft)]">
+          {byLanguage(language, {
+            en: "This tool does not expose a structured JSON schema yet.",
+            es: "Esta herramienta todavia no expone un schema JSON estructurado.",
+            pt: "Esta ferramenta ainda nao expoe um schema JSON estruturado.",
+          })}
+        </span>
+      </DetailField>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <JsonBlock label={`${label} JSON Schema`} value={schema} />
+      {fields.length ? (
+        <div className="overflow-hidden rounded-[16px] border border-[var(--uxa-color-border)] bg-white">
+          <div className="grid grid-cols-[1fr_90px_90px_1.5fr] gap-2 bg-[var(--uxa-color-muted-panel)] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+            <span>{byLanguage(language, { en: "Field", es: "Campo", pt: "Campo" })}</span>
+            <span>{byLanguage(language, { en: "Type", es: "Tipo", pt: "Tipo" })}</span>
+            <span>{byLanguage(language, { en: "Required", es: "Oblig.", pt: "Obrig." })}</span>
+            <span>{byLanguage(language, { en: "Description", es: "Descripcion", pt: "Descricao" })}</span>
+          </div>
+          {fields.map((field) => (
+            <div className="grid grid-cols-[1fr_90px_90px_1.5fr] gap-2 border-t border-[var(--uxa-color-border)] px-3 py-2 text-[11px]" key={field.key}>
+              <span className="font-black">{field.key}</span>
+              <span>{field.type}</span>
+              <span>{field.required ? yesNoCopy(language, true) : yesNoCopy(language, false)}</span>
+              <span className="text-[var(--uxa-color-ink-soft)]">{field.description || empty}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {example !== undefined ? <JsonBlock label={`${label} example`} value={example} /> : null}
     </div>
   );
 }
@@ -434,38 +989,215 @@ function ResourceDrawer({ tool }: { tool: ToolRecommendationEntry | null }) {
     );
   }
 
+  const contractSeed = tool.contract_seed;
+  const empty = emptyCopy(language);
+  const firstUsageExample = contractSeed?.usage_examples?.[0];
   return (
-    <UxaSurface className="p-4">
-      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
-        {byLanguage(language, { en: "Contract", es: "Contrato", pt: "Contrato" })}
-      </p>
-      <h4 className="mt-2 text-[18px] font-black">{tool.tool_label}</h4>
-      <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">{tool.contract_seed?.purpose ?? tool.capability_covered}</p>
-      <div className="mt-4 space-y-2 text-[12px]">
-        <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3">
-          {byLanguage(language, { en: "Inputs", es: "Entradas", pt: "Entradas" })}: {tool.contract_seed?.inputs.join(", ") || "N/A"}
-        </p>
-        <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3">
-          {byLanguage(language, { en: "Outputs", es: "Salidas", pt: "Saidas" })}: {tool.contract_seed?.outputs.join(", ") || "N/A"}
-        </p>
-        <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3">
-          {byLanguage(language, { en: "Owner", es: "Responsable", pt: "Responsavel" })}: {tool.contract_seed?.owner
-            ?? byLanguage(language, { en: "to be defined", es: "por definir", pt: "por definir" })}
-        </p>
-        <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3">
-          {byLanguage(language, { en: "Binding", es: "Vinculo", pt: "Vinculo" })}: {tool.contract_seed?.endpoint_reference
-            ?? byLanguage(language, { en: "pending implementation", es: "pendiente de implementacion", pt: "pendente de implementacao" })}
-        </p>
+    <div className="space-y-4 text-[13px]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-brand)]">
+            {byLanguage(language, { en: "Tool detail", es: "Detalle de herramienta", pt: "Detalhe da ferramenta" })}
+          </p>
+          <h4 className="mt-2 text-[18px] font-black">{getToolContractName(tool)}</h4>
+          <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+            {tool.tool_key}
+          </p>
+        </div>
+        <UxaBadge tone={tool.classification === "mandatory" ? "success" : tool.classification === "optional" ? "warning" : "neutral"}>
+          {getToolClassificationLabel(language, tool.classification)}
+        </UxaBadge>
       </div>
-    </UxaSurface>
+
+      <p className="rounded-[16px] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)]/65 p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+        {contractSeed?.purpose ?? tool.capability_covered}
+      </p>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <DetailField label={byLanguage(language, { en: "Type", es: "Tipo", pt: "Tipo" })}>
+          {getToolTypeLabel(language, contractSeed?.tool_type)}
+        </DetailField>
+        <DetailField label={byLanguage(language, { en: "Integration", es: "Integracion", pt: "Integracao" })}>
+          {contractSeed?.integration_kind ?? empty}
+        </DetailField>
+        <DetailField label={byLanguage(language, { en: "Execution", es: "Ejecucion", pt: "Execucao" })}>
+          {contractSeed?.execution_stage ?? contractSeed?.execution_mode ?? empty}
+        </DetailField>
+        <DetailField label={byLanguage(language, { en: "Risk", es: "Riesgo", pt: "Risco" })}>
+          {contractSeed?.risk_level ?? empty}
+        </DetailField>
+        <DetailField label={byLanguage(language, { en: "Side effects", es: "Efectos laterales", pt: "Efeitos laterais" })}>
+          {yesNoCopy(language, contractSeed?.has_side_effects)}
+        </DetailField>
+        <DetailField label={byLanguage(language, { en: "Approval", es: "Aprobacion", pt: "Aprovacao" })}>
+          {yesNoCopy(language, contractSeed?.requires_approval)}
+        </DetailField>
+      </div>
+
+      <div className="mt-3 grid gap-2">
+        <DetailField label={byLanguage(language, { en: "Capability covered", es: "Capacidad cubierta", pt: "Capacidade coberta" })}>
+          {tool.capability_covered}
+        </DetailField>
+        <DetailField label={byLanguage(language, { en: "Selection rationale", es: "Justificacion de seleccion", pt: "Justificativa de selecao" })}>
+          {tool.decision_reason}
+        </DetailField>
+      </div>
+
+      <details className="rounded-[18px] border border-[var(--uxa-color-border)] bg-white p-3 shadow-[0_12px_28px_rgba(7,17,38,0.04)]" open>
+        <summary className="cursor-pointer text-[12px] font-black text-[var(--uxa-color-ink)]">
+          {byLanguage(language, { en: "Inputs, outputs and contract", es: "Entradas, salidas y contrato", pt: "Entradas, saidas e contrato" })}
+        </summary>
+        <div className="mt-3 grid gap-2">
+          <DetailField label={byLanguage(language, { en: "Inputs", es: "Entradas", pt: "Entradas" })}>
+            <TokenList emptyLabel={empty} values={contractSeed?.inputs} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Outputs", es: "Salidas", pt: "Saidas" })}>
+            <TokenList emptyLabel={empty} values={contractSeed?.outputs} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Endpoint or binding", es: "Endpoint o vinculo", pt: "Endpoint ou vinculo" })}>
+            {contractSeed?.endpoint_reference ?? empty}
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Auth reference", es: "Referencia de autenticacion", pt: "Referencia de autenticacao" })}>
+            {contractSeed?.auth_reference ?? empty}
+          </DetailField>
+        </div>
+      </details>
+
+      <details className="rounded-[18px] border border-[var(--uxa-color-border)] bg-white p-3 shadow-[0_12px_28px_rgba(7,17,38,0.04)]" open>
+        <summary className="cursor-pointer text-[12px] font-black text-[var(--uxa-color-ink)]">
+          {byLanguage(language, { en: "JSON integration contracts", es: "Contratos JSON de integracion", pt: "Contratos JSON de integracao" })}
+        </summary>
+        <div className="mt-3 space-y-4">
+          <SchemaPanel
+            empty={empty}
+            example={firstUsageExample?.request}
+            label="Request"
+            schema={contractSeed?.request_schema}
+          />
+          <SchemaPanel
+            empty={empty}
+            example={firstUsageExample?.response}
+            label="Response"
+            schema={contractSeed?.response_schema}
+          />
+        </div>
+      </details>
+
+      <details className="rounded-[18px] border border-[var(--uxa-color-border)] bg-white p-3 shadow-[0_12px_28px_rgba(7,17,38,0.04)]">
+        <summary className="cursor-pointer text-[12px] font-black text-[var(--uxa-color-ink)]">
+          {byLanguage(language, { en: "Governance and operation", es: "Gobierno y operacion", pt: "Governanca e operacao" })}
+        </summary>
+        <div className="mt-3 grid gap-2">
+          <DetailField label={byLanguage(language, { en: "Owner", es: "Responsable", pt: "Responsavel" })}>
+            {contractSeed?.owner ?? empty}
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Approval reason", es: "Motivo de aprobacion", pt: "Motivo de aprovacao" })}>
+            {contractSeed?.approval_reason ?? empty}
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Failure mode", es: "Modo de falla", pt: "Modo de falha" })}>
+            {contractSeed?.failure_mode ?? empty}
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Retry", es: "Reintento", pt: "Retentativa" })}>
+            {contractSeed?.retry_strategy ?? empty}
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Compensation", es: "Compensacion", pt: "Compensacao" })}>
+            {contractSeed?.compensation_strategy ?? empty}
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Timeout", es: "Timeout", pt: "Timeout" })}>
+            {contractSeed?.timeout_policy ?? empty}
+          </DetailField>
+        </div>
+      </details>
+
+      <details className="rounded-[18px] border border-[var(--uxa-color-border)] bg-white p-3 shadow-[0_12px_28px_rgba(7,17,38,0.04)]">
+        <summary className="cursor-pointer text-[12px] font-black text-[var(--uxa-color-ink)]">
+          {byLanguage(language, { en: "Permissions, evidence and relations", es: "Permisos, evidencia y relaciones", pt: "Permissoes, evidencia e relacoes" })}
+        </summary>
+        <div className="mt-3 grid gap-2">
+          <DetailField label={byLanguage(language, { en: "Permissions", es: "Permisos", pt: "Permissoes" })}>
+            <TokenList emptyLabel={empty} values={contractSeed?.permissions} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Scopes", es: "Alcances", pt: "Escopos" })}>
+            <TokenList emptyLabel={empty} values={contractSeed?.scopes} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Sensitive data", es: "Datos sensibles", pt: "Dados sensiveis" })}>
+            <TokenList emptyLabel={empty} values={contractSeed?.sensitive_data} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Validations", es: "Validaciones", pt: "Validacoes" })}>
+            <TokenList emptyLabel={empty} values={contractSeed?.validations} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Typed errors", es: "Errores tipificados", pt: "Erros tipados" })}>
+            <TokenList emptyLabel={empty} values={contractSeed?.typed_errors} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Dependencies", es: "Dependencias", pt: "Dependencias" })}>
+            <TokenList emptyLabel={empty} values={tool.dependencies} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Incompatibilities", es: "Incompatibilidades", pt: "Incompatibilidades" })}>
+            <TokenList emptyLabel={empty} values={tool.incompatibilities} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Redundant with", es: "Redundante con", pt: "Redundante com" })}>
+            <TokenList emptyLabel={empty} values={tool.redundant_with} />
+          </DetailField>
+          <DetailField label={byLanguage(language, { en: "Source evidence", es: "Evidencia fuente", pt: "Evidencia fonte" })}>
+            <TokenList emptyLabel={empty} values={tool.source_evidence} />
+          </DetailField>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function ToolDetailDrawer({
+  isOpen,
+  onClose,
+  tool,
+}: {
+  isOpen: boolean;
+  onClose(): void;
+  tool: ToolRecommendationEntry | null;
+}) {
+  const { language } = useLanguage();
+  if (!isOpen || !tool) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[90]">
+      <button
+        aria-label={byLanguage(language, { en: "Close tool detail", es: "Cerrar detalle de herramienta", pt: "Fechar detalhe da ferramenta" })}
+        className="absolute inset-0 h-full w-full cursor-default bg-[#071126]/35 backdrop-blur-[1px]"
+        onClick={onClose}
+        type="button"
+      />
+      <aside
+        aria-label={byLanguage(language, { en: "Tool detail drawer", es: "Panel lateral de detalle de herramienta", pt: "Painel lateral de detalhe da ferramenta" })}
+        aria-modal="true"
+        className="absolute right-0 top-0 flex h-full w-full max-w-[720px] flex-col overflow-hidden border-l border-[var(--uxa-color-border)] bg-white shadow-[0_24px_90px_rgba(7,17,38,0.32)]"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--uxa-color-border)] bg-white px-5 py-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-brand)]">
+              {byLanguage(language, { en: "Technical detail", es: "Detalle tecnico", pt: "Detalhe tecnico" })}
+            </p>
+            <h3 className="mt-1 text-[20px] font-black">{getToolContractName(tool)}</h3>
+            <p className="mt-1 text-[12px] text-[var(--uxa-color-ink-soft)]">{tool.tool_key}</p>
+          </div>
+          <UxaButton aria-label={byLanguage(language, { en: "Close", es: "Cerrar", pt: "Fechar" })} onClick={onClose} size="sm" variant="ghost">
+            <X aria-hidden="true" className="h-4 w-4" />
+          </UxaButton>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[var(--uxa-color-page)] p-5">
+          <ResourceDrawer tool={tool} />
+        </div>
+      </aside>
+    </div>
   );
 }
 
 
 export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStageViewProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { language } = useLanguage();
   const latestToolsArtifact = activeRoute?.snapshot.data?.journey_latest_artifacts?.tools ?? null;
   const artifactSignature = `${latestToolsArtifact?.id ?? "none"}:${latestToolsArtifact?.updated_at ?? ""}`;
@@ -476,9 +1208,13 @@ export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStage
     signature: "uninitialized",
   });
   const [selectedTool, setSelectedTool] = useState<ToolRecommendationEntry | null>(null);
-  const selectedSection = parseToolsSection(searchParams.get("uxa_section"));
-  const processing = isSubmitting(actionState, localAction);
+  const [isToolDrawerOpen, setIsToolDrawerOpen] = useState(false);
+  const processing =
+    isSubmitting(actionState, localAction) ||
+    hasActiveServerOperation(activeRoute, "tools", ["recommend_tools"]);
   const viewModel = useMemo(() => buildToolsViewModel(activeRoute, { processing }), [activeRoute, processing]);
+  const activeSelectedTool = viewModel.recommendation ? selectedTool : null;
+  const isActiveToolDrawerOpen = Boolean(viewModel.recommendation && isToolDrawerOpen && activeSelectedTool);
   const optionalKeys =
     selectionState.signature === artifactSignature
       ? selectionState.optionalKeys
@@ -487,10 +1223,24 @@ export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStage
   const statusCopy = getStatusCopy(language);
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
 
-  function updateSection(section: ToolsSection) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("uxa_section", section);
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  useEffect(() => {
+    if (!isActiveToolDrawerOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsToolDrawerOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isActiveToolDrawerOpen]);
+
+  function openToolDetail(tool: ToolRecommendationEntry) {
+    setSelectedTool(tool);
+    setIsToolDrawerOpen(true);
   }
 
   async function runLocal(messageText: string, action: () => Promise<void>) {
@@ -507,7 +1257,6 @@ export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStage
         ),
         status: "error",
       });
-      throw error;
     }
   }
 
@@ -517,12 +1266,16 @@ export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStage
   }
 
   async function handleGenerate() {
+    if (!actions || processing) {
+      return;
+    }
+
     await runLocal(copy(
-      "Generating minimum tools with the backend.",
+      "Generating minimal tools with the backend.",
       "Generando herramientas minimas con backend.",
       "Gerando ferramentas minimas com o backend.",
     ), async () => {
-      await actions?.recommendTools({ instructions: instructions.trim() || undefined });
+      await actions.recommendTools({ instructions: instructions.trim() || undefined });
     });
   }
 
@@ -712,12 +1465,26 @@ export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStage
             </div>
           </UxaSurface>
         ) : viewModel.recommendation ? (
-          <div className="grid gap-4 lg:grid-cols-[250px_minmax(0,1fr)]">
-            <SectionNav activeSection={selectedSection} onSectionChange={updateSection} sections={viewModel.sections} />
-            <div className="space-y-4">
-              <Decisions decisions={viewModel.decisions} sessionId={viewModel.sessionId} />
-              <Catalog optionalKeys={optionalKeys} onOpenTool={setSelectedTool} onToggleOptional={toggleOptional} recommendation={viewModel.recommendation} />
-            </div>
+          <div className="space-y-4">
+            <Catalog
+              optionalKeys={optionalKeys}
+              onOpenTool={openToolDetail}
+              onToggleOptional={toggleOptional}
+              recommendation={viewModel.recommendation}
+              selectedToolKey={activeSelectedTool?.tool_key}
+            />
+            {viewModel.decisions.length ? (
+              <details className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4" open>
+                <summary className="cursor-pointer text-[14px] font-black">
+                  {viewModel.commercialTier === "blueprint"
+                    ? copy("Assumptions and enrichment opportunities", "Supuestos y oportunidades de enriquecimiento", "Suposicoes e oportunidades de enriquecimento")
+                    : copy("Actionable decisions and gaps", "Decisiones y gaps accionables", "Decisoes e gaps acionaveis")} · {viewModel.decisions.length}
+                </summary>
+                <div className="mt-4">
+                  <Decisions commercialTier={viewModel.commercialTier} decisions={viewModel.decisions} sessionId={viewModel.sessionId} />
+                </div>
+              </details>
+            ) : null}
           </div>
         ) : (
           <div className="space-y-4">
@@ -740,21 +1507,12 @@ export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStage
       },
       {
         badge: toolCount,
-        description: byLanguage(language, { en: "Recommendation, coverage, and promotion control.", es: "Recomendacion, cobertura y control de promocion.", pt: "Recomendacao, coverage e controle de promocao." }),
+        description: byLanguage(language, { en: "Executive deliverable of the minimum toolset.", es: "Entregable ejecutivo del set minimo de herramientas.", pt: "Entregavel executivo do conjunto minimo de ferramentas." }),
         key: "result",
-        label: byLanguage(language, { en: "Generated result", es: "Resultado generado", pt: "Resultado gerado" }),
+        label: byLanguage(language, { en: "Generated deliverable", es: "Entrega generada", pt: "Entrega gerada" }),
         children: viewModel.recommendation ? (
           <div className="space-y-4">
-            <UxaSurface className="p-4">
-              <p className="text-[13px] font-black">{copy("Recommendation summary", "Resumen de recomendacion", "Resumo da recomendacao")}</p>
-              <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{viewModel.recommendation.summary}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <UxaBadge tone={viewModel.recommendation.evaluation.promotion_blocked ? "danger" : "success"}>
-                  {viewModel.recommendation.evaluation.overall_status}
-                </UxaBadge>
-                <UxaBadge tone="neutral">{Math.round(viewModel.recommendation.confidence.overall * 100)}%</UxaBadge>
-              </div>
-            </UxaSurface>
+            <ToolsDeliverable decisionCount={viewModel.decisions.length} recommendation={viewModel.recommendation} />
             <Coverage recommendation={viewModel.recommendation} />
           </div>
         ) : (
@@ -768,8 +1526,7 @@ export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStage
         label: byLanguage(language, { en: "Evidence and traceability", es: "Evidencia y trazabilidad", pt: "Evidencia e rastreabilidade" }),
         children: viewModel.recommendation ? (
           <div className="space-y-4">
-            <Contracts onOpenTool={setSelectedTool} recommendation={viewModel.recommendation} />
-            <ResourceDrawer tool={selectedTool} />
+            <Contracts onOpenTool={openToolDetail} recommendation={viewModel.recommendation} />
             {viewModel.warnings.length ? (
               <UxaSurface className="p-4">
                 <p className="text-[13px] font-black">{copy("Warnings", "Advertencias", "Advertencias")}</p>
@@ -795,43 +1552,48 @@ export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStage
   };
 
   return (
-    <LeanStageScreen
-      actionArea={
-        <>
-          {viewModel.status === "approved" ? (
-            <UxaButton onClick={() => router.push(getProductExperienceStageHref(viewModel.sessionId, "memory"))} variant="primary">
-              {byLanguage(language, { en: "Continue to Memory", es: "Continuar a Memoria", pt: "Continuar para Memoria" })} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+    <>
+      <LeanStageScreen
+        actionArea={
+          <>
+            {viewModel.status === "approved" ? (
+              <UxaButton onClick={() => router.push(getProductExperienceStageHref(viewModel.sessionId, "memory"))} variant="primary">
+                {byLanguage(language, { en: "Continue to Memory", es: "Continuar a Memoria", pt: "Continuar para Memoria" })} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </UxaButton>
+            ) : viewModel.recommendation ? (
+              <UxaButton disabled={!viewModel.canPromote || processing} isLoading={processing && actionState?.action === "approve_tools_selection"} onClick={() => void handlePromote()} variant="primary">
+                {byLanguage(language, { en: "Promote tools", es: "Promover herramientas", pt: "Promover ferramentas" })} <PackageCheck aria-hidden="true" className="h-4 w-4" />
+              </UxaButton>
+            ) : viewModel.status === "blocked" ? (
+              <UxaButton onClick={() => router.push(getProductExperienceStageHref(viewModel.sessionId, "design"))} variant="primary">
+                {byLanguage(language, { en: "Go to Design", es: "Ir a Disenar", pt: "Ir para Design" })} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </UxaButton>
+            ) : (
+              <UxaButton disabled={!viewModel.canGenerate || processing} isLoading={processing} onClick={() => void handleGenerate()} variant="primary">
+                {viewModel.status === "processing"
+                  ? byLanguage(language, { en: "Generating tools...", es: "Generando herramientas...", pt: "Gerando ferramentas..." })
+                  : byLanguage(language, { en: "Generate tools", es: "Generar herramientas", pt: "Gerar ferramentas" })} <Sparkles aria-hidden="true" className="h-4 w-4" />
+              </UxaButton>
+            )}
+            <UxaButton disabled={!viewModel.canGenerate || processing} onClick={() => void handleGenerate()} variant="secondary">
+              <RefreshCw aria-hidden="true" className={cn("h-4 w-4", processing && "animate-spin")} /> {byLanguage(language, { en: "Regenerate", es: "Regenerar", pt: "Regenerar" })}
             </UxaButton>
-          ) : viewModel.recommendation ? (
-            <UxaButton disabled={!viewModel.canPromote || processing} isLoading={processing && actionState?.action === "approve_tools_selection"} onClick={() => void handlePromote()} variant="primary">
-              {byLanguage(language, { en: "Promote tools", es: "Promover herramientas", pt: "Promover ferramentas" })} <PackageCheck aria-hidden="true" className="h-4 w-4" />
+            <UxaButton disabled={!viewModel.recommendation || processing} onClick={() => void handleSaveReview()} variant="secondary">
+              {byLanguage(language, { en: "Save review", es: "Guardar revision", pt: "Salvar revisao" })}
             </UxaButton>
-          ) : viewModel.status === "blocked" ? (
-            <UxaButton onClick={() => router.push(getProductExperienceStageHref(viewModel.sessionId, "design"))} variant="primary">
-              {byLanguage(language, { en: "Go to Design", es: "Ir a Disenar", pt: "Ir para Design" })} <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            <UxaButton disabled={!viewModel.latestToolsArtifact || processing} onClick={() => void handleReject()} variant="ghost">
+              {byLanguage(language, { en: "Reject proposal", es: "Rechazar propuesta", pt: "Rejeitar proposta" })}
             </UxaButton>
-          ) : (
-            <UxaButton disabled={!viewModel.canGenerate || processing} isLoading={processing} onClick={() => void handleGenerate()} variant="primary">
-              {byLanguage(language, { en: "Generate tools", es: "Generar herramientas", pt: "Gerar ferramentas" })} <Sparkles aria-hidden="true" className="h-4 w-4" />
-            </UxaButton>
-          )}
-          <UxaButton disabled={!viewModel.canGenerate || processing} onClick={() => void handleGenerate()} variant="secondary">
-            <RefreshCw aria-hidden="true" className="h-4 w-4" /> {byLanguage(language, { en: "Regenerate", es: "Regenerar", pt: "Regenerar" })}
-          </UxaButton>
-          <UxaButton disabled={!viewModel.recommendation || processing} onClick={() => void handleSaveReview()} variant="secondary">
-            {byLanguage(language, { en: "Save review", es: "Guardar revision", pt: "Salvar revisao" })}
-          </UxaButton>
-          <UxaButton disabled={!viewModel.latestToolsArtifact || processing} onClick={() => void handleReject()} variant="ghost">
-            {byLanguage(language, { en: "Reject proposal", es: "Rechazar propuesta", pt: "Rejeitar proposta" })}
-          </UxaButton>
-          <Link className="uxa-button uxa-button--ghost" href={getProductExperienceProductHref(viewModel.sessionId, "attention")}>
-            <HelpCircle aria-hidden="true" className="h-4 w-4" /> {byLanguage(language, { en: "Attention", es: "Atencion", pt: "Atencao" })}
-          </Link>
-        </>
-      }
-      contract={contract}
-      message={message}
-    />
+            <Link className="uxa-button uxa-button--ghost" href={getProductExperienceProductHref(viewModel.sessionId, "attention")}>
+              <HelpCircle aria-hidden="true" className="h-4 w-4" /> {byLanguage(language, { en: "Attention", es: "Atencion", pt: "Atencao" })}
+            </Link>
+          </>
+        }
+        contract={contract}
+        message={message}
+      />
+      <ToolDetailDrawer isOpen={isActiveToolDrawerOpen} onClose={() => setIsToolDrawerOpen(false)} tool={activeSelectedTool} />
+    </>
   );
 
 }

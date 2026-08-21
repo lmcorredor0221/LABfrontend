@@ -1,4 +1,12 @@
-export { LeanStageInlineAction, LeanStageScreen } from "./lean-stage-screen";
+export {
+  LeanGeneratedDeliverable,
+  LeanStageInlineAction,
+  LeanStageScreen,
+} from "./lean-stage-screen";
+export type {
+  LeanGeneratedDeliverableMetric,
+  LeanGeneratedDeliverableSection,
+} from "./lean-stage-screen";
 export type {
   LeanStageContextItem,
   LeanStageLinkedResult,

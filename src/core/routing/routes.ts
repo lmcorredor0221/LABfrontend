@@ -5,7 +5,7 @@ export const REGISTER_ROUTE = "/register";
 export const MOCKUPS_ROUTE = "/mockups";
 export const PROJECT_ROUTE_PREFIX = "/projects";
 
-export const PUBLIC_ROUTES = [BOOT_ROUTE, LOGIN_ROUTE, REGISTER_ROUTE, MOCKUPS_ROUTE] as const;
+export const PUBLIC_ROUTES = [HOME_ROUTE, BOOT_ROUTE, LOGIN_ROUTE, REGISTER_ROUTE, MOCKUPS_ROUTE] as const;
 
 export const PROJECT_STAGE_ORDER = [
   "discover",
@@ -22,7 +22,8 @@ export type ProjectRouteStage = (typeof PROJECT_STAGE_ORDER)[number];
 export type ProjectLegacyStage = "evaluate" | "security" | "build" | "operate";
 export type ProjectStageInput = ProjectRouteStage | ProjectLegacyStage;
 export type ProjectProductSection = "blueprint" | "acp" | "artifacts" | "attention" | "activity";
-export type ProjectProductRouteSection = ProjectProductSection | "blueprint_pro" | "diagrams";
+export type ProjectProductOverviewSection = "blueprint_overview" | "blueprint_pro_overview" | "acp_overview";
+export type ProjectProductRouteSection = ProjectProductSection | ProjectProductOverviewSection | "blueprint_pro" | "diagrams";
 
 export const DEFAULT_PROJECT_STAGE: ProjectRouteStage = "discover";
 
@@ -59,7 +60,10 @@ function normalizeQueryValue(value: string | string[] | undefined) {
 }
 
 export function isPublicRoute(pathname: string) {
-  return PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  if (pathname === "/" || pathname === "") {
+    return true;
+  }
+  return PUBLIC_ROUTES.some((route) => route !== "/" && (pathname === route || pathname.startsWith(`${route}/`)));
 }
 
 export function isProjectRouteStage(value: string): value is ProjectRouteStage {
@@ -100,11 +104,14 @@ export function getProjectRoute(
 export function getProjectProductRoute(sessionId: string, section: ProjectProductRouteSection = "blueprint") {
   const productPath: Record<ProjectProductRouteSection, string> = {
     acp: "acp",
+    acp_overview: "acp/overview",
     activity: "activity",
     artifacts: "artifacts",
     attention: "attention",
     blueprint: "blueprint",
+    blueprint_overview: "blueprint/overview",
     blueprint_pro: "blueprint/pro",
+    blueprint_pro_overview: "blueprint/pro/overview",
     diagrams: "diagrams",
   };
 
@@ -164,6 +171,9 @@ export function parseProjectRoute(pathname: string) {
   }
 
   const sessionId = segments[1];
+  if (sessionId === "new") {
+    return null;
+  }
   const stage = segments[2] ?? "";
 
   if (stage === "diagrams" || isProjectProductSection(stage)) {

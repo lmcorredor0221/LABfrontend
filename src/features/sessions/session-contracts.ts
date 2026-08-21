@@ -345,14 +345,22 @@ export type BlueprintTool = {
   permissions?: string[];
   purpose: string;
   rate_limit_policy?: string;
+  registered_api_ref?: string;
+  request_schema?: Record<string, unknown>;
   requires_approval: boolean;
+  response_schema?: Record<string, unknown>;
   retry_strategy: string;
   risk_level: string;
   scopes?: string[];
+  security_config?: Record<string, unknown>;
   sensitive_data?: string[];
   timeout_policy?: string;
+  tool_type?: string;
   typed_errors?: string[];
+  usage_examples?: Array<Record<string, unknown>>;
   validations: string[];
+  when_to_use?: string;
+  execution_stage?: string;
   endpoint_reference?: string;
 };
 
@@ -1443,7 +1451,14 @@ export type EstimationConstructionScenario = {
   human_intervention_percent: number;
   label: string;
   notes: string[];
-  scenario_key: "traditional_blueprint" | "agentic_blueprint" | "acp_manual" | "acp_agentic";
+  scenario_key:
+    | "traditional_blueprint"
+    | "blueprint_basic"
+    | "blueprint_premium"
+    | "agentic_blueprint"
+    | "acp_manual"
+    | "acp_agentic"
+    | "done_for_you_factory";
 };
 
 export type CommercialEventRequest = {
@@ -1531,6 +1546,7 @@ export type CommercialCheckoutSessionRequest = {
   idempotency_key?: string;
   price_code?: string;
   product_key: string;
+  provider?: "sandbox" | "hotmart";
   session_id: string;
   success_url?: string;
 };
