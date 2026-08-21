@@ -433,6 +433,38 @@ describe("product experience server state", () => {
     expect(store.getState().active?.snapshot.data?.session.id).toBe("session-a");
   });
 
+  it("reuses in-flight background requests across forced route refreshes", async () => {
+    const route = { currentStage: "tools", sessionId: "session-a" };
+    const operation = createOperation(route.sessionId);
+    const attentionRequest = deferred<AttentionResponseV2>();
+    const overviewRequest = deferred<ProductOverviewResponse>();
+    const activityRequest = deferred<ActivityResponse>();
+    const stageOperationRequest = deferred<ProductExperienceStageOperation | null>();
+    const api = createApi({
+      getAttentionV2: vi.fn(() => attentionRequest.promise),
+      getProductOverview: vi.fn(() => overviewRequest.promise),
+      getActivity: vi.fn(() => activityRequest.promise),
+      getCurrentStageOperation: vi.fn(() => stageOperationRequest.promise),
+    });
+    const store = createProductExperienceServerState({ api });
+
+    await store.loadRoute(route, { force: true });
+    await store.loadRoute(route, { force: true });
+
+    expect(api.getSnapshot).toHaveBeenCalledTimes(1);
+    expect(api.getAttentionV2).toHaveBeenCalledTimes(1);
+    expect(api.getProductOverview).toHaveBeenCalledTimes(1);
+    expect(api.getActivity).toHaveBeenCalledTimes(1);
+    expect(api.getCurrentStageOperation).toHaveBeenCalledTimes(1);
+
+    attentionRequest.resolve(createAttention(route.sessionId, route.currentStage));
+    overviewRequest.resolve(operation.overview);
+    activityRequest.resolve(operation.activity);
+    stageOperationRequest.resolve(operation.stageOperation);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
   it("aborts the previous route and does not publish an old snapshot after fast project changes", async () => {
     const firstSnapshot = deferred<SessionSnapshot>();
     const secondSnapshot = deferred<SessionSnapshot>();

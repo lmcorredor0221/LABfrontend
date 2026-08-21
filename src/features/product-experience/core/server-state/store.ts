@@ -187,12 +187,11 @@ export function createProductExperienceServerState({
     return value;
   }
 
-  async function singleFlight<T>(key: string, force: boolean, loader: () => Promise<T>): Promise<T> {
-    if (!force) {
-      const existing = inflight.get(key);
-      if (existing) {
-        return existing.promise as Promise<T>;
-      }
+  async function singleFlight<T>(key: string, _force: boolean, loader: () => Promise<T>): Promise<T> {
+    // Forced reloads should bypass cache, not launch a second identical request while one is still running.
+    const existing = inflight.get(key);
+    if (existing) {
+      return existing.promise as Promise<T>;
     }
 
     const promise = loader().finally(() => {
