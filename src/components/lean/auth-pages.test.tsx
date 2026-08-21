@@ -53,6 +53,10 @@ describe("LoginPage", () => {
     });
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("renders backend login errors after submit", async () => {
     const user = userEvent.setup();
     const authStore = createAuthStore({
@@ -133,6 +137,36 @@ describe("LoginPage", () => {
     );
     await waitFor(() => expect(replaceMock).not.toHaveBeenCalled());
   });
+
+  it("hides the local seed user shortcut in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const authStore = createAuthStore({
+      api: {
+        login: vi.fn(),
+        logout: vi.fn(),
+        me: vi.fn(),
+        selectWorkspace: vi.fn(),
+      },
+      clearToken: vi.fn(),
+      loadToken: () => null,
+      persistToken: vi.fn(),
+    });
+
+    render(
+      <LanguageProvider>
+        <AuthProvider store={authStore}>
+          <LoginPage />
+        </AuthProvider>
+      </LanguageProvider>,
+    );
+
+    await waitFor(() => expect(runtimeApi.health).toHaveBeenCalled());
+
+    expect(
+      screen.queryByRole("button", { name: "Usar usuario semilla local" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("exposes the compact auth runtime marker on login", async () => {
     const authStore = createAuthStore({
       api: {

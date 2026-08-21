@@ -99,6 +99,10 @@ const INITIAL_BOOT_STEPS: BootStep[] = [
   },
 ] as const;
 
+function shouldShowLocalSeedUserAction() {
+  return process.env.NODE_ENV !== "production";
+}
+
 function patchBootStep(
   steps: BootStep[],
   key: BootStep["key"],
@@ -964,25 +968,29 @@ export function LoginPage() {
                   >
                     {t("login.submit")}
                   </AppButton>
-                  <div className="flex h-3 items-center gap-2 text-[10px] text-[var(--text-muted)]">
-                    <div className="h-px flex-1 bg-[var(--border-subtle)]" />
-                    <span>o</span>
-                    <div className="h-px flex-1 bg-[var(--border-subtle)]" />
-                  </div>
-                  <AppButton
-                    className="auth-secondary-button h-8 w-full text-[11px]"
-                    icon={<UserRound className="h-4 w-4" />}
-                    onClick={() => {
-                      setFormValues({
-                        email: SEEDED_LOCAL_ADMIN_EMAIL,
-                        password: SEEDED_LOCAL_ADMIN_PASSWORD,
-                      });
-                      setValidationErrors({});
-                      setSubmitError(null);
-                    }}
-                  >
-                    {t("login.seedUser")}
-                  </AppButton>
+                  {shouldShowLocalSeedUserAction() ? (
+                    <>
+                      <div className="flex h-3 items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                        <div className="h-px flex-1 bg-[var(--border-subtle)]" />
+                        <span>o</span>
+                        <div className="h-px flex-1 bg-[var(--border-subtle)]" />
+                      </div>
+                      <AppButton
+                        className="auth-secondary-button h-8 w-full text-[11px]"
+                        icon={<UserRound className="h-4 w-4" />}
+                        onClick={() => {
+                          setFormValues({
+                            email: SEEDED_LOCAL_ADMIN_EMAIL,
+                            password: SEEDED_LOCAL_ADMIN_PASSWORD,
+                          });
+                          setValidationErrors({});
+                          setSubmitError(null);
+                        }}
+                      >
+                        {t("login.seedUser")}
+                      </AppButton>
+                    </>
+                  ) : null}
                   <div className="pt-0 text-center text-[11px] text-[var(--text-secondary)]">
                     <span>{t("login.noAccount")} </span>
                     <a
