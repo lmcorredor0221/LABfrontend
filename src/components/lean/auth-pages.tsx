@@ -59,8 +59,8 @@ type RuntimeState = {
 const INITIAL_BOOT_STEPS: BootStep[] = [
   {
     key: "access",
-    title: "Verificando acceso local",
-    detail: "Comprobando conectividad con el backend local.",
+    title: "Verificando acceso a plataforma",
+    detail: "Comprobando conectividad con el backend.",
     status: "pending",
     startedAt: null,
     updatedAt: null,
@@ -68,7 +68,7 @@ const INITIAL_BOOT_STEPS: BootStep[] = [
   {
     key: "auth",
     title: "Autenticando usuario",
-    detail: "Resolviendo si existe una sesion local restaurable.",
+    detail: "Resolviendo si existe una sesion restaurable.",
     status: "pending",
     startedAt: null,
     updatedAt: null,
@@ -237,7 +237,7 @@ export function BootPage() {
 
     setBootSteps((current) =>
       patchBootStep(current, "access", {
-        detail: "Consultando /health para validar acceso local.",
+        detail: "Consultando /health para validar disponibilidad de la plataforma.",
         status: "loading",
       }),
     );
@@ -247,7 +247,7 @@ export function BootPage() {
       runtime = await runtimeApi.health();
       setBootSteps((current) =>
         patchBootStep(current, "access", {
-          detail: "Backend local disponible y respondiendo correctamente.",
+          detail: "Backend disponible y respondiendo correctamente.",
           status: "done",
         }),
       );
@@ -255,15 +255,15 @@ export function BootPage() {
         patchBootStep(current, "runtime", {
           detail:
             runtime.status === "ok"
-              ? "Runtime local cargado y listo para trabajar."
-              : "Runtime local respondio sin estado OK.",
+              ? "Runtime cargado y listo para trabajar."
+              : "Runtime respondio sin estado OK.",
           status: runtime.status === "ok" ? "done" : "warning",
         }),
       );
     } catch (error) {
       const message = getRuntimeMessage(
         error,
-        "No pudimos alcanzar el backend local.",
+        "No pudimos alcanzar el backend.",
       );
       setBlockingError(message);
       setBootSteps((current) =>
@@ -283,7 +283,7 @@ export function BootPage() {
 
     setBootSteps((current) =>
       patchBootStep(current, "auth", {
-        detail: "Validando si existe una sesion local recuperable.",
+        detail: "Validando si existe una sesion recuperable.",
         status: "loading",
       }),
     );
@@ -295,8 +295,7 @@ export function BootPage() {
     if (hydratedState.status !== "authenticated" || !hydratedState.user) {
       setBootSteps((current) =>
         patchBootStep(current, "auth", {
-          detail:
-            "No se encontro una sesion local valida. Redirigiendo al login.",
+          detail: "No se encontro una sesion valida. Redirigiendo al login.",
           status: "warning",
         }),
       );
@@ -407,8 +406,8 @@ export function BootPage() {
                 Preparando tu workspace
               </h1>
               <p className="mx-auto mt-4 max-w-2xl text-[18px] leading-8 text-[var(--text-secondary)]">
-                Estamos recuperando el contexto local y validando el runtime
-                antes de abrir el builder.
+                Estamos preparando el acceso al workspace y validando el
+                runtime antes de abrir el builder.
               </p>
             </div>
 
@@ -462,7 +461,7 @@ export function BootPage() {
                 right={
                   blockingError
                     ? "Esperando recuperacion"
-                    : "Sincronizando contexto local"
+                    : "Sincronizando acceso y contexto"
                 }
               />
               <ProgressBar value={progress} className="h-3" />
@@ -479,7 +478,7 @@ export function BootPage() {
                   </p>
                   <p className="mt-1 text-[16px] text-[var(--text-secondary)]">
                     {blockingError
-                      ? "El acceso al backend local esta bloqueado hasta que /health vuelva a responder."
+                      ? "El acceso al backend esta bloqueado hasta que /health vuelva a responder."
                       : sessionsWarning
                         ? "La autenticacion ya fue resuelta. Puedes abrir el dashboard y recuperar sesiones luego."
                         : "El workspace se abrira automaticamente cuando la restauracion termine."}
@@ -547,9 +546,9 @@ export function BootPage() {
             <Lock className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-[20px] font-semibold">Entorno local seguro</p>
+            <p className="text-[20px] font-semibold">Infraestructura administrada y aislada</p>
             <p className="text-[16px] text-white/65">
-              Tus datos no salen de tu maquina.
+              La informacion operativa permanece segmentada por contexto.
             </p>
           </div>
         </div>
@@ -624,7 +623,7 @@ export function LoginPage() {
           data: null,
           error: getRuntimeMessage(
             error,
-            "No pudimos validar el backend local.",
+            "No pudimos validar el backend.",
           ),
           status: "error",
         });
@@ -738,39 +737,48 @@ export function LoginPage() {
       title: t("login.benefitLeanTitle", "Metodología Lean"),
       detail: t(
         "login.benefitLeanDetail",
-        "10 fases probadas para reducir riesgo y acelerar resultados.",
+        "10 fases para reducir riesgo, ordenar decisiones y acelerar el diseño del agente.",
       ),
     },
     {
-      title: t("login.benefitLocalTitle", "100% Local y Seguro"),
+      title: t("login.benefitLocalTitle", "Base ya construida"),
       detail: t(
         "login.benefitLocalDetail",
-        "Tus datos nunca salen de tu infraestructura.",
+        "El nucleo ya esta construido y reduce entre 50% y 75% el esfuerzo pendiente frente a un esquema tradicional.",
       ),
     },
     {
-      title: t("login.benefitProductionTitle", "Listos para Producción"),
+      title: t("login.benefitProductionTitle", "Camino corto a produccion"),
       detail: t(
         "login.benefitProductionDetail",
-        "Monitorea, evalúa y mejora agentes en tiempo real.",
+        "La validacion de usuarios y el endurecimiento operativo siguen en progreso, pero el cierre restante es mucho menor.",
       ),
     },
     {
-      title: t("login.benefitIntegrationsTitle", "Integraciones Empresariales"),
+      title: t("login.benefitIntegrationsTitle", "Servidor externo con aislamiento"),
       detail: t(
         "login.benefitIntegrationsDetail",
-        "Conecta tus herramientas y datos sin fricciones.",
+        "La aplicacion corre fuera del cliente y la informacion permanece segmentada dentro del servidor.",
       ),
     },
   ];
   const marketingTitle = t(
     "login.benefitsTitle",
-    "Construye agentes de IA que impulsan tu negocio",
+    "Construye agentes de IA con mucho menos esfuerzo",
   );
   const marketingTitleAccent = t(
     "login.marketingTitleAccent",
-    "que impulsan tu negocio",
+    "con mucho menos esfuerzo",
   );
+  const quoteAuthor = t("login.quoteAuthor", "Equipo Lean Agent Builder");
+  const quoteRole = t("login.quoteRole", "Estado actual del producto");
+  const quoteInitials =
+    quoteAuthor
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? "")
+      .join("") || "LB";
   const accentIndex = marketingTitle
     .toLocaleLowerCase()
     .lastIndexOf(marketingTitleAccent.toLocaleLowerCase());
@@ -809,7 +817,7 @@ export function LoginPage() {
               tone="blue"
               className="mb-4 w-fit border-[#1d3655] bg-[#0d213e] px-3 py-1 text-[11px] text-[#4ff1df]"
             >
-              {t("login.marketingBadge", "Plataforma local - privada - segura")}
+              {t("login.marketingBadge", "Base avanzada - informacion aislada - menor esfuerzo")}
             </Badge>
 
             <div className="auth-marketing-copy max-w-[368px]">
@@ -822,7 +830,7 @@ export function LoginPage() {
               <p className="auth-marketing-subtitle mt-2.5 max-w-[350px] text-[13px] leading-[1.55] text-white/72">
                 {t(
                   "login.marketingSubtitle",
-                  "Lean Agent Builder te permite diseñar, evaluar y desplegar agentes de IA listos para producción con metodología Lean, en tu infraestructura local.",
+                  "Lean Agent Builder te permite diseñar y evaluar agentes de IA sobre una base ya construida. Hoy la aplicacion corre en infraestructura administrada y el esfuerzo pendiente para concluirla es entre 50% y 75% menor que en un esquema tradicional.",
                 )}
               </p>
             </div>
@@ -851,21 +859,17 @@ export function LoginPage() {
                 &ldquo;
                 {t(
                   "login.quote",
-                  "Lean Agent Builder nos permitió pasar de prototipos a agentes en producción en semanas, no meses.",
+                  "Ya existe una base funcional para iterar mas rapido y cerrar el producto con mucho menos esfuerzo que en un desarrollo tradicional.",
                 )}
                 &rdquo;
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/18 text-[10px]">
-                  DR
+                  {quoteInitials}
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium">
-                    {t("login.quoteAuthor", "Diego Ramirez")}
-                  </p>
-                  <p className="text-[10px] text-white/62">
-                    {t("login.quoteRole", "CTO, Innovatek")}
-                  </p>
+                  <p className="text-[11px] font-medium">{quoteAuthor}</p>
+                  <p className="text-[10px] text-white/62">{quoteRole}</p>
                 </div>
               </div>
             </div>
@@ -876,12 +880,12 @@ export function LoginPage() {
               </div>
               <div>
                 <p className="text-[12px] font-semibold">
-                  {t("login.privacyTitle", "Privacidad y seguridad by design.")}
+                  {t("login.privacyTitle", "Infraestructura administrada con aislamiento.")}
                 </p>
                 <p className="mt-1 max-w-[360px] text-[11px] leading-[1.45] text-white/64">
                   {t(
                     "login.privacyDesc",
-                    "Infraestructura local, controles de acceso y auditoría completos.",
+                    "La aplicacion se aloja en un servidor externo al cliente y la informacion permanece separada mientras completamos el cierre a produccion.",
                   )}
                 </p>
               </div>
@@ -1006,15 +1010,15 @@ export function LoginPage() {
                       <ShieldCheck className="mt-0.5 h-3.5 w-3.5 text-[var(--text-primary)]" />
                       <p>
                         {localize(
-                          "Access for authorized users only.",
-                          "Acceso solo para usuarios autorizados.",
-                          "Acesso apenas para usuarios autorizados.",
+                          "Access is currently enabled through an assisted process.",
+                          "La habilitacion de accesos aun se acompana de forma asistida.",
+                          "A habilitacao de acessos ainda acontece de forma assistida.",
                         )}
                         <br />
                         {localize(
-                          "If you do not have access, contact your administrator or register above.",
-                          "Si no tienes acceso, contacta a tu administrador o registrate arriba.",
-                          "Se voce nao tem acesso, contate seu administrador ou registre-se acima.",
+                          "If your workspace is not ready yet, register above or contact the team.",
+                          "Si tu workspace aun no esta listo, registrate arriba o contacta al equipo.",
+                          "Se o seu workspace ainda nao estiver pronto, cadastre-se acima ou fale com a equipe.",
                         )}
                       </p>
                     </div>
