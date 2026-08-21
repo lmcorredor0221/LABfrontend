@@ -572,7 +572,6 @@ export function buildExecutiveOverviewModel({
     nextAction: {
       href: nextHref,
       label: copy.nextLabel,
-      tone: "primary",
     },
     productKey,
     productLabel: copy.productLabel,
@@ -580,7 +579,6 @@ export function buildExecutiveOverviewModel({
     secondaryAction: {
       href: secondaryHref,
       label: copy.secondaryLabel,
-      tone: "secondary",
     },
     title: copy.title,
     unlockMessage: copy.unlockMessage,

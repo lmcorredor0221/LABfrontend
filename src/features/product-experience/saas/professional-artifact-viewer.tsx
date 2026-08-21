@@ -720,6 +720,17 @@ export function ProfessionalArtifactViewer({
                   );
                 }
 
+                if (block.type === "code") {
+                  return (
+                    <pre
+                      className="overflow-x-auto rounded-[var(--uxa-radius-md)] border border-slate-200 bg-slate-950 px-4 py-3 text-[11.5px] leading-relaxed text-slate-100 shadow-xs"
+                      key={bIdx}
+                    >
+                      <code>{block.code}</code>
+                    </pre>
+                  );
+                }
+
                 return (
                   <p className="text-[12.5px] leading-relaxed text-slate-700" key={bIdx}>
                     {renderFormattedInlineText(block.text)}
@@ -752,4 +763,3 @@ export function ProfessionalArtifactViewer({
     </article>
   );
 }
-

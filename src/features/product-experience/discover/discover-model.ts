@@ -9,6 +9,7 @@ import {
 } from "@/features/discovery/discovery-adapter";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 import type {
+  DiscoveryArtifact,
   DiscoveryAnalysisArtifact,
   JourneyStageArtifactEntry,
 } from "@/features/sessions/session-contracts";

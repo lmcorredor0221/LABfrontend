@@ -49,7 +49,11 @@ import type {
   ProductDiscoveryActions,
   ProductDiscoveryActionState,
 } from "@/features/product-experience/shell/use-product-experience-route";
-import type { DiscoveryAnalysisInsight, DiscoveryAnalysisQuestion } from "@/features/sessions/session-contracts";
+import type {
+  DiscoveryAnalysisInsight,
+  DiscoveryAnalysisQuestion,
+  DiscoveryArtifact,
+} from "@/features/sessions/session-contracts";
 import { useLanguage } from "@/core/i18n/language-context";
 import type { TranslationKey } from "@/core/i18n/locales/es";
 import { cn } from "@/lib/utils";
@@ -661,12 +665,10 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
           window.sessionStorage.getItem("pending_initiative_prefill");
         if (stored) {
           const parsed = JSON.parse(stored);
-          if (parsed?.initial_prompt && !initialValues.problem_statement) {
+          if (parsed?.initial_prompt && !initialValues.problemStatement) {
             setFormValues({
               ...initialValues,
-              problem_statement: parsed.initial_prompt,
-              goal_statement: parsed.title ? `Construir ${parsed.title}` : initialValues.goal_statement,
-              solution_hypothesis: parsed.archetype ? `Implementar un agente con arquetipo: ${parsed.archetype}` : initialValues.solution_hypothesis,
+              problemStatement: parsed.initial_prompt,
             });
             setDirty(true);
             window.sessionStorage.removeItem(`session_eval_prefill_${sessionId}`);

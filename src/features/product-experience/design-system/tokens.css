@@ -380,6 +380,11 @@
   color: var(--uxa-state-danger);
 }
 
+.uxa-badge--brand {
+  background: var(--uxa-color-brand-soft);
+  color: var(--uxa-color-brand);
+}
+
 .uxa-badge--info {
   background: var(--uxa-state-info-bg);
   color: var(--uxa-state-info);

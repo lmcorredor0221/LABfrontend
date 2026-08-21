@@ -9,7 +9,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type UxaTone = "success" | "warning" | "danger" | "info" | "neutral";
+export type UxaTone = "brand" | "success" | "warning" | "danger" | "info" | "neutral";
 export type UxaButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type UxaButtonSize = "sm" | "md" | "lg";
 export type UxaPageStateTone = "neutral" | "info" | "warning" | "danger";

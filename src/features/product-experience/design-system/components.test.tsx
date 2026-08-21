@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import {
+  UxaBadge,
   UxaButton,
   UxaPersistentProcessingFeedback,
   UxaProcessingStrip,
@@ -20,6 +21,12 @@ describe("UXA design system foundations", () => {
     render(<UxaButton>Continuar</UxaButton>);
 
     expect(screen.getByRole("button", { name: "Continuar" })).toBeEnabled();
+  });
+
+  it("supports the brand badge tone", () => {
+    render(<UxaBadge tone="brand">Blueprint Pro</UxaBadge>);
+
+    expect(screen.getByText("Blueprint Pro")).toHaveClass("uxa-badge--brand");
   });
 
   it("associates text fields with labels, hints and errors", () => {
