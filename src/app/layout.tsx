@@ -2,11 +2,38 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { resolveInitialLanguage } from "@/core/i18n/language-config";
 import { AppProviders } from "@/core/providers/app-providers";
+import { SITE_NAME, SITE_URL } from "@/core/seo/site";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Lean Agent Builder",
-  description: "Blueprint implementation for the Lean Agent Builder workspace.",
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description:
+    "Design, evaluate, and document AI agents before coding. Lean Agent Builder helps teams validate workflows and integrations with less delivery risk.",
+  openGraph: {
+    siteName: SITE_NAME,
+    type: "website",
+    url: SITE_URL,
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: "/favicon.ico",
+  },
+  formatDetection: {
+    address: false,
+    email: false,
+    telephone: false,
+  },
 };
 
 export default async function RootLayout({
