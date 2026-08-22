@@ -1,3 +1,5 @@
+import { resolveLanguageFromPathname } from "@/core/i18n/language-config";
+
 export const BOOT_ROUTE = "/boot";
 export const HOME_ROUTE = "/";
 export const LOGIN_ROUTE = "/login";
@@ -63,6 +65,15 @@ export function isPublicRoute(pathname: string) {
   if (pathname === "/" || pathname === "") {
     return true;
   }
+
+  const localizedLanguage = resolveLanguageFromPathname(pathname);
+  if (localizedLanguage) {
+    const localizedLandingPath = `/${localizedLanguage}`;
+    if (pathname === localizedLandingPath || pathname === `${localizedLandingPath}/`) {
+      return true;
+    }
+  }
+
   return PUBLIC_ROUTES.some((route) => route !== "/" && (pathname === route || pathname.startsWith(`${route}/`)));
 }
 

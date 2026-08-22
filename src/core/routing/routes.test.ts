@@ -64,9 +64,14 @@ describe("project routes", () => {
 
   it("identifies public routes correctly including landing page /", () => {
     expect(isPublicRoute("/")).toBe(true);
+    expect(isPublicRoute("/es")).toBe(true);
+    expect(isPublicRoute("/en")).toBe(true);
+    expect(isPublicRoute("/pt")).toBe(true);
+    expect(isPublicRoute("/en/")).toBe(true);
     expect(isPublicRoute("/login")).toBe(true);
     expect(isPublicRoute("/register")).toBe(true);
     expect(isPublicRoute("/boot")).toBe(true);
+    expect(isPublicRoute("/en/projects")).toBe(false);
     expect(isPublicRoute("/projects")).toBe(false);
     expect(isPublicRoute("/projects/session-1/work/discover")).toBe(false);
   });
