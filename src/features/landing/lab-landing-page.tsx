@@ -230,26 +230,50 @@ export function LabLandingPage() {
   const faqList = [
     {
       q: byLanguage(language, {
-        es: "¿Necesito saber de agentes de IA para usar LAB?",
-        en: "Do I need to know about AI agents to use LAB?",
-        pt: "Preciso saber sobre agentes de IA para usar o LAB?",
+        es: "¿Qué es un agente de IA para empresas?",
+        en: "What is an AI agent for businesses?",
+        pt: "O que é um agente de IA para empresas?",
       }),
       a: byLanguage(language, {
-        es: "No. LAB está diseñado con metodología Lean para guiarte en lenguaje natural. Únicamente debes describir el problema o necesidad de tu negocio, y la plataforma se encarga de traducirlo progresivamente a especificaciones de arquitectura.",
-        en: "No. LAB is designed with Lean methodology to guide you in natural language. You only describe your business need, and the platform translates it progressively into engineering specifications.",
-        pt: "Não. O LAB foi desenvolvido com metodologia Lean para guiá-lo em linguagem natural. Você só precisa descrever o problema do seu negócio e a plataforma traduz para especificações de engenharia.",
+        es: "Es un sistema que entiende un objetivo de negocio, consulta herramientas como correo, CRM o ERP, sigue reglas y completa tareas con supervisión humana cuando hace falta. En LAB primero definimos ese comportamiento antes de programarlo.",
+        en: "It is a system that understands a business goal, consults tools such as email, CRM, or ERP, follows rules, and completes tasks with human supervision when needed. In LAB, we define that behavior before coding it.",
+        pt: "É um sistema que entende um objetivo de negócio, consulta ferramentas como e-mail, CRM ou ERP, segue regras e conclui tarefas com supervisão humana quando necessário. No LAB, definimos esse comportamento antes de programá-lo.",
       }),
     },
     {
       q: byLanguage(language, {
-        es: "¿LAB construye el agente automáticamente?",
-        en: "Does LAB build the agent automatically?",
-        pt: "O LAB constrói o agente automaticamente?",
+        es: "¿Qué procesos se pueden automatizar con IA?",
+        en: "Which processes can be automated with AI?",
+        pt: "Quais processos podem ser automatizados com IA?",
       }),
       a: byLanguage(language, {
-        es: "No. LAB es una plataforma de descubrimiento y arquitectura agéntica. LAB genera el paquete de especificación estructurada (ACP) para que la programación posterior (ya sea mediante tu equipo o con herramientas como Codex, Claude Code o Cursor) se ejecute con contexto completo y sin ambigüedades. Si no tienes equipo técnico, puedes contratar la construcción a través de nuestra LAB Factory B2B.",
-        en: "No. LAB is a discovery and agentic architecture platform. LAB produces the structured specification package (ACP) so that subsequent coding (with your team or AI assistants like Codex, Claude Code, or Cursor) proceeds with zero ambiguity. If you lack technical engineers, you can delegate build via LAB Factory B2B.",
-        pt: "Não. O LAB é uma plataforma de descoberta e arquitetura agêntica. Gera o pacote estruturado (ACP) para que a programação (por sua equipe ou com Codex, Claude Code, Cursor) ocorra sem ambiguidades. Se não tiver equipe, você pode contratar a construção via LAB Factory B2B.",
+        es: "Los mejores candidatos son procesos repetitivos con reglas claras y datos disponibles: revisar documentos, responder solicitudes frecuentes, clasificar correos, cruzar información entre sistemas, generar reportes o escalar excepciones a una persona.",
+        en: "The best candidates are repetitive workflows with clear rules and available data: reviewing documents, answering frequent requests, classifying emails, reconciling systems, generating reports, or escalating exceptions to a person.",
+        pt: "Os melhores candidatos são fluxos repetitivos com regras claras e dados disponíveis: revisar documentos, responder solicitações frequentes, classificar e-mails, cruzar sistemas, gerar relatórios ou escalar exceções para uma pessoa.",
+      }),
+    },
+    {
+      q: byLanguage(language, {
+        es: "¿Cuál es la diferencia entre un chatbot y un agente de IA?",
+        en: "What is the difference between a chatbot and an AI agent?",
+        pt: "Qual é a diferença entre um chatbot e um agente de IA?",
+      }),
+      a: byLanguage(language, {
+        es: "Un chatbot responde preguntas. Un agente de IA además consulta herramientas, sigue pasos, toma decisiones dentro de límites y completa tareas de varios pasos. LAB te ayuda a definir esas reglas, límites e integraciones.",
+        en: "A chatbot answers questions. An AI agent also uses tools, follows steps, makes decisions within limits, and completes multi-step tasks. LAB helps you define those rules, limits, and integrations.",
+        pt: "Um chatbot responde perguntas. Um agente de IA também usa ferramentas, segue etapas, toma decisões dentro de limites e conclui tarefas de vários passos. O LAB ajuda você a definir essas regras, limites e integrações.",
+      }),
+    },
+    {
+      q: byLanguage(language, {
+        es: "¿Cómo implementa mi equipo un agente de IA con LAB?",
+        en: "How does my team implement an AI agent with LAB?",
+        pt: "Como minha equipe implementa um agente de IA com o LAB?",
+      }),
+      a: byLanguage(language, {
+        es: "Primero validamos el caso, luego documentamos el flujo, las integraciones, los riesgos y las decisiones humanas. Después tu equipo recibe un Blueprint y, si necesitas más detalle, un ACP listo para desarrollar con Codex, Claude Code, Cursor o código tradicional.",
+        en: "First we validate the use case, then we document the workflow, integrations, risks, and human decisions. After that, your team receives a Blueprint and, if you need more detail, an ACP ready for development with Codex, Claude Code, Cursor, or traditional code.",
+        pt: "Primeiro validamos o caso, depois documentamos o fluxo, as integrações, os riscos e as decisões humanas. Em seguida, sua equipe recebe um Blueprint e, se precisar de mais detalhe, um ACP pronto para desenvolver com Codex, Claude Code, Cursor ou código tradicional.",
       }),
     },
     {
@@ -259,33 +283,9 @@ export function LabLandingPage() {
         pt: "Qual a diferença entre Blueprint e ACP?",
       }),
       a: byLanguage(language, {
-        es: "El Blueprint ($49 USD) es un documento técnico-funcional completo para toma de decisiones y entendimiento del proyecto. El ACP ($149 USD) incluye todo el Blueprint MÁS el paquete estructurado de archivos (JSON, schemas, prompts y máquinas de estados) listo para ser consumido directamente por herramientas de desarrollo agéntico.",
-        en: "The Blueprint ($49 USD) is a comprehensive technical-functional document for decision-making. The ACP ($149 USD) includes the entire Blueprint PLUS the structured file package (JSON, schemas, prompts, state machines) ready for agentic IDEs.",
-        pt: "O Blueprint ($49 USD) é um documento técnico-funcional completo. O ACP ($149 USD) inclui todo o Blueprint MAIS o pacote estruturado de arquivos (JSON, schemas, prompts, máquinas de estados) pronto para ferramentas agênticas.",
-      }),
-    },
-    {
-      q: byLanguage(language, {
-        es: "¿Qué recibe exactamente mi equipo al adquirir el ACP?",
-        en: "What exactly does my team receive with the ACP?",
-        pt: "O que exatamente minha equipe recebe com o ACP?",
-      }),
-      a: byLanguage(language, {
-        es: "Reciben un paquete comprimido con el contexto estructurado del agente, mapa de decisiones, máquinas de estado, especificación de conectores, estrategias de memoria, casos de prueba y las instrucciones paso a paso para iniciar la construcción en Codex, Claude Code, Cursor o código tradicional.",
-        en: "They receive a compressed package with structured agent context, decision maps, state machines, connector specifications, memory strategies, test cases, and step-by-step build guides for Codex, Claude Code, Cursor, or traditional code.",
-        pt: "Recebem um pacote compactado com contexto estruturado, mapas de decisão, máquinas de estado, especificações de conectores, memória, casos de teste e guia passo a passo.",
-      }),
-    },
-    {
-      q: byLanguage(language, {
-        es: "¿El ACP funciona con Codex, Claude Code y Cursor?",
-        en: "Does the ACP work with Codex, Claude Code, and Cursor?",
-        pt: "O ACP funciona com Codex, Claude Code e Cursor?",
-      }),
-      a: byLanguage(language, {
-        es: "Sí. Los formatos del ACP están estandarizados para ser leídos de forma óptima por entornos de programación agéntica y LLMs avanzados, evitando alucinaciones de código y garantizando que el asistente comprenda la arquitectura completa.",
-        en: "Yes. ACP formats are standardized for optimal ingestion by agentic developer environments and advanced LLMs, preventing code hallucinations and ensuring full architectural alignment.",
-        pt: "Sim. Os formatos do ACP são padronizados para leitura ideal por ambientes de programação agêntica e LLMs avançados, evitando alucinações de código.",
+        es: "El Blueprint ($49 USD) es un documento técnico-funcional completo para toma de decisiones y entendimiento del proyecto. El ACP ($149 USD) incluye todo el Blueprint más el paquete estructurado de archivos (JSON, schemas, prompts y máquinas de estados) listo para ser consumido directamente por herramientas de desarrollo agéntico.",
+        en: "The Blueprint ($49 USD) is a comprehensive technical-functional document for decision-making. The ACP ($149 USD) includes the entire Blueprint plus the structured file package (JSON, schemas, prompts, and state machines) ready for agentic IDEs.",
+        pt: "O Blueprint ($49 USD) é um documento técnico-funcional completo. O ACP ($149 USD) inclui todo o Blueprint mais o pacote estruturado de arquivos (JSON, schemas, prompts e máquinas de estados) pronto para ferramentas agênticas.",
       }),
     },
     {
@@ -536,39 +536,39 @@ export function LabLandingPage() {
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-xs font-semibold mb-6 shadow-sm">
               <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0" />
               <span>{byLanguage(language, {
-                es: "No construyas la casa sin los planos. Evita proyectos fallidos de IA.",
-                en: "Don't build the house without the blueprints. Avoid failed AI projects.",
-                pt: "Não construa a casa sem a planta. Evite projetos de IA fracassados.",
+                es: "Diseña agentes de IA con reglas claras y menos riesgo.",
+                en: "Design AI agents with clear rules and less delivery risk.",
+                pt: "Desenhe agentes de IA com regras claras e menos risco.",
               })}</span>
             </div>
 
             {/* Main Headline */}
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-[1.15] mb-6">
               {byLanguage(language, {
-                es: "No programes a ciegas. Diseña los ",
-                en: "Don't code blindly. Design your ",
-                pt: "Não programe às cegas. Desenhe as ",
+                es: "Diseña agentes de IA para tu empresa ",
+                en: "Design AI agents for your business ",
+                pt: "Desenhe agentes de IA para sua empresa ",
               })}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-500">
                 {byLanguage(language, {
-                  es: "planos de tu automatización",
-                  en: "automation blueprints",
-                  pt: "plantas da sua automação",
+                  es: "antes de programar",
+                  en: "before coding",
+                  pt: "antes de programar",
                 })}
               </span>
               {byLanguage(language, {
-                es: " primero.",
-                en: " first.",
-                pt: " primeiro.",
+                es: "",
+                en: "",
+                pt: "",
               })}
             </h1>
 
             {/* Subtitle */}
             <p className="text-base sm:text-lg md:text-xl text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl mx-auto mb-8">
               {byLanguage(language, {
-                es: "Actuamos como los arquitectos de tu proyecto de IA. Cuéntanos qué proceso manual quieres automatizar y te entregaremos las reglas, integraciones y pasos exactos para que tu equipo lo construya sin adivinar.",
-                en: "We act as the architects of your AI project. Tell us which manual process you want to automate and we will deliver the exact rules, integrations, and steps so your team can build without guessing.",
-                pt: "Atuamos como os arquitetos do seu projeto de IA. Conte-nos qual processo manual você quer automatizar e entregaremos as regras, integrações e etapas exatas para sua equipe construir sem adivinhação.",
+                es: "Evalúa qué procesos automatizar con IA, qué integraciones necesitas y qué debe construir tu equipo antes de escribir código.",
+                en: "Evaluate which workflows to automate with AI, which integrations you need, and what your team should build before writing code.",
+                pt: "Avalie quais fluxos automatizar com IA, quais integrações você precisa e o que sua equipe deve construir antes de escrever código.",
               })}
             </p>
 
@@ -626,13 +626,13 @@ export function LabLandingPage() {
                 })}
               </span>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
-                {byLanguage(language, { es: "¿Qué tarea repetitiva agota a tu equipo?", en: "What repetitive task drains your team?", pt: "Qual tarefa repetitiva esgota sua equipe?" })}
+                {byLanguage(language, { es: "¿Qué proceso quieres automatizar con IA?", en: "Which process do you want to automate with AI?", pt: "Qual processo você quer automatizar com IA?" })}
               </h2>
               <p className="text-slate-600 dark:text-slate-400 text-sm mt-2">
                 {byLanguage(language, {
-                  es: "Cuéntanos tu problema en palabras sencillas. Te diremos al instante si la Inteligencia Artificial es la solución correcta para tu caso.",
-                  en: "Tell us your problem in plain words. We'll tell you instantly if Artificial Intelligence is the right solution for your case.",
-                  pt: "Conte-nos seu problema em palavras simples. Diremos instantaneamente se a Inteligência Artificial é a solução certa para o seu caso.",
+                  es: "Descríbelo en palabras simples. Te diremos si vale la pena usar IA, qué autonomía tiene sentido y por dónde empezar.",
+                  en: "Describe it in simple words. We'll tell you if AI is worth using, what level of autonomy makes sense, and where to start.",
+                  pt: "Descreva em palavras simples. Diremos se vale a pena usar IA, qual autonomia faz sentido e por onde começar.",
                 })}
               </p>
             </div>
@@ -887,9 +887,9 @@ export function LabLandingPage() {
             </h2>
             <p className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
               {byLanguage(language, {
-                es: "4 pasos antes de escribir código",
-                en: "4 steps before writing code",
-                pt: "4 etapas antes de escrever código",
+                es: "Cómo diseñamos un agente de IA paso a paso",
+                en: "How we design an AI agent step by step",
+                pt: "Como desenhamos um agente de IA passo a passo",
               })}
             </p>
           </div>
@@ -968,16 +968,16 @@ export function LabLandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
             <h2 className="text-xs font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-2">
-              {byLanguage(language, { es: "¿Qué recibes a cambio?", en: "What do you receive in return?", pt: "O que você recebe em troca?" })}
+              {byLanguage(language, { es: "¿Qué recibe tu equipo?", en: "What does your team receive?", pt: "O que sua equipe recebe?" })}
             </h2>
             <p className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
-              {byLanguage(language, { es: "Dos documentos. Un solo objetivo: Claridad.", en: "Two documents. One goal: Clarity.", pt: "Dois documentos. Um único objetivo: Clareza." })}
+              {byLanguage(language, { es: "Blueprints claros para construir tu agente de IA", en: "Clear blueprints to build your AI agent", pt: "Blueprints claros para construir seu agente de IA" })}
             </p>
             <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base mt-3">
               {byLanguage(language, {
-                es: 'Dependiendo de lo que necesites, generamos dos tipos de "planos". Uno para el negocio y otro para los programadores.',
-                en: 'Depending on what you need, we generate two types of "blueprints". One for the business and another for developers.',
-                pt: 'Dependendo do que você precisa, geramos dois tipos de "plantas". Uma para o negócio e outra para os programadores.',
+                es: "Entregamos un plano claro para negocio y un paquete técnico para desarrollo, según el nivel de detalle que necesites.",
+                en: "We deliver a clear business blueprint and a technical build package, depending on the depth you need.",
+                pt: "Entregamos um blueprint claro para o negócio e um pacote técnico para desenvolvimento, conforme o nível de detalhe que você precisa.",
               })}
             </p>
           </div>
@@ -1150,13 +1150,13 @@ export function LabLandingPage() {
               <span>{byLanguage(language, { es: "Estimación Transparente", en: "Transparent Estimation", pt: "Estimativa Transparente" })}</span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">
-              {byLanguage(language, { es: "Estimación de Impacto en Horas", en: "Impact Estimation in Hours", pt: "Estimativa de Impacto em Horas" })}
+              {byLanguage(language, { es: "Cuánto trabajo puedes ahorrar con una buena especificación", en: "How much work you can save with a solid specification", pt: "Quanto trabalho você pode economizar com uma boa especificação" })}
             </h2>
             <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base mt-2">
               {byLanguage(language, {
-                es: "Compara el rango orientativo de esfuerzo técnico con y sin especificación previa estructurada.",
-                en: "Compare indicative engineering effort with and without structured prior specification.",
-                pt: "Compare o esforço técnico indicativo com e sem especificação prévia estruturada.",
+                es: "Compara el esfuerzo técnico estimado con y sin un blueprint claro antes de desarrollar tu agente de IA.",
+                en: "Compare estimated engineering effort with and without a clear blueprint before building your AI agent.",
+                pt: "Compare o esforço técnico estimado com e sem um blueprint claro antes de construir seu agente de IA.",
               })}
             </p>
           </div>
@@ -1246,13 +1246,13 @@ export function LabLandingPage() {
               {byLanguage(language, { es: "Embudo Comercial Progresivo", en: "Progressive Commercial Funnel", pt: "Funil Comercial Progressivo" })}
             </span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white mt-3">
-              {byLanguage(language, { es: "Planes por Proyecto", en: "Project Plans", pt: "Planos por Projeto" })}
+              {byLanguage(language, { es: "Planes para validar y diseñar tu agente de IA", en: "Plans to validate and design your AI agent", pt: "Planos para validar e desenhar seu agente de IA" })}
             </h2>
             <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base mt-2">
               {byLanguage(language, {
-                es: "Paga únicamente por el nivel de profundidad que requieras para tu decisión.",
-                en: "Pay only for the depth of architecture your decision demands.",
-                pt: "Pague apenas pelo nível de profundidade que sua decisão exige.",
+                es: "Empieza gratis, valida tu caso y paga solo por la profundidad de análisis y documentación que necesites.",
+                en: "Start free, validate your case, and pay only for the level of analysis and documentation you need.",
+                pt: "Comece grátis, valide seu caso e pague apenas pelo nível de análise e documentação que precisa.",
               })}
             </p>
           </div>
@@ -1544,9 +1544,9 @@ export function LabLandingPage() {
             </h2>
             <p className="text-slate-600 dark:text-slate-400 text-sm mt-2">
               {byLanguage(language, {
-                es: "Respuestas transparentes sobre la plataforma, el alcance y los entregables.",
-                en: "Clear answers on platform capabilities, scope, and deliverables.",
-                pt: "Respostas transparentes sobre plataforma, escopo e entregáveis.",
+                es: "Respuestas claras sobre agentes de IA para empresas, integraciones, implementación y entregables.",
+                en: "Clear answers about AI agents for businesses, integrations, implementation, and deliverables.",
+                pt: "Respostas claras sobre agentes de IA para empresas, integrações, implementação e entregáveis.",
               })}
             </p>
           </div>

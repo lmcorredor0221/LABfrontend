@@ -14,25 +14,25 @@ interface LandingSeoCopy {
 
 const LANDING_SEO_COPY: Record<SupportedLanguage, LandingSeoCopy> = {
   es: {
-    title: "Agentes de IA y automatizacion para empresas",
+    title: "Agentes de IA para empresas y automatización de procesos",
     description:
-      "Disena, evalua y documenta agentes de IA antes de programar. Valida procesos, define integraciones y entrega blueprints listos para tu equipo tecnico.",
+      "Diseña agentes de IA para tu empresa antes de programar. Evalúa procesos, define integraciones y entrega blueprints claros para implementar con menos riesgo.",
     organizationDescription:
-      "Plataforma para disenar, evaluar y documentar agentes de IA y automatizaciones empresariales antes de construirlas.",
+      "Plataforma para diseñar, evaluar y documentar agentes de IA y automatizaciones empresariales con blueprints claros antes de construirlas.",
   },
   en: {
-    title: "AI agents and automation for business teams",
+    title: "AI agents and workflow automation for business teams",
     description:
-      "Design, evaluate, and document AI agents before coding. Validate workflows, define integrations, and deliver build-ready blueprints.",
+      "Design AI agents for your business before coding. Evaluate workflows, define integrations, and deliver clear blueprints for implementation.",
     organizationDescription:
-      "Platform for designing, evaluating, and documenting AI agents and business automations before implementation.",
+      "Platform for designing, evaluating, and documenting AI agents and business automations with clear blueprints before implementation.",
   },
   pt: {
-    title: "Agentes de IA e automacao para empresas",
+    title: "Agentes de IA para empresas e automação de processos",
     description:
-      "Desenhe, avalie e documente agentes de IA antes de programar. Valide fluxos, defina integracoes e entregue blueprints prontos para construcao.",
+      "Desenhe agentes de IA para sua empresa antes de programar. Avalie fluxos, defina integrações e entregue blueprints claros para construção.",
     organizationDescription:
-      "Plataforma para desenhar, avaliar e documentar agentes de IA e automacoes empresariais antes da implementacao.",
+      "Plataforma para desenhar, avaliar e documentar agentes de IA e automações empresariais com blueprints claros antes da implementação.",
   },
 };
 

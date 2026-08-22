@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     template: `%s | ${SITE_NAME}`,
   },
   description:
-    "Design, evaluate, and document AI agents before coding. Lean Agent Builder helps teams validate workflows and integrations with less delivery risk.",
+    "Design AI agents for your business before coding. Evaluate workflows, define integrations, and deliver clear blueprints with less delivery risk.",
   openGraph: {
     siteName: SITE_NAME,
     type: "website",
