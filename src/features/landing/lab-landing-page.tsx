@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
   Calculator,
@@ -30,6 +30,7 @@ import {
 import { useAuth } from "@/core/auth/auth-context";
 import { useCurrency } from "@/core/commerce/currency-context";
 import { useLanguage } from "@/core/i18n/language-context";
+import { buildLocalizedLandingPath, LANDING_LANGUAGES } from "@/core/seo/site";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { cn } from "@/lib/utils";
 import {
@@ -46,10 +47,12 @@ interface ToastMessage {
 }
 
 export function LabLandingPage() {
+  const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
   const { currency, setCurrency, formatPrice } = useCurrency();
   const { language, setLanguage } = useLanguage();
+  const toastIdRef = useRef(0);
 
   // Dark / Light Theme
   const [isDark, setIsDark] = useState(true);
@@ -83,7 +86,8 @@ export function LabLandingPage() {
   }, [isDark]);
 
   function showToast(message: string, type: "indigo" | "emerald" | "amber" = "indigo") {
-    const id = Date.now();
+    toastIdRef.current += 1;
+    const id = toastIdRef.current;
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -358,6 +362,15 @@ export function LabLandingPage() {
     },
   ];
 
+  function handleLanguageNavigation(nextLanguage: "es" | "en" | "pt") {
+    setLanguage(nextLanguage);
+
+    const targetPath = buildLocalizedLandingPath(nextLanguage);
+    if (pathname !== targetPath) {
+      router.push(targetPath);
+    }
+  }
+
   return (
     <div className={cn("min-h-screen transition-colors duration-300", isDark ? "dark bg-[#0B0F17] text-slate-200" : "bg-slate-50 text-slate-800")}>
       {/* Toast Notification Container */}
@@ -384,7 +397,7 @@ export function LabLandingPage() {
       <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/85 dark:bg-[#131b2e]/80 border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="flex items-center gap-3">
+            <Link href={buildLocalizedLandingPath(language)} className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/25">
                 <Layers className="h-5 w-5" />
               </div>
@@ -456,11 +469,11 @@ export function LabLandingPage() {
 
             {/* Language Switcher */}
             <div className="flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 p-0.5 text-xs font-semibold">
-              {(["es", "en", "pt"] as const).map((lang) => (
+              {LANDING_LANGUAGES.map((lang) => (
                 <button
                   key={lang}
                   type="button"
-                  onClick={() => setLanguage(lang)}
+                  onClick={() => handleLanguageNavigation(lang)}
                   className={cn(
                     "px-1.5 py-1 rounded-md uppercase transition",
                     language === lang
@@ -1579,9 +1592,9 @@ export function LabLandingPage() {
             © 2026 LAB (Lean Agent Builder). De la necesidad de negocio al código agéntico.
           </div>
           <div className="flex items-center gap-4 text-xs font-mono text-slate-500 dark:text-slate-400">
-            <button type="button" onClick={() => setLanguage("es")} className={cn("px-2 py-1 rounded border", language === "es" ? "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 font-bold" : "opacity-50")}>ES</button>
-            <button type="button" onClick={() => setLanguage("pt")} className={cn("px-2 py-1 rounded border", language === "pt" ? "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 font-bold" : "opacity-50")}>PT</button>
-            <button type="button" onClick={() => setLanguage("en")} className={cn("px-2 py-1 rounded border", language === "en" ? "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 font-bold" : "opacity-50")}>EN</button>
+            <button type="button" onClick={() => handleLanguageNavigation("es")} className={cn("px-2 py-1 rounded border", language === "es" ? "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 font-bold" : "opacity-50")}>ES</button>
+            <button type="button" onClick={() => handleLanguageNavigation("pt")} className={cn("px-2 py-1 rounded border", language === "pt" ? "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 font-bold" : "opacity-50")}>PT</button>
+            <button type="button" onClick={() => handleLanguageNavigation("en")} className={cn("px-2 py-1 rounded border", language === "en" ? "bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 font-bold" : "opacity-50")}>EN</button>
           </div>
         </div>
       </footer>

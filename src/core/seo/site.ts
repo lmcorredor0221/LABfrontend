@@ -4,6 +4,7 @@ import type { SupportedLanguage } from "@/core/i18n/language-config";
 export const SITE_URL = "https://www.leanagentbuilder.com";
 export const SITE_NAME = "Lean Agent Builder";
 export const SITE_SHORT_NAME = "LAB.ai";
+export const LANDING_LANGUAGES: readonly SupportedLanguage[] = ["es", "en", "pt"] as const;
 
 interface LandingSeoCopy {
   title: string;
@@ -49,15 +50,32 @@ export function buildAbsoluteUrl(pathname: string): string {
   return new URL(pathname, SITE_URL).toString();
 }
 
-export function buildLandingMetadata(language: SupportedLanguage): Metadata {
+export function buildLocalizedLandingPath(language: SupportedLanguage): string {
+  return `/${language}`;
+}
+
+function buildLandingLanguageAlternates(): Record<string, string> {
+  return {
+    es: buildAbsoluteUrl(buildLocalizedLandingPath("es")),
+    en: buildAbsoluteUrl(buildLocalizedLandingPath("en")),
+    pt: buildAbsoluteUrl(buildLocalizedLandingPath("pt")),
+    "x-default": buildAbsoluteUrl("/"),
+  };
+}
+
+export function buildLandingMetadata(
+  language: SupportedLanguage,
+  pathname: string = buildLocalizedLandingPath(language),
+): Metadata {
   const copy = getLandingSeoCopy(language);
-  const canonicalUrl = buildAbsoluteUrl("/");
+  const canonicalUrl = buildAbsoluteUrl(pathname);
 
   return {
     title: copy.title,
     description: copy.description,
     alternates: {
       canonical: canonicalUrl,
+      languages: buildLandingLanguageAlternates(),
     },
     openGraph: {
       type: "website",
@@ -95,6 +113,11 @@ export function buildLandingStructuredData(language: SupportedLanguage): Record<
         name: SITE_NAME,
         url: SITE_URL,
         inLanguage: language,
+        potentialAction: {
+          "@type": "SearchAction",
+          target: `${SITE_URL}/#simulador`,
+          "query-input": "required name=initiative",
+        },
       },
     ],
   };
