@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { resolveInitialLanguage } from "@/core/i18n/language-config";
 import { AppProviders } from "@/core/providers/app-providers";
 import { SITE_NAME, SITE_URL } from "@/core/seo/site";
@@ -41,9 +41,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headerStore = await headers();
   const cookieStore = await cookies();
   const initialLanguage = resolveInitialLanguage(
-    cookieStore.get("antigravity_language")?.value,
+    headerStore.get("x-resolved-language") ?? cookieStore.get("antigravity_language")?.value,
     "es",
   );
 
