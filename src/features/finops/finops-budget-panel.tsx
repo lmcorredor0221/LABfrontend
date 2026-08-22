@@ -251,7 +251,7 @@ export function FinOpsBudgetPanel({
     <Panel className="overflow-hidden p-0" id="workspace-finops-budgets">
       <div className="flex flex-wrap items-start justify-between gap-3 p-5">
         <div className="space-y-1">
-          <Badge tone={canManage ? "green" : "slate"}>{canManage ? "Owner / Admin" : "Solo lectura"}</Badge>
+          <Badge tone={canManage ? "green" : "slate"}>{canManage ? "Admin" : "Solo lectura"}</Badge>
           <p className="text-[20px] font-semibold text-[var(--text-primary)]">Presupuestos FinOps IA</p>
           <p className="text-[13px] leading-6 text-[var(--text-secondary)]">Limites por workspace, usuario, etapa, provider o modelo.</p>
           <div className="flex flex-wrap gap-2">

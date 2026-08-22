@@ -274,7 +274,7 @@ function createMockApi(overrides: Partial<HotmartAdminApi> = {}): HotmartAdminAp
   } as HotmartAdminApi;
 }
 
-function createUser(role: "owner" | "viewer"): AuthUser {
+function createUser(role: "admin" | "viewer"): AuthUser {
   return {
     active_workspace_id: "workspace-1",
     active_workspace_name: "Workspace principal",
@@ -293,7 +293,7 @@ function createUser(role: "owner" | "viewer"): AuthUser {
   };
 }
 
-function renderView(api: HotmartAdminApi, role: "owner" | "viewer" = "owner") {
+function renderView(api: HotmartAdminApi, role: "admin" | "viewer" = "admin") {
   const user = createUser(role);
   const authStore = createAuthStore({
     api: {
@@ -345,7 +345,7 @@ describe("HotmartAdminView", () => {
     });
   });
 
-  it("loads the admin dashboard for owner/admin workspaces", async () => {
+  it("loads the admin dashboard for admin workspaces", async () => {
     const api = createMockApi();
 
     renderView(api);

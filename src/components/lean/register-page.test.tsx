@@ -216,6 +216,17 @@ describe("RegisterPage", () => {
     ).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("keeps legal document view actions outside their consent labels to avoid touch interception", () => {
+    renderRegisterPage();
+
+    const viewButtons = screen.getAllByRole("button", { name: /\(view\)/i });
+
+    expect(viewButtons).toHaveLength(3);
+    viewButtons.forEach((button) => {
+      expect(button.closest("label")).toBeNull();
+    });
+  });
+
   it("ignores a second submit while the first registration request is still in flight", async () => {
     mocks.post.mockImplementation(() => new Promise(() => undefined));
 

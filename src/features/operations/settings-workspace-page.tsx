@@ -116,7 +116,7 @@ type PlatformProviderDraftMap = Record<
 >;
 
 const PROVIDER_ORDER: LLMProviderKey[] = ["openai", "deepseek", "codex_local", "antigravity_cli"];
-const WORKSPACE_RUNTIME_ADMIN_ROLES = new Set<WorkspaceRole>(["owner", "admin"]);
+const WORKSPACE_RUNTIME_ADMIN_ROLES = new Set<WorkspaceRole>(["admin"]);
 function createIdleState<TData>(): AsyncState<TData> {
   return {
     data: null,
@@ -1446,6 +1446,7 @@ export function SettingsWorkspacePage({
         projectItems={items}
         providerLabel={runtimeHealth?.provider_label ?? runtime?.active_provider ?? "No disponible"}
         runtimeHealth={runtimeHealth?.overall_status ?? runtimeHealth?.health_status ?? "Pendiente"}
+        workspaceId={activeWorkspaceId}
         workspaceName={user?.active_workspace_name ?? "Sin workspace"}
         workspaceRole={workspaceRole}
       >
@@ -1477,6 +1478,7 @@ export function SettingsWorkspacePage({
           selectedSession={selectedSession}
           sessionOptions={sessionOptions}
           sessionValue={selectedSession?.id ?? null}
+          isPlatformAdmin={isPlatformPanelVisible}
           user={user}
         />
       ) : null}
@@ -1544,7 +1546,7 @@ export function SettingsWorkspacePage({
                 <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
                   {canManageWorkspaceRuntime
                     ? t("settings.manageWorkspaceDesc", "Usa el ámbito Workspace para configurar providers, credenciales, automatización y diagnóstico.")
-                    : t("settings.adminProtectedDesc", "Tu experiencia se limita a cuenta y acceso. Un owner o admin gestiona providers, secretos y políticas técnicas.")}
+                    : t("settings.adminProtectedDesc", "Tu experiencia se limita a cuenta y acceso. Un admin del workspace o platform admin gestiona providers, secretos y políticas técnicas.")}
                 </p>
               </div>
             </div>
@@ -1555,7 +1557,7 @@ export function SettingsWorkspacePage({
       {!isHotmartConfigActive && activeScope === "workspace" && !canManageWorkspaceRuntime ? (
         <section aria-label={copy("Restricted workspace administration", "Administracion del workspace restringida", "Administracao restrita do workspace")} className="space-y-5" id="settings-panel-workspace" role="tabpanel">
           <SettingsScopeHeader
-            accessLabel={t("settings.workspaceScopeRestrictedLabel", "Owner / Admin")}
+            accessLabel={t("settings.workspaceScopeRestrictedLabel", "Admin")}
             description={t("settings.workspaceScopeRestrictedDesc", "Este ámbito contiene configuración técnica que afecta a todas las personas del workspace. Tu membresía actual no permite modificarla.")}
             eyebrow={copy("Administration", "Administracion", "Administracao")}
             icon={<LockKeyhole aria-hidden="true" className="h-5 w-5" />}
@@ -1568,7 +1570,7 @@ export function SettingsWorkspacePage({
                 <LockKeyhole aria-hidden="true" className="h-5 w-5" />
               </span>
               <div>
-                <p className="text-[16px] font-semibold text-[var(--text-primary)]">{t("settings.adminRoleRequired", "Se requiere una membresía owner o admin")}</p>
+                <p className="text-[16px] font-semibold text-[var(--text-primary)]">{t("settings.adminRoleRequired", "Se requiere una membresía admin o permisos de platform admin")}</p>
                 <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
                   {t("settings.adminRoleDesc", "Solicita el cambio de rol a un administrador del workspace. No se muestran formularios editables para evitar que la configuración técnica parezca una preferencia personal.")}
                 </p>
@@ -1581,7 +1583,7 @@ export function SettingsWorkspacePage({
       {!isHotmartConfigActive && activeScope === "workspace" && canManageWorkspaceRuntime ? (
         <section aria-label={copy("Workspace administration", "Administracion del workspace", "Administracao do workspace")} className="space-y-5" id="settings-panel-workspace" role="tabpanel">
           <SettingsScopeHeader
-            accessLabel={t("settings.workspaceScopeLabel", "Owner / Admin")}
+            accessLabel={t("settings.workspaceScopeLabel", "Admin")}
             description={t("settings.workspaceScopeDesc", "Configura el runtime efectivo, sus credenciales y controles operativos. Los cambios de este ámbito afectan al workspace activo, no solo a tu cuenta.")}
             eyebrow={copy("Administration", "Administracion", "Administracao")}
             icon={<Building2 aria-hidden="true" className="h-5 w-5" />}
@@ -1622,7 +1624,7 @@ export function SettingsWorkspacePage({
           <KeyValue
             label={t("settings.gov.operationalHealth", "Health operativo")}
             value={runtimeHealth?.overall_status ?? (workspaceHealthState.error ? copy("With error", "Con error", "Com erro") : copy("Not visible", "No visible", "Nao visivel"))}
-            hint={runtimeHealth?.provider_label ?? (canManageWorkspaceRuntime ? copy("No diagnostics", "Sin diagnostico", "Sem diagnostico") : copy("Available for owner/admin", "Disponible para owner/admin", "Disponivel para owner/admin"))}
+            hint={runtimeHealth?.provider_label ?? (canManageWorkspaceRuntime ? copy("No diagnostics", "Sin diagnostico", "Sem diagnostico") : copy("Available for workspace admin", "Disponible para admin del workspace", "Disponivel para admin do workspace"))}
           />
         </Panel>
       </div>
@@ -2400,7 +2402,7 @@ export function SettingsWorkspacePage({
                               ? workspaceHealthState.error
                               : canManageWorkspaceRuntime
                                 ? "Expandir para cargar o revisar detalle."
-                                : "Reservado para owner/admin."}
+                                : "Reservado para admin del workspace."}
                         </td>
                         <td className="px-5 py-3 text-right">
                           <button
@@ -2449,7 +2451,7 @@ export function SettingsWorkspacePage({
                                   description={
                                     canManageWorkspaceRuntime
                                       ? "Todavia no hay diagnostico operativo."
-                                      : "Los checks de salud del runtime solo se exponen a workspace owner/admin o platform admin."
+                                      : "Los checks de salud del runtime solo se exponen a workspace admin o platform admin."
                                   }
                                 />
                               )}

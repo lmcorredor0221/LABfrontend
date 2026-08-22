@@ -49,6 +49,9 @@ export function RegisterPage() {
   const passwordRequirementsId = "register-password-requirements";
   const confirmPasswordInputId = "register-confirm-password";
   const confirmPasswordErrorId = "register-confirm-password-error";
+  const acceptTermsInputId = "register-accept-terms";
+  const acceptDataTreatmentInputId = "register-accept-data-treatment";
+  const acceptPrivacyInputId = "register-accept-privacy";
 
   const [form, setForm] = useState({
     fullName: "",
@@ -628,8 +631,9 @@ export function RegisterPage() {
                     </span>
                   </div>
 
-                  <label className="flex cursor-pointer items-start gap-2 text-[11px] leading-4 text-[var(--text-primary)]">
+                  <div className="flex items-start gap-2 text-[11px] leading-4 text-[var(--text-primary)]">
                     <input
+                      id={acceptTermsInputId}
                       type="checkbox"
                       checked={form.acceptTerms}
                       onChange={(e) =>
@@ -638,20 +642,26 @@ export function RegisterPage() {
                       className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                       required
                     />
-                    <span>
-                      {t("register.acceptTerms")}{" "}
+                    <div className="min-w-0">
+                      <label
+                        className="cursor-pointer"
+                        htmlFor={acceptTermsInputId}
+                      >
+                        {t("register.acceptTerms")}
+                      </label>
                       <button
                         type="button"
                         onClick={() => setActiveModal("terms")}
-                        className="font-semibold text-[var(--brand-primary)] underline"
+                        className="mt-1 inline-flex font-semibold text-[var(--brand-primary)] underline"
                       >
                         {localize("(View)", "(Ver)", "(Ver)")}
                       </button>
-                    </span>
-                  </label>
+                    </div>
+                  </div>
 
-                  <label className="flex cursor-pointer items-start gap-2 text-[11px] leading-4 text-[var(--text-primary)]">
+                  <div className="flex items-start gap-2 text-[11px] leading-4 text-[var(--text-primary)]">
                     <input
+                      id={acceptDataTreatmentInputId}
                       type="checkbox"
                       checked={form.acceptDataTreatment}
                       onChange={(e) =>
@@ -660,20 +670,26 @@ export function RegisterPage() {
                       className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                       required
                     />
-                    <span>
-                      {t("register.acceptData")}{" "}
+                    <div className="min-w-0">
+                      <label
+                        className="cursor-pointer"
+                        htmlFor={acceptDataTreatmentInputId}
+                      >
+                        {t("register.acceptData")}
+                      </label>
                       <button
                         type="button"
                         onClick={() => setActiveModal("data_treatment")}
-                        className="font-semibold text-[var(--brand-primary)] underline"
+                        className="mt-1 inline-flex font-semibold text-[var(--brand-primary)] underline"
                       >
                         {localize("(View)", "(Ver)", "(Ver)")}
                       </button>
-                    </span>
-                  </label>
+                    </div>
+                  </div>
 
-                  <label className="flex cursor-pointer items-start gap-2 text-[11px] leading-4 text-[var(--text-primary)]">
+                  <div className="flex items-start gap-2 text-[11px] leading-4 text-[var(--text-primary)]">
                     <input
+                      id={acceptPrivacyInputId}
                       type="checkbox"
                       checked={form.acceptPrivacy}
                       onChange={(e) =>
@@ -682,17 +698,22 @@ export function RegisterPage() {
                       className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                       required
                     />
-                    <span>
-                      {t("register.acceptPrivacy")}{" "}
+                    <div className="min-w-0">
+                      <label
+                        className="cursor-pointer"
+                        htmlFor={acceptPrivacyInputId}
+                      >
+                        {t("register.acceptPrivacy")}
+                      </label>
                       <button
                         type="button"
                         onClick={() => setActiveModal("privacy")}
-                        className="font-semibold text-[var(--brand-primary)] underline"
+                        className="mt-1 inline-flex font-semibold text-[var(--brand-primary)] underline"
                       >
                         {localize("(View)", "(Ver)", "(Ver)")}
                       </button>
-                    </span>
-                  </label>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Optional Consents Section */}

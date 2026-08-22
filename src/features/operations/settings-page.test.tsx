@@ -653,7 +653,7 @@ describe("SettingsWorkspacePage", () => {
         workspaces: [
           {
             is_active: true,
-            role: "owner",
+            role: "admin",
             workspace_id: "workspace-a",
             workspace_name: "Workspace A",
             workspace_slug: "workspace-a",
@@ -981,7 +981,7 @@ describe("SettingsWorkspacePage", () => {
 
     const runtimeTab = screen.getByRole("tab", { name: /LLM runtime/i });
     fireEvent.click(runtimeTab);
-    expect(await screen.findByText(/Se requiere una membres[ií]a owner o admin/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Se requiere una membres[ií]a admin o permisos de platform admin/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("Provider activo")).not.toBeInTheDocument();
   });
 
@@ -997,7 +997,7 @@ describe("SettingsWorkspacePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Usuarios" }));
 
-    expect(await screen.findByText("Directorio de usuarios")).toBeInTheDocument();
+    expect(await screen.findByText("Miembros del workspace activo")).toBeInTheDocument();
     await waitFor(() => {
       expect(adminConsoleApiMock.listUsers).toHaveBeenCalledWith({ limit: 100, status: "all" });
       expect(adminConsoleApiMock.listInvitations).toHaveBeenCalledWith({ limit: 50, status: "pending" });
@@ -1021,7 +1021,7 @@ describe("SettingsWorkspacePage", () => {
       );
     });
 
-    expect(await screen.findByText("Directorio de usuarios")).toBeInTheDocument();
+    expect(await screen.findByText("Miembros del workspace activo")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Expandir Product Editor/i }));
     fireEvent.click(screen.getByRole("button", { name: "Asignar Admin" }));
 

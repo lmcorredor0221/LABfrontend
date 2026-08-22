@@ -91,7 +91,7 @@ describe("LoginPage", () => {
     await waitFor(() => expect(runtimeApi.health).toHaveBeenCalled());
     await user.type(
       screen.getByRole("textbox", { name: /correo electr[oó]nico/i }),
-      "admin@leanbuilder.local",
+      "lmcorredor@leanagentbuilder.com",
     );
     await user.type(screen.getByLabelText(/contrase[nñ]a/i), "wrong-password");
     await user.click(
@@ -131,7 +131,7 @@ describe("LoginPage", () => {
 
     expect(
       screen.getByRole("textbox", { name: /correo electr[oó]nico/i }),
-    ).toHaveValue("admin@leanbuilder.local");
+    ).toHaveValue("lmcorredor@leanagentbuilder.com");
     expect(screen.getByLabelText(/contrase[nñ]a/i)).toHaveValue(
       "LeanBuilder123!",
     );

@@ -76,6 +76,7 @@ type AdminSettingsConsoleShellProps = {
   projectItems: SessionSummary[];
   providerLabel: string;
   runtimeHealth: string;
+  workspaceId: string | null;
   workspaceName: string;
   workspaceRole: WorkspaceRole | null;
 };
@@ -132,7 +133,7 @@ function createAdminInvitationDraft(): AdminInvitationDraft {
 }
 
 function canLoadAdminAnalytics(workspaceRole: WorkspaceRole | null, isPlatformAdmin: boolean) {
-  return isPlatformAdmin || workspaceRole === "owner" || workspaceRole === "admin";
+  return isPlatformAdmin || workspaceRole === "admin";
 }
 
 function buildAdminAnalyticsQuery(period: AdminPeriodFilter): AdminAnalyticsQuery {
@@ -411,7 +412,7 @@ export function AdminOverviewSection({
       <AdminViewState
         state="forbidden"
         title="Dashboard administrativo protegido"
-        description="El Overview requiere una membresia owner/admin del workspace o permisos de platform admin."
+        description="El Overview requiere membresia admin del workspace o permisos de platform admin."
       />
     );
   }
@@ -809,6 +810,7 @@ export function AdminUsersSection({
   onRefresh,
   onUpdateUser,
   userMutationPendingId,
+  workspaceId,
   workspaceName,
 }: {
   currentUser: AuthUser | null;
@@ -821,6 +823,7 @@ export function AdminUsersSection({
   onRefresh: () => void;
   onUpdateUser: (user: AdminUserRecord, payload: AdminUserPatchRequest) => void;
   userMutationPendingId: string | null;
+  workspaceId: string | null;
   workspaceName: string;
 }) {
   if (directoryState.status === "unauthorized") {
@@ -828,7 +831,7 @@ export function AdminUsersSection({
       <AdminViewState
         state="forbidden"
         title="Directorio administrativo protegido"
-        description="La administracion de usuarios requiere membresia owner/admin del workspace o permisos de platform admin."
+        description="La administracion de usuarios requiere membresia admin del workspace o permisos de platform admin."
       />
     );
   }
@@ -990,10 +993,11 @@ export function AdminUsersSection({
           <div className="flex gap-3">
             <Users className="mt-0.5 h-5 w-5 text-[var(--brand-primary)]" />
             <div>
-              <h3 className="text-[17px] font-semibold text-[var(--text-primary)]">Usuarios administrativos</h3>
+              <h3 className="text-[17px] font-semibold text-[var(--text-primary)]">Miembros del workspace</h3>
               <p className="mt-1 max-w-3xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                Directorio real del workspace con estado, rol, actividad reciente e invitaciones. Las acciones sensibles quedan dentro del detalle acordeon.
+                Este directorio no es global: solo muestra membresias del workspace activo. Las acciones sensibles quedan dentro del detalle acordeon.
               </p>
+              {workspaceId ? <p className="mt-2 text-[12px] text-[var(--text-muted)]">Workspace activo: {workspaceName || "Sin nombre"} · {workspaceId}</p> : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1061,15 +1065,15 @@ export function AdminUsersSection({
 
       {rows.length > 0 ? (
         <AdminAccordionTable
-          title="Directorio de usuarios"
-          description="Cada fila muestra lo operativo en primer nivel; permisos, IDs, fechas y cambios sensibles viven dentro del acordeon."
+          title="Miembros del workspace activo"
+          description="Cada fila muestra lo operativo en primer nivel; este listado se filtra por el workspace activo, no por todos los usuarios registrados en la plataforma."
           rows={rows}
         />
       ) : (
         <AdminViewState
           state="empty"
-          title="Sin usuarios administrativos"
-          description="El backend no devolvio usuarios para el workspace activo."
+          title="Sin miembros en este workspace"
+          description="El backend no devolvio membresias para el workspace activo."
         />
       )}
 
@@ -1123,7 +1127,7 @@ export function AdminRolesSection({
       <AdminViewState
         state="forbidden"
         title="Roles y permisos protegidos"
-        description="El catalogo de roles requiere permisos administrativos del workspace."
+        description="El catalogo de roles requiere membresia admin del workspace o permisos de platform admin."
       />
     );
   }
@@ -1275,6 +1279,7 @@ export function AdminSettingsConsoleShell({
   projectItems,
   providerLabel,
   runtimeHealth,
+  workspaceId,
   workspaceName,
   workspaceRole,
 }: AdminSettingsConsoleShellProps) {
@@ -1562,6 +1567,7 @@ export function AdminSettingsConsoleShell({
           onRefresh={() => setAdminDirectoryRefreshIndex((value) => value + 1)}
           onUpdateUser={(user, payload) => { void handleAdminUserUpdate(user, payload); }}
           userMutationPendingId={adminUserMutationPendingId}
+          workspaceId={workspaceId}
           workspaceName={workspaceName}
         />
       ) : null}

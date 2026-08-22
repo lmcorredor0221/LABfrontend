@@ -140,7 +140,7 @@ type ResolutionDraft = {
   resolution_note: string;
 };
 
-const WORKSPACE_HOTMART_ADMIN_ROLES = new Set<WorkspaceRole>(["owner", "admin"]);
+const WORKSPACE_HOTMART_ADMIN_ROLES = new Set<WorkspaceRole>(["admin"]);
 const HOTMART_TABS = [
   "Resumen",
   "Credenciales",
@@ -263,7 +263,10 @@ function getActiveWorkspaceRole(user: AuthUser | null): WorkspaceRole | null {
   return user?.workspaces.find((workspace) => workspace.workspace_id === activeWorkspaceId)?.role ?? null;
 }
 
-function canManageHotmart(user: AuthUser | null) {
+function canManageHotmart(user: AuthUser | null, isPlatformAdmin: boolean) {
+  if (isPlatformAdmin) {
+    return true;
+  }
   const role = getActiveWorkspaceRole(user);
   return role ? WORKSPACE_HOTMART_ADMIN_ROLES.has(role) : false;
 }
@@ -429,11 +432,11 @@ function HotmartAdminRestrictedState({ role }: { role: WorkspaceRole | null }) {
     <Panel className="p-6">
       <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
-          <Badge tone="orange">Owner / Admin</Badge>
+          <Badge tone="orange">Admin / Platform Admin</Badge>
           <p className="text-[22px] font-semibold text-[var(--text-primary)]">Modulo Hotmart protegido</p>
           <p className="max-w-3xl text-[14px] leading-7 text-[var(--text-secondary)]">
             Esta integracion controla credenciales, links de pago, webhooks y acceso comercial del workspace. Por eso solo se muestra a
-            membresias owner o admin.
+            membresias admin o platform admin.
           </p>
         </div>
         <KeyValue label="Rol actual" value={role ?? "Sin membresia activa"} hint="La API tambien valida permisos en backend." />
@@ -1813,10 +1816,12 @@ export function HotmartAdminView({
   selectedSession,
   sessionOptions,
   sessionValue,
+  isPlatformAdmin = false,
   user,
 }: {
   api?: HotmartAdminApi;
   embedded?: boolean;
+  isPlatformAdmin?: boolean;
   listError?: Error | null;
   listStatus?: "error" | "idle" | "loading" | "ready";
   onCreateSession?: () => void;
@@ -1829,7 +1834,7 @@ export function HotmartAdminView({
   user: AuthUser | null;
 }) {
   const role = getActiveWorkspaceRole(user);
-  const canManage = canManageHotmart(user);
+  const canManage = canManageHotmart(user, isPlatformAdmin);
   const [environment, setEnvironment] = useState<HotmartEnvironment>("sandbox");
   const [activeTab, setActiveTab] = useState("Resumen");
   const [dashboardState, setDashboardState] = useState<AsyncState<HotmartDashboardData>>(createIdleState);
