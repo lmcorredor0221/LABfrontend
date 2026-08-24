@@ -23,6 +23,8 @@ export type RuntimeHealthResponse = {
     active_provider?: string;
     agent_execution_backend?: string;
     knowledge_access_backend?: string;
+    scope?: string;
+    scope_detail?: string;
   };
   status: string;
 };

@@ -260,7 +260,9 @@ export function BootPage() {
         patchBootStep(current, "runtime", {
           detail:
             runtime.status === "ok"
-              ? "Runtime cargado y listo para trabajar."
+              ? runtime.runtime?.scope === "platform_default"
+                ? "Pulso de plataforma OK. El runtime efectivo del workspace se valida despues del login."
+                : "Runtime cargado y listo para trabajar."
               : "Runtime respondio sin estado OK.",
           status: runtime.status === "ok" ? "done" : "warning",
         }),
