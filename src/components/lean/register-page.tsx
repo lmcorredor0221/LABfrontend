@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
   Eye,
@@ -29,7 +29,7 @@ import { clearLegacyStoredToken, setStoredToken } from "@/core/auth/token-store"
 import type { LoginResponse } from "@/core/auth/types";
 import { LanguageSelector } from "@/components/lean/language-selector";
 import { useLanguage } from "@/core/i18n/language-context";
-import { HOME_ROUTE, LOGIN_ROUTE } from "@/core/routing/routes";
+import { buildAuthRoute, LOGIN_ROUTE } from "@/core/routing/routes";
 
 type PasswordCriteria = {
   minLength: boolean;
@@ -43,8 +43,11 @@ type LegalModalType = "terms" | "data_treatment" | "privacy" | null;
 
 export function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const auth = useAuth();
   const { language, t } = useLanguage();
+  const redirectTarget = searchParams.get("redirect")?.trim() || "/projects";
+  const prefillEmail = searchParams.get("email")?.trim() || "";
   const passwordInputId = "register-password";
   const passwordRequirementsId = "register-password-requirements";
   const confirmPasswordInputId = "register-confirm-password";
@@ -55,7 +58,7 @@ export function RegisterPage() {
 
   const [form, setForm] = useState({
     fullName: "",
-    email: "",
+    email: prefillEmail,
     password: "",
     confirmPassword: "",
     workspaceName: "",
@@ -102,13 +105,9 @@ export function RegisterPage() {
 
   useEffect(() => {
     if (auth.status === "authenticated") {
-      const redirectParam =
-        typeof window !== "undefined"
-          ? new URLSearchParams(window.location.search).get("redirect")
-          : null;
-      router.replace(redirectParam || "/projects");
+      router.replace(redirectTarget);
     }
-  }, [auth.status, router]);
+  }, [auth.status, redirectTarget, router]);
 
   const registerHighlights = [
     {
@@ -217,11 +216,7 @@ export function RegisterPage() {
       });
 
       if (hydratedState.status === "authenticated" && hydratedState.user) {
-        const redirectParam =
-          typeof window !== "undefined"
-            ? new URLSearchParams(window.location.search).get("redirect")
-            : null;
-        router.replace(redirectParam || "/projects");
+        router.replace(redirectTarget);
         return;
       }
 
@@ -251,6 +246,11 @@ export function RegisterPage() {
       }
     }
   }
+
+  const loginRoute = buildAuthRoute(LOGIN_ROUTE, {
+    redirect: redirectTarget !== "/projects" ? redirectTarget : null,
+    email: form.email.trim() || prefillEmail || null,
+  });
 
   return (
     <div
@@ -351,7 +351,7 @@ export function RegisterPage() {
           <div className="auth-toolbar auth-toolbar-split flex min-h-9 items-center justify-between">
             <div className="auth-auth-mode-switch flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[var(--surface-subtle)] p-1 text-[11px]">
               <Link
-                href={LOGIN_ROUTE}
+                href={loginRoute}
                 className="rounded-full px-3 py-1 font-medium text-[var(--text-secondary)] transition hover:text-black"
               >
                 {t("nav.login")}

@@ -1,6 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { apiClient } from "@/core/api";
+import { useAuth } from "@/core/auth/auth-context";
 import { fetchTRM, formatPriceValue, type Currency, type TRMData } from "@/core/commerce/trm-service";
 
 type CurrencyContextType = {
@@ -18,6 +20,69 @@ const DEFAULT_TRM: TRMData = {
   source: "Datos Abiertos Colombia / Superfinanciera",
 };
 
+const CURRENCY_STORAGE_KEY = "lean_app_currency";
+const CURRENCY_STORAGE_OWNER_KEY = "lean_app_currency_user_id";
+const CURRENCY_MIGRATION_PREFIX = "lean_app_currency_backend_migrated:";
+
+function normalizeCurrency(value: string | null | undefined): Currency | null {
+  if (value === "USD" || value === "COP") {
+    return value;
+  }
+  return null;
+}
+
+function getStorage(): Storage | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const storage = window.localStorage;
+  return typeof storage?.getItem === "function" && typeof storage?.setItem === "function" ? storage : null;
+}
+
+function readStoredCurrency(): Currency | null {
+  try {
+    return normalizeCurrency(getStorage()?.getItem(CURRENCY_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function readStoredCurrencyOwnerId(): string | null {
+  try {
+    return getStorage()?.getItem(CURRENCY_STORAGE_OWNER_KEY) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredCurrency(currency: Currency, userId?: string | null) {
+  try {
+    const storage = getStorage();
+    storage?.setItem(CURRENCY_STORAGE_KEY, currency);
+    if (userId) {
+      storage?.setItem(CURRENCY_STORAGE_OWNER_KEY, userId);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function hasMigrationMarker(userId: string): boolean {
+  try {
+    return getStorage()?.getItem(`${CURRENCY_MIGRATION_PREFIX}${userId}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markMigration(userId: string) {
+  try {
+    getStorage()?.setItem(`${CURRENCY_MIGRATION_PREFIX}${userId}`, "1");
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 const CurrencyContext = createContext<CurrencyContextType>({
   currency: "COP",
   setCurrency: () => {},
@@ -28,22 +93,63 @@ const CurrencyContext = createContext<CurrencyContextType>({
 });
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const [currency, setCurrencyState] = useState<Currency>("COP");
+  const auth = useAuth();
+  const [currency, setCurrencyState] = useState<Currency>(() => readStoredCurrency() ?? "COP");
   const [trm, setTrm] = useState<TRMData>(DEFAULT_TRM);
+  const migrationInFlightRef = useRef<string | null>(null);
 
   useEffect(() => {
-    try {
-      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.getItem === "function") {
-        const savedCurrency = window.localStorage.getItem("lean_app_currency") as Currency | null;
-        if (savedCurrency === "USD" || savedCurrency === "COP") {
-          setCurrencyState(savedCurrency);
-        }
-      }
-    } catch {
-      // Ignore storage errors in test or SSR environments
-    }
     void loadTRM();
   }, []);
+
+  useEffect(() => {
+    const storedCurrency = readStoredCurrency();
+    const backendCurrency = normalizeCurrency(auth.user?.preferred_currency);
+    const userId = auth.user?.id ?? null;
+
+    if (auth.status !== "authenticated" || !userId) {
+      if (storedCurrency) {
+        setCurrencyState(storedCurrency);
+      }
+      return;
+    }
+
+    const storedOwnerId = readStoredCurrencyOwnerId();
+    const migrationKey = `${CURRENCY_MIGRATION_PREFIX}${userId}`;
+    const canMigrateLegacyStorage =
+      storedCurrency != null &&
+      backendCurrency != null &&
+      storedCurrency !== backendCurrency &&
+      !hasMigrationMarker(userId) &&
+      (storedOwnerId == null || storedOwnerId === userId);
+
+    if (canMigrateLegacyStorage && migrationInFlightRef.current !== migrationKey) {
+      migrationInFlightRef.current = migrationKey;
+      setCurrencyState(storedCurrency);
+      writeStoredCurrency(storedCurrency, userId);
+      void apiClient
+        .patch("/api/v1/auth/currency", {
+          body: { preferred_currency: storedCurrency },
+        })
+        .then(() => {
+          markMigration(userId);
+        })
+        .catch(() => {
+          const fallbackCurrency = backendCurrency ?? "COP";
+          setCurrencyState(fallbackCurrency);
+          writeStoredCurrency(fallbackCurrency, userId);
+        })
+        .finally(() => {
+          migrationInFlightRef.current = null;
+        });
+      return;
+    }
+
+    const resolvedCurrency = backendCurrency ?? storedCurrency ?? "COP";
+    setCurrencyState(resolvedCurrency);
+    writeStoredCurrency(resolvedCurrency, userId);
+    markMigration(userId);
+  }, [auth.status, auth.user?.id, auth.user?.preferred_currency]);
 
   async function loadTRM() {
     const data = await fetchTRM();
@@ -51,14 +157,25 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   }
 
   function setCurrency(c: Currency) {
+    const previousCurrency = currency;
     setCurrencyState(c);
-    try {
-      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
-        window.localStorage.setItem("lean_app_currency", c);
-      }
-    } catch {
-      // Ignore storage errors
+    writeStoredCurrency(c, auth.user?.id ?? null);
+
+    if (auth.status !== "authenticated" || !auth.user?.id) {
+      return;
     }
+
+    void apiClient
+      .patch("/api/v1/auth/currency", {
+        body: { preferred_currency: c },
+      })
+      .then(() => {
+        markMigration(auth.user!.id);
+      })
+      .catch(() => {
+        setCurrencyState(previousCurrency);
+        writeStoredCurrency(previousCurrency, auth.user?.id ?? null);
+      });
   }
 
   function formatPrice(usdAmount: number, fallbackCopAmount?: number): string {

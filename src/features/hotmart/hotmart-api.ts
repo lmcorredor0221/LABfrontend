@@ -1,5 +1,20 @@
 import { apiClient } from "@/core/api";
 import type {
+  CommercialAdminDashboardData,
+  CommercialBalanceLedgerResponse,
+  CommercialBalanceSnapshotResponse,
+  CommercialDebtResponse,
+  CommercialDebtSettlementRequest,
+  CommercialLegacyPackageResolutionResolveRequest,
+  CommercialLegacyPackageResolutionResponse,
+  CommercialPackageCatalogResponse,
+  CommercialPackageCatalogUpsertRequest,
+  CommercialPackageRecommendationResponse,
+  CommercialQuotaEffectiveConfigResponse,
+  CommercialQuotaProductConfigResponse,
+  CommercialQuotaProductConfigUpsertRequest,
+  CommercialQuotaWorkspaceOverrideResponse,
+  CommercialQuotaWorkspaceOverrideUpsertRequest,
   HotmartCheckoutLinkFlowResponse,
   HotmartCheckoutSessionRequest,
   HotmartCheckoutSessionResponse,
@@ -47,6 +62,50 @@ function buildIdempotencyKey(prefix: string, parts: Array<string | null | undefi
 
 export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
   return {
+    async getCommercialAdminDashboard({
+      productKey,
+      workspaceId,
+    }: {
+      productKey: string;
+      workspaceId?: string;
+    }): Promise<CommercialAdminDashboardData> {
+      const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      const [
+        quotaConfigs,
+        workspaceOverrides,
+        effectiveConfig,
+        balanceSnapshot,
+        balanceLedger,
+        packageCatalog,
+        recommendation,
+        debts,
+        legacyPackageResolutions,
+      ] = await Promise.all([
+        this.listCommercialQuotaProducts(),
+        this.listCommercialWorkspaceOverrides(workspaceId),
+        this.getCommercialEffectiveConfig(productKey, workspaceId),
+        this.getCommercialBalanceSnapshot(productKey, workspaceId),
+        this.listCommercialBalanceLedger(productKey, workspaceId),
+        this.listCommercialPackageCatalog("", true),
+        this.getCommercialPackageRecommendation(productKey, 1, workspaceId),
+        client.get<CommercialDebtResponse[]>(
+          `/api/v1/admin/integrations/hotmart/commercial/debts?status=open&product_key=${encodeURIComponent(productKey)}${workspaceQuery}`,
+        ),
+        this.listCommercialLegacyPackageResolutions({ productKey, workspaceId }),
+      ]);
+      return {
+        balanceLedger,
+        balanceSnapshot,
+        debts,
+        effectiveConfig,
+        legacyPackageResolutions,
+        packageCatalog,
+        recommendation,
+        quotaConfigs,
+        workspaceOverrides,
+      };
+    },
+
     async getDashboard(environment: HotmartEnvironment): Promise<HotmartDashboardData> {
       const [
         status,
@@ -319,6 +378,132 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
       return client.get<HotmartRunbookSectionResponse[]>("/api/v1/admin/integrations/hotmart/runbook");
     },
 
+    listCommercialQuotaProducts() {
+      return client.get<CommercialQuotaProductConfigResponse[]>("/api/v1/admin/integrations/hotmart/commercial/quota-products");
+    },
+
+    saveCommercialQuotaProduct(payload: CommercialQuotaProductConfigUpsertRequest) {
+      return client.post<CommercialQuotaProductConfigResponse>("/api/v1/admin/integrations/hotmart/commercial/quota-products", {
+        body: payload,
+      });
+    },
+
+    listCommercialWorkspaceOverrides(workspaceId?: string) {
+      const workspaceQuery = workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      return client.get<CommercialQuotaWorkspaceOverrideResponse[]>(
+        `/api/v1/admin/integrations/hotmart/commercial/workspace-overrides${workspaceQuery}`,
+      );
+    },
+
+    saveCommercialWorkspaceOverride(payload: CommercialQuotaWorkspaceOverrideUpsertRequest) {
+      return client.post<CommercialQuotaWorkspaceOverrideResponse>(
+        "/api/v1/admin/integrations/hotmart/commercial/workspace-overrides",
+        {
+          body: payload,
+        },
+      );
+    },
+
+    getCommercialEffectiveConfig(productKey: string, workspaceId?: string) {
+      const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      return client.get<CommercialQuotaEffectiveConfigResponse>(
+        `/api/v1/admin/integrations/hotmart/commercial/effective-config?product_key=${encodeURIComponent(productKey)}${workspaceQuery}`,
+      );
+    },
+
+    getCommercialBalanceSnapshot(productKey: string, workspaceId?: string) {
+      const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      return client.get<CommercialBalanceSnapshotResponse>(
+        `/api/v1/admin/integrations/hotmart/commercial/balance-snapshot?product_key=${encodeURIComponent(productKey)}${workspaceQuery}`,
+      );
+    },
+
+    listCommercialBalanceLedger(productKey: string, workspaceId?: string) {
+      const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      return client.get<CommercialBalanceLedgerResponse[]>(
+        `/api/v1/admin/integrations/hotmart/commercial/balance-ledger?product_key=${encodeURIComponent(productKey)}${workspaceQuery}`,
+      );
+    },
+
+    listCommercialPackageCatalog(productKey = "", includeDisabled = true) {
+      const productQuery = productKey ? `&product_key=${encodeURIComponent(productKey)}` : "";
+      return client.get<CommercialPackageCatalogResponse[]>(
+        `/api/v1/admin/integrations/hotmart/commercial/package-catalog?include_disabled=${includeDisabled ? "true" : "false"}${productQuery}`,
+      );
+    },
+
+    saveCommercialPackageCatalog(payload: CommercialPackageCatalogUpsertRequest) {
+      return client.post<CommercialPackageCatalogResponse>(
+        "/api/v1/admin/integrations/hotmart/commercial/package-catalog",
+        {
+          body: payload,
+        },
+      );
+    },
+
+    getCommercialPackageRecommendation(productKey: string, requiredUnits = 1, workspaceId?: string) {
+      const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      return client.get<CommercialPackageRecommendationResponse>(
+        `/api/v1/admin/integrations/hotmart/commercial/package-recommendation?product_key=${encodeURIComponent(productKey)}&required_units=${requiredUnits}${workspaceQuery}`,
+      );
+    },
+
+    listCommercialDebts({ productKey = "", status = "open", workspaceId }: { productKey?: string; status?: string; workspaceId?: string } = {}) {
+      const productQuery = productKey ? `&product_key=${encodeURIComponent(productKey)}` : "";
+      const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      return client.get<CommercialDebtResponse[]>(
+        `/api/v1/admin/integrations/hotmart/commercial/debts?status=${encodeURIComponent(status)}${productQuery}${workspaceQuery}`,
+      );
+    },
+
+    settleCommercialDebt(debtId: string, payload: CommercialDebtSettlementRequest, workspaceId?: string) {
+      const workspaceQuery = workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      return client.post<CommercialDebtResponse>(
+        `/api/v1/admin/integrations/hotmart/commercial/debts/${encodeURIComponent(debtId)}/settle${workspaceQuery}`,
+        {
+          body: {
+            amount_cents: payload.amount_cents,
+            currency: payload.currency ?? "USD",
+            resolution_note: payload.resolution_note ?? "",
+            settlement_kind: payload.settlement_kind ?? "manual",
+          },
+        },
+      );
+    },
+
+    listCommercialLegacyPackageResolutions({
+      productKey = "",
+      status = "pending",
+      workspaceId,
+    }: {
+      productKey?: string;
+      status?: string;
+      workspaceId?: string;
+    } = {}) {
+      const productQuery = productKey ? `&product_key=${encodeURIComponent(productKey)}` : "";
+      const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      return client.get<CommercialLegacyPackageResolutionResponse[]>(
+        `/api/v1/admin/integrations/hotmart/commercial/legacy-package-resolutions?status=${encodeURIComponent(status)}${productQuery}${workspaceQuery}`,
+      );
+    },
+
+    resolveCommercialLegacyPackageResolution(
+      orderId: string,
+      payload: CommercialLegacyPackageResolutionResolveRequest,
+      workspaceId?: string,
+    ) {
+      const workspaceQuery = workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : "";
+      return client.post<CommercialLegacyPackageResolutionResponse>(
+        `/api/v1/admin/integrations/hotmart/commercial/legacy-package-resolutions/${encodeURIComponent(orderId)}/resolve${workspaceQuery}`,
+        {
+          body: {
+            package_code: payload.package_code,
+            resolution_note: payload.resolution_note ?? "",
+          },
+        },
+      );
+    },
+
     listProducts() {
       return client.get<ProductCatalogResponse[]>("/api/v1/commerce/products");
     },
@@ -329,7 +514,8 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
           cancel_url: payload.cancel_url ?? "",
           idempotency_key:
             payload.idempotency_key ??
-            buildIdempotencyKey("hotmart-admin-ui", [payload.session_id, payload.product_key, payload.price_code]),
+            buildIdempotencyKey("hotmart-admin-ui", [payload.session_id, payload.product_key, payload.price_code, payload.package_code]),
+          package_code: payload.package_code ?? "",
           price_code: payload.price_code ?? "",
           product_key: payload.product_key,
           provider: "hotmart",

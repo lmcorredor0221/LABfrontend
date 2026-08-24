@@ -73,6 +73,7 @@ type CheckoutProductOptions = {
   cancelUrl?: string;
   idempotencyKey?: string;
   outcome?: CommercialCheckoutCompletionRequest["outcome"];
+  packageCode?: string;
   preventRedirect?: boolean;
   providerPaymentId?: string;
   successUrl?: string;
@@ -762,6 +763,7 @@ export function createSessionsStore({
     const checkout = await createCheckoutSession({
       cancel_url: options.cancelUrl,
       idempotency_key: options.idempotencyKey,
+      package_code: options.packageCode,
       product_key: productKey,
       session_id: sessionId,
       success_url: options.successUrl,

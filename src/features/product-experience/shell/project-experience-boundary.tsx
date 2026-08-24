@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/core/auth/auth-context";
 import { resolveProductExperienceCutoverDecision } from "@/core/config/feature-flags";
 import type { ProjectRouteStage } from "@/core/routing/routes";
 import { AttentionInboxView } from "@/features/product-experience/attention/attention-components";
@@ -36,6 +38,7 @@ function ProductExperienceEnabledGate({
   sessionId,
   stage,
 }: ProjectExperienceBoundaryProps) {
+  const { selectWorkspace, user } = useAuth();
   const effectiveStage = productSection && productSection !== "work" ? getProductStageForSection(productSection) : stage;
   const {
     attentionAction,
@@ -55,10 +58,54 @@ function ProductExperienceEnabledGate({
   const activeRoute = state.active?.route.sessionId === sessionId ? state.active : null;
   const snapshot = activeRoute?.snapshot.data ?? null;
   const workspaceFlags = snapshot?.workspace_contract?.feature_flags ?? null;
+  const sessionWorkspaceId = snapshot?.session.workspace_id ?? null;
   const cutoverDecision = resolveProductExperienceCutoverDecision({
     workspaceFlags,
-    workspaceId: snapshot?.session.workspace_id ?? null,
+    workspaceId: sessionWorkspaceId,
   });
+  const [workspaceSyncError, setWorkspaceSyncError] = useState<Error | null>(null);
+  const [workspaceSyncAttempt, setWorkspaceSyncAttempt] = useState(0);
+  const workspaceSyncRequestRef = useRef<string | null>(null);
+  const shouldSyncWorkspace = Boolean(
+    user
+    && sessionWorkspaceId
+    && user.active_workspace_id !== sessionWorkspaceId,
+  );
+
+  useEffect(() => {
+    if (!user || !sessionWorkspaceId || user.active_workspace_id === sessionWorkspaceId) {
+      workspaceSyncRequestRef.current = null;
+      setWorkspaceSyncError(null);
+      return;
+    }
+    if (workspaceSyncRequestRef.current === sessionWorkspaceId) {
+      return;
+    }
+
+    workspaceSyncRequestRef.current = sessionWorkspaceId;
+    setWorkspaceSyncError(null);
+
+    let cancelled = false;
+    void Promise.resolve(selectWorkspace(sessionWorkspaceId))
+      .then(() => {
+        if (cancelled) {
+          return;
+        }
+        workspaceSyncRequestRef.current = null;
+        void reload();
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        const resolvedError = error instanceof Error ? error : new Error("No se pudo sincronizar el workspace del proyecto.");
+        setWorkspaceSyncError(resolvedError);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reload, selectWorkspace, sessionWorkspaceId, user, workspaceSyncAttempt]);
 
   if (loadError && !activeRoute) {
     return (
@@ -70,6 +117,48 @@ function ProductExperienceEnabledGate({
             eyebrow="Error de carga"
             title="No se pudo cargar el proyecto"
             tone="danger"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (workspaceSyncError && shouldSyncWorkspace) {
+    return (
+      <div className="uxa-foundation-root flex min-h-screen items-center justify-center p-[var(--uxa-panel-padding-lg)]">
+        <div className="w-full max-w-2xl">
+          <UxaPageState
+            actions={(
+              <UxaButton
+                onClick={() => {
+                  workspaceSyncRequestRef.current = null;
+                  setWorkspaceSyncError(null);
+                  setWorkspaceSyncAttempt((current) => current + 1);
+                }}
+                variant="primary"
+              >
+                Reintentar
+              </UxaButton>
+            )}
+            description={workspaceSyncError.message}
+            eyebrow="Workspace"
+            title="No se pudo sincronizar el workspace del proyecto"
+            tone="warning"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (shouldSyncWorkspace) {
+    return (
+      <div className="uxa-foundation-root flex min-h-screen items-center justify-center p-[var(--uxa-panel-padding-lg)]">
+        <div className="w-full max-w-2xl">
+          <UxaPageState
+            description="Estamos alineando el workspace activo con el workspace real del proyecto para respetar la configuracion efectiva de runtime y proveedores."
+            eyebrow="Workspace"
+            title="Sincronizando contexto del proyecto"
+            tone="info"
           />
         </div>
       </div>

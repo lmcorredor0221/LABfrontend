@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { LanguageProvider } from "@/core/i18n/language-context";
 import { ProjectExperienceBoundary } from "@/features/product-experience/shell/project-experience-boundary";
@@ -8,6 +8,15 @@ const mockRouterPush = vi.hoisted(() => vi.fn());
 const mockUsePathname = vi.hoisted(() => vi.fn(() => "/projects/session-uxa5/work/design"));
 const mockUseSearchParams = vi.hoisted(() => vi.fn(() => new URLSearchParams()));
 const mockUseProductExperienceRoute = vi.hoisted(() => vi.fn());
+const mockSelectWorkspace = vi.hoisted(() => vi.fn());
+const mockAuthUser = vi.hoisted(() => ({
+  active_workspace_id: "workspace-1",
+  active_workspace_name: "Lean Builder",
+  email: "admin@example.com",
+  full_name: "Admin UXA",
+  id: "user-1",
+  workspaces: [],
+}));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockUsePathname(),
@@ -20,14 +29,8 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/core/auth/auth-context", () => ({
   useAuth: () => ({
     logout: vi.fn(),
-    user: {
-      active_workspace_id: "workspace-1",
-      active_workspace_name: "Lean Builder",
-      email: "admin@example.com",
-      full_name: "Admin UXA",
-      id: "user-1",
-      workspaces: [],
-    },
+    selectWorkspace: mockSelectWorkspace,
+    user: mockAuthUser,
   }),
 }));
 
@@ -50,7 +53,7 @@ function renderWithLanguage(ui: ReactElement) {
   return render(<LanguageProvider>{ui}</LanguageProvider>);
 }
 
-function createRoute(flagEnabled: boolean | "missing"): ProductExperienceRouteSnapshot {
+function createRoute(flagEnabled: boolean | "missing", sessionWorkspaceId = "workspace-1"): ProductExperienceRouteSnapshot {
   const session = {
     commercial_tier: "blueprint" as const,
     created_at: "2026-08-03T10:00:00Z",
@@ -59,7 +62,7 @@ function createRoute(flagEnabled: boolean | "missing"): ProductExperienceRouteSn
     status: "ready" as const,
     title: "Proyecto UXA5",
     updated_at: "2026-08-03T10:10:00Z",
-    workspace_id: "workspace-1",
+    workspace_id: sessionWorkspaceId,
   };
 
   return {
@@ -173,6 +176,10 @@ function createRoute(flagEnabled: boolean | "missing"): ProductExperienceRouteSn
 
 describe("ProjectExperienceBoundary UXA5", () => {
   beforeEach(() => {
+    mockAuthUser.active_workspace_id = "workspace-1";
+    mockAuthUser.active_workspace_name = "Lean Builder";
+    mockAuthUser.workspaces = [];
+    mockSelectWorkspace.mockReset();
     mockUseProductExperienceRoute.mockReturnValue({
       attentionAction: null,
       discoverAction: null,
@@ -208,6 +215,32 @@ describe("ProjectExperienceBoundary UXA5", () => {
     expect(mockUseProductExperienceRoute).toHaveBeenCalled();
     expect(screen.getByRole("heading", { level: 1, name: "Proyecto UXA5" })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Navegacion de producto" })).toBeInTheDocument();
+  });
+
+  it("syncs the active workspace to the project's workspace before rendering the shell", async () => {
+    mockUseProductExperienceRoute.mockReturnValue({
+      attentionAction: null,
+      discoverAction: null,
+      discoverActions: {},
+      loadError: null,
+      operationControls: {
+        cancelOperation: vi.fn(),
+        retryOperation: vi.fn(),
+      },
+      reload: vi.fn(),
+      resolveAttentionItem: vi.fn(),
+      stageAction: null,
+      stageActions: {},
+      state: {
+        active: createRoute(true, "workspace-2"),
+        history: [],
+      },
+    });
+
+    renderWithLanguage(<ProjectExperienceBoundary sessionId="session-uxa5" stage="design" />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "Sincronizando contexto del proyecto" })).toBeInTheDocument();
+    await waitFor(() => expect(mockSelectWorkspace).toHaveBeenCalledWith("workspace-2"));
   });
 
   it("ignores the deprecated workspace selector and keeps the new shell", () => {

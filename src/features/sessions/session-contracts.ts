@@ -1544,6 +1544,7 @@ export type CommercialAccessSnapshotV2 = {
 export type CommercialCheckoutSessionRequest = {
   cancel_url?: string;
   idempotency_key?: string;
+  package_code?: string;
   price_code?: string;
   product_key: string;
   provider?: "sandbox" | "hotmart";

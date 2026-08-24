@@ -2,12 +2,20 @@ import { resolveLanguageFromPathname } from "@/core/i18n/language-config";
 
 export const BOOT_ROUTE = "/boot";
 export const HOME_ROUTE = "/";
+export const HOTMART_ACTIVATION_ROUTE = "/hotmart/activate";
 export const LOGIN_ROUTE = "/login";
 export const REGISTER_ROUTE = "/register";
 export const MOCKUPS_ROUTE = "/mockups";
 export const PROJECT_ROUTE_PREFIX = "/projects";
 
-export const PUBLIC_ROUTES = [HOME_ROUTE, BOOT_ROUTE, LOGIN_ROUTE, REGISTER_ROUTE, MOCKUPS_ROUTE] as const;
+export const PUBLIC_ROUTES = [
+  HOME_ROUTE,
+  BOOT_ROUTE,
+  HOTMART_ACTIVATION_ROUTE,
+  LOGIN_ROUTE,
+  REGISTER_ROUTE,
+  MOCKUPS_ROUTE,
+] as const;
 
 export const PROJECT_STAGE_ORDER = [
   "discover",
@@ -61,6 +69,21 @@ function normalizeQueryValue(value: string | string[] | undefined) {
   return value;
 }
 
+function buildQuerySuffix(params: Record<string, string | number | null | undefined> = {}) {
+  const searchParams = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (!value) {
+      continue;
+    }
+
+    searchParams.set(key, String(value));
+  }
+
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}
+
 export function isPublicRoute(pathname: string) {
   if (pathname === "/" || pathname === "") {
     return true;
@@ -86,18 +109,31 @@ export function isProjectStageInput(value: string): value is ProjectStageInput {
 }
 
 export function buildProjectStageQuery(params: Record<string, string | null | undefined> = {}) {
-  const searchParams = new URLSearchParams();
+  return buildQuerySuffix(params);
+}
 
-  for (const [key, value] of Object.entries(params)) {
-    if (!value) {
-      continue;
-    }
+export function buildRouteWithQuery(
+  route: string,
+  params: Record<string, string | number | null | undefined> = {},
+) {
+  return `${route}${buildQuerySuffix(params)}`;
+}
 
-    searchParams.set(key, value);
-  }
+export function buildAuthRoute(
+  route: typeof LOGIN_ROUTE | typeof REGISTER_ROUTE,
+  options: {
+    email?: string | null;
+    redirect?: string | null;
+  } = {},
+) {
+  return buildRouteWithQuery(route, {
+    email: options.email ?? undefined,
+    redirect: options.redirect ?? undefined,
+  });
+}
 
-  const query = searchParams.toString();
-  return query ? `?${query}` : "";
+export function getHotmartActivationRoute(token: string) {
+  return `${HOTMART_ACTIVATION_ROUTE}/${encodeURIComponent(token)}`;
 }
 
 export function getProjectRoute(

@@ -36,6 +36,14 @@ import { EmptyState, ErrorState, LoadingState } from "@/shared/states/runtime-st
 import { cn } from "@/lib/utils";
 import { hotmartAdminApi, type HotmartAdminApi } from "@/features/hotmart/hotmart-api";
 import type {
+  CommercialAdminDashboardData,
+  CommercialDebtResponse,
+  CommercialLegacyPackageResolutionResponse,
+  CommercialPackageCatalogResponse,
+  CommercialPackageType,
+  CommercialQuotaEffectiveConfigResponse,
+  CommercialQuotaProductConfigResponse,
+  CommercialQuotaWorkspaceOverrideResponse,
   HotmartClubModuleResponse,
   HotmartClubOverviewResponse,
   HotmartClubPageResponse,
@@ -152,6 +160,60 @@ const HOTMART_TABS = [
   "Reconciliacion",
   "Auditoria",
 ];
+const HOTMART_PLATFORM_TABS = ["Comercial"];
+
+type CommercialQuotaDraft = {
+  allow_courtesy: boolean;
+  allow_debt_pending: boolean;
+  allow_manual_override_without_charge: boolean;
+  catalog_priority_strategy: string;
+  checkout_required_on_zero_balance: boolean;
+  consumption_priority: string;
+  debt_enabled: boolean;
+  default_blocked_request_ttl_hours: string;
+  default_checkout_ttl_minutes: string;
+  display_name: string;
+  duplicate_conflict_visibility: string;
+  enabled: boolean;
+  fifo_auto_approval_enabled: boolean;
+  initial_free_units: string;
+  product_key: string;
+  sync_retry_limit: string;
+};
+
+type CommercialPackageDraft = {
+  billing_cycle: string;
+  checkout_currency_mode: string;
+  display_name: string;
+  enabled: boolean;
+  granted_units: string;
+  granted_units_acp: string;
+  granted_units_blueprint_pro: string;
+  hotmart_environment: HotmartEnvironment;
+  hotmart_price_strategy: string;
+  hotmart_product_id: string;
+  hotmart_product_ucode: string;
+  offer_code: string;
+  package_code: string;
+  package_type: CommercialPackageType;
+  plan_code: string;
+  product_key: string;
+  recommendation_priority: string;
+  renewal_policy: string;
+  validity_days: string;
+};
+
+type CommercialOverrideDraft = {
+  default_blocked_request_ttl_hours_override: string;
+  default_checkout_ttl_minutes_override: string;
+  debt_enabled_override: "false" | "inherit" | "true";
+  enabled_override: "false" | "inherit" | "true";
+  free_units_override: string;
+  is_active: boolean;
+  notes: string;
+};
+
+type LegacyPackageResolutionDrafts = Record<string, string>;
 
 function createIdleState<TData>(): AsyncState<TData> {
   return {
@@ -244,6 +306,80 @@ function createResolutionDraft(): ResolutionDraft {
   };
 }
 
+function createCommercialQuotaDraft(
+  config?: CommercialQuotaProductConfigResponse | CommercialQuotaEffectiveConfigResponse | null,
+): CommercialQuotaDraft {
+  return {
+    allow_courtesy: config?.allow_courtesy ?? true,
+    allow_debt_pending: config?.allow_debt_pending ?? true,
+    allow_manual_override_without_charge: config?.allow_manual_override_without_charge ?? true,
+    catalog_priority_strategy: config?.catalog_priority_strategy ?? "minimum_sufficient",
+    checkout_required_on_zero_balance: config?.checkout_required_on_zero_balance ?? true,
+    consumption_priority: config?.consumption_priority?.join(",") ?? "free,subscription,one_time",
+    debt_enabled: config?.debt_enabled ?? true,
+    default_blocked_request_ttl_hours: String(config?.default_blocked_request_ttl_hours ?? 72),
+    default_checkout_ttl_minutes: String(config?.default_checkout_ttl_minutes ?? 30),
+    display_name: config?.display_name ?? "",
+    duplicate_conflict_visibility: config?.duplicate_conflict_visibility ?? "platform_admin_only",
+    enabled: config?.enabled ?? true,
+    fifo_auto_approval_enabled: config?.fifo_auto_approval_enabled ?? true,
+    initial_free_units: String(config?.initial_free_units ?? 0),
+    product_key: config?.product_key ?? "blueprint_pro",
+    sync_retry_limit: String(config?.sync_retry_limit ?? 5),
+  };
+}
+
+function createCommercialPackageDraft(productKey = "blueprint_pro", pkg?: CommercialPackageCatalogResponse | null): CommercialPackageDraft {
+  return {
+    billing_cycle: pkg?.billing_cycle ?? "",
+    checkout_currency_mode: pkg?.checkout_currency_mode ?? "workspace_preferred",
+    display_name: pkg?.display_name ?? "",
+    enabled: pkg?.enabled ?? true,
+    granted_units: String(pkg?.granted_units ?? 1),
+    granted_units_acp: String(pkg?.granted_units_acp ?? 0),
+    granted_units_blueprint_pro: String(pkg?.granted_units_blueprint_pro ?? 0),
+    hotmart_environment: (pkg?.hotmart_environment as HotmartEnvironment | undefined) ?? "sandbox",
+    hotmart_price_strategy: pkg?.hotmart_price_strategy ?? "provider_authoritative",
+    hotmart_product_id: pkg?.hotmart_product_id ?? "",
+    hotmart_product_ucode: pkg?.hotmart_product_ucode ?? "",
+    offer_code: pkg?.offer_code ?? "",
+    package_code: pkg?.package_code ?? "",
+    package_type: pkg?.package_type ?? "one_time",
+    plan_code: pkg?.plan_code ?? "",
+    product_key: pkg?.product_key ?? productKey,
+    recommendation_priority: String(pkg?.recommendation_priority ?? 100),
+    renewal_policy: pkg?.renewal_policy ?? "",
+    validity_days: pkg?.validity_days ? String(pkg.validity_days) : "",
+  };
+}
+
+function createCommercialOverrideDraft(override?: CommercialQuotaWorkspaceOverrideResponse | null): CommercialOverrideDraft {
+  return {
+    default_blocked_request_ttl_hours_override:
+      override?.default_blocked_request_ttl_hours_override != null ? String(override.default_blocked_request_ttl_hours_override) : "",
+    default_checkout_ttl_minutes_override:
+      override?.default_checkout_ttl_minutes_override != null ? String(override.default_checkout_ttl_minutes_override) : "",
+    debt_enabled_override:
+      override?.debt_enabled_override == null ? "inherit" : override.debt_enabled_override ? "true" : "false",
+    enabled_override:
+      override?.enabled_override == null ? "inherit" : override.enabled_override ? "true" : "false",
+    free_units_override: override?.free_units_override != null ? String(override.free_units_override) : "",
+    is_active: override?.is_active ?? true,
+    notes: override?.notes ?? "",
+  };
+}
+
+function createLegacyPackageResolutionDrafts(
+  resolutions: CommercialLegacyPackageResolutionResponse[],
+): LegacyPackageResolutionDrafts {
+  return Object.fromEntries(
+    resolutions.map((item) => [
+      item.order_id,
+      item.selected_package_code || item.candidate_packages[0]?.package_code || "",
+    ]),
+  );
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -330,6 +466,18 @@ function parseDelimitedList(value: string) {
 
 function normalizeNumberInput(value: string) {
   return Number(value.replace(",", "."));
+}
+
+function normalizeIntegerInput(value: string, fallback = 0) {
+  const parsed = Math.round(normalizeNumberInput(value));
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
+}
+
+function normalizeNullableBoolean(value: "false" | "inherit" | "true") {
+  if (value === "inherit") {
+    return null;
+  }
+  return value === "true";
 }
 
 function isSubscriptionBillingMode(value: string) {
@@ -1804,6 +1952,441 @@ function HotmartAuditPreviewPanel({ data }: { data: HotmartDashboardData }) {
   );
 }
 
+function HotmartCommercialAdminPanel({
+  data,
+  debtPendingId,
+  feedback,
+  legacyResolutionDrafts,
+  legacyResolutionPendingId,
+  onPackageDraftChange,
+  onLegacyPackageDraftChange,
+  onProductChange,
+  onQuotaDraftChange,
+  onOverrideDraftChange,
+  onSavePackage,
+  onSaveQuota,
+  onSaveOverride,
+  onResolveLegacyPackageResolution,
+  onSettleDebt,
+  overrideDraft,
+  packageDraft,
+  products,
+  quotaDraft,
+  savingPackage,
+  savingQuota,
+  savingOverride,
+  selectedProductKey,
+}: {
+  data: CommercialAdminDashboardData;
+  debtPendingId: string | null;
+  feedback: FeedbackState | null;
+  legacyResolutionDrafts: LegacyPackageResolutionDrafts;
+  legacyResolutionPendingId: string | null;
+  onPackageDraftChange: (patch: Partial<CommercialPackageDraft>) => void;
+  onLegacyPackageDraftChange: (orderId: string, packageCode: string) => void;
+  onProductChange: (productKey: string) => void;
+  onQuotaDraftChange: (patch: Partial<CommercialQuotaDraft>) => void;
+  onOverrideDraftChange: (patch: Partial<CommercialOverrideDraft>) => void;
+  onSavePackage: () => void;
+  onSaveQuota: () => void;
+  onSaveOverride: () => void;
+  onResolveLegacyPackageResolution: (resolution: CommercialLegacyPackageResolutionResponse) => void;
+  onSettleDebt: (debt: CommercialDebtResponse) => void;
+  overrideDraft: CommercialOverrideDraft;
+  packageDraft: CommercialPackageDraft;
+  products: ProductCatalogResponse[];
+  quotaDraft: CommercialQuotaDraft;
+  savingPackage: boolean;
+  savingQuota: boolean;
+  savingOverride: boolean;
+  selectedProductKey: string;
+}) {
+  const productOptions = getProductOptions(products).map((item) => ({
+    label: item.label,
+    value: item.value,
+  }));
+  const visiblePackages = data.packageCatalog.filter(
+    (item) => item.product_key === selectedProductKey || item.package_type === "bundle_subscription",
+  );
+  const visibleLegacyResolutions = data.legacyPackageResolutions.filter((item) => item.product_key === selectedProductKey);
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 xl:grid-cols-4">
+        <Panel className="p-5">
+          <KeyValue label="Saldo disponible" value={String(data.balanceSnapshot.total_available_units)} hint={selectedProductKey} />
+        </Panel>
+        <Panel className="p-5">
+          <KeyValue label="Gratis inicial" value={String(data.effectiveConfig.initial_free_units)} hint={data.effectiveConfig.display_name} />
+        </Panel>
+        <Panel className="p-5">
+          <KeyValue label="Deudas abiertas" value={String(data.debts.length)} hint="Bloquean autoaprobacion por saldo" />
+        </Panel>
+        <Panel className="p-5">
+          <KeyValue
+            label="Paquete sugerido"
+            value={data.recommendation.display_name || "Sin recomendacion"}
+            hint={data.recommendation.recommendation_reason}
+          />
+        </Panel>
+      </div>
+
+      <Panel className="p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl space-y-2">
+            <Badge tone="violet">Platform Admin</Badge>
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Motor comercial por workspace</p>
+            <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+              Parametriza cupos globales, override efectivo, paquetes Hotmart, saldo por bolsas y deudas abiertas. Esta vista no se expone a usuarios de workspace.
+            </p>
+          </div>
+          <SelectField label="Producto" onValueChange={onProductChange} options={productOptions} value={selectedProductKey} />
+        </div>
+        {feedback ? (
+          <p aria-live="polite" className={cn("mt-4 text-[13px] font-medium", getFeedbackClass(feedback.tone))}>
+            {feedback.message}
+          </p>
+        ) : null}
+      </Panel>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div className="space-y-5">
+          <Panel className="p-6">
+            <div className="mb-4 space-y-2">
+              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Config global por producto</p>
+              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                Fuente base para nuevos workspaces y para el resolvedor efectivo.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField label="Display name" onValueChange={(value) => onQuotaDraftChange({ display_name: value })} value={quotaDraft.display_name} />
+              <TextField
+                label="Free units iniciales"
+                onValueChange={(value) => onQuotaDraftChange({ initial_free_units: value })}
+                value={quotaDraft.initial_free_units}
+              />
+              <TextField
+                label="Prioridad de consumo"
+                onValueChange={(value) => onQuotaDraftChange({ consumption_priority: value })}
+                placeholder="free,subscription,one_time"
+                value={quotaDraft.consumption_priority}
+              />
+              <TextField
+                label="TTL checkout (min)"
+                onValueChange={(value) => onQuotaDraftChange({ default_checkout_ttl_minutes: value })}
+                value={quotaDraft.default_checkout_ttl_minutes}
+              />
+              <TextField
+                label="TTL bloqueo (horas)"
+                onValueChange={(value) => onQuotaDraftChange({ default_blocked_request_ttl_hours: value })}
+                value={quotaDraft.default_blocked_request_ttl_hours}
+              />
+              <TextField
+                label="Sync retry limit"
+                onValueChange={(value) => onQuotaDraftChange({ sync_retry_limit: value })}
+                value={quotaDraft.sync_retry_limit}
+              />
+              <SelectField
+                label="Enabled"
+                onValueChange={(value) => onQuotaDraftChange({ enabled: value === "true" })}
+                options={[
+                  { label: "Activo", value: "true" },
+                  { label: "Inactivo", value: "false" },
+                ]}
+                value={String(quotaDraft.enabled)}
+              />
+              <SelectField
+                label="Checkout en cero"
+                onValueChange={(value) => onQuotaDraftChange({ checkout_required_on_zero_balance: value === "true" })}
+                options={[
+                  { label: "Si", value: "true" },
+                  { label: "No", value: "false" },
+                ]}
+                value={String(quotaDraft.checkout_required_on_zero_balance)}
+              />
+              <SelectField
+                label="FIFO autoapproval"
+                onValueChange={(value) => onQuotaDraftChange({ fifo_auto_approval_enabled: value === "true" })}
+                options={[
+                  { label: "Si", value: "true" },
+                  { label: "No", value: "false" },
+                ]}
+                value={String(quotaDraft.fifo_auto_approval_enabled)}
+              />
+              <SelectField
+                label="Debt enabled"
+                onValueChange={(value) => onQuotaDraftChange({ debt_enabled: value === "true" })}
+                options={[
+                  { label: "Si", value: "true" },
+                  { label: "No", value: "false" },
+                ]}
+                value={String(quotaDraft.debt_enabled)}
+              />
+            </div>
+            <AppButton className="mt-5" loading={savingQuota} onClick={onSaveQuota} variant="primary">
+              Guardar config global
+            </AppButton>
+          </Panel>
+
+          <Panel className="p-6">
+            <div className="mb-4 space-y-2">
+              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Override del workspace</p>
+              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                Sobrescribe cupo gratis y flags efectivos sin reescribir la historia del ledger.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField
+                label="Free units override"
+                onValueChange={(value) => onOverrideDraftChange({ free_units_override: value })}
+                placeholder="Vacio = heredar"
+                value={overrideDraft.free_units_override}
+              />
+              <SelectField
+                label="Enabled override"
+                onValueChange={(value) => onOverrideDraftChange({ enabled_override: value as CommercialOverrideDraft["enabled_override"] })}
+                options={[
+                  { label: "Heredar", value: "inherit" },
+                  { label: "Forzar activo", value: "true" },
+                  { label: "Forzar inactivo", value: "false" },
+                ]}
+                value={overrideDraft.enabled_override}
+              />
+              <SelectField
+                label="Debt enabled override"
+                onValueChange={(value) => onOverrideDraftChange({ debt_enabled_override: value as CommercialOverrideDraft["debt_enabled_override"] })}
+                options={[
+                  { label: "Heredar", value: "inherit" },
+                  { label: "Si", value: "true" },
+                  { label: "No", value: "false" },
+                ]}
+                value={overrideDraft.debt_enabled_override}
+              />
+              <SelectField
+                label="Registro activo"
+                onValueChange={(value) => onOverrideDraftChange({ is_active: value === "true" })}
+                options={[
+                  { label: "Activo", value: "true" },
+                  { label: "Inactivo", value: "false" },
+                ]}
+                value={String(overrideDraft.is_active)}
+              />
+              <TextField
+                label="TTL checkout override"
+                onValueChange={(value) => onOverrideDraftChange({ default_checkout_ttl_minutes_override: value })}
+                placeholder="Vacio = heredar"
+                value={overrideDraft.default_checkout_ttl_minutes_override}
+              />
+              <TextField
+                label="TTL bloqueo override"
+                onValueChange={(value) => onOverrideDraftChange({ default_blocked_request_ttl_hours_override: value })}
+                placeholder="Vacio = heredar"
+                value={overrideDraft.default_blocked_request_ttl_hours_override}
+              />
+            </div>
+            <TextField className="mt-4" label="Notas" onValueChange={(value) => onOverrideDraftChange({ notes: value })} value={overrideDraft.notes} />
+            <AppButton className="mt-5" loading={savingOverride} onClick={onSaveOverride}>
+              Guardar override
+            </AppButton>
+          </Panel>
+
+          <Panel className="p-6">
+            <div className="mb-4 space-y-2">
+              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Catalogo de paquetes</p>
+              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                Soporta compra unica, suscripcion y bundle multi-producto para Hotmart.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextField label="Package code" onValueChange={(value) => onPackageDraftChange({ package_code: value })} value={packageDraft.package_code} />
+              <TextField label="Display name" onValueChange={(value) => onPackageDraftChange({ display_name: value })} value={packageDraft.display_name} />
+              <SelectField
+                label="Tipo"
+                onValueChange={(value) => onPackageDraftChange({ package_type: value as CommercialPackageType })}
+                options={[
+                  { label: "One time", value: "one_time" },
+                  { label: "Subscription", value: "subscription" },
+                  { label: "Bundle subscription", value: "bundle_subscription" },
+                ]}
+                value={packageDraft.package_type}
+              />
+              <TextField
+                label="Prioridad"
+                onValueChange={(value) => onPackageDraftChange({ recommendation_priority: value })}
+                value={packageDraft.recommendation_priority}
+              />
+              <TextField label="Granted units" onValueChange={(value) => onPackageDraftChange({ granted_units: value })} value={packageDraft.granted_units} />
+              <TextField
+                label="Units Blueprint Pro"
+                onValueChange={(value) => onPackageDraftChange({ granted_units_blueprint_pro: value })}
+                value={packageDraft.granted_units_blueprint_pro}
+              />
+              <TextField label="Units ACP" onValueChange={(value) => onPackageDraftChange({ granted_units_acp: value })} value={packageDraft.granted_units_acp} />
+              <TextField label="Validity days" onValueChange={(value) => onPackageDraftChange({ validity_days: value })} value={packageDraft.validity_days} />
+              <TextField label="Product ID" onValueChange={(value) => onPackageDraftChange({ hotmart_product_id: value })} value={packageDraft.hotmart_product_id} />
+              <TextField label="UCODE" onValueChange={(value) => onPackageDraftChange({ hotmart_product_ucode: value })} value={packageDraft.hotmart_product_ucode} />
+              <TextField label="Offer code" onValueChange={(value) => onPackageDraftChange({ offer_code: value })} value={packageDraft.offer_code} />
+              <TextField label="Plan code" onValueChange={(value) => onPackageDraftChange({ plan_code: value })} value={packageDraft.plan_code} />
+            </div>
+            <AppButton className="mt-5" loading={savingPackage} onClick={onSavePackage} variant="primary">
+              Guardar paquete
+            </AppButton>
+          </Panel>
+        </div>
+
+        <div className="space-y-5">
+          <Panel className="p-6">
+            <div className="mb-4 space-y-2">
+              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Saldo por bolsas</p>
+              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                El saldo visible al workspace se explica aqui por fuente y por vigencia.
+              </p>
+            </div>
+            <SimpleTable
+              columns={["Bucket", "Fuente", "Estado", "Disponible", "Vigencia"]}
+              rows={data.balanceSnapshot.buckets.map((bucket) => [
+                bucket.bucket_key,
+                bucket.source_kind,
+                <Badge key={`${bucket.bucket_id}-status`} tone={bucket.available_units > 0 ? "green" : "slate"}>
+                  {bucket.status}
+                </Badge>,
+                String(bucket.available_units),
+                `${formatDateTime(bucket.starts_at)} -> ${formatDateTime(bucket.ends_at)}`,
+              ])}
+            />
+          </Panel>
+
+          <Panel className="p-6">
+            <div className="mb-4 space-y-2">
+              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Paquetes visibles al motor</p>
+              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                La recomendacion usa el catalogo activo y la estrategia efectiva del producto.
+              </p>
+            </div>
+            {visiblePackages.length > 0 ? (
+              <SimpleTable
+                columns={["Codigo", "Tipo", "Unidades", "Oferta Hotmart"]}
+                rows={visiblePackages.map((item) => [
+                  item.package_code,
+                  item.package_type,
+                  `${item.granted_units_blueprint_pro || item.granted_units || 0} BP / ${item.granted_units_acp || 0} ACP`,
+                  item.offer_code || item.plan_code || item.hotmart_product_id || item.hotmart_product_ucode || "n/a",
+                ])}
+              />
+            ) : (
+              <EmptyState className="px-0 py-4" title="Sin paquetes" description="Guarda al menos un paquete para este producto o bundle." />
+            )}
+          </Panel>
+
+          <Panel className="p-6">
+            <div className="mb-4 space-y-2">
+              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Ledger reciente</p>
+              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                Movimiento inmutable que explica por que una solicitud fue aprobada, consumida o sobreescrita.
+              </p>
+            </div>
+            <SimpleTable
+              columns={["Fecha", "Movimiento", "Delta", "Balance", "Ref"]}
+              rows={data.balanceLedger.slice(-8).reverse().map((entry) => [
+                formatDateTime(entry.created_at),
+                entry.movement_type,
+                String(entry.delta_units),
+                `${entry.balance_before_units} -> ${entry.balance_after_units}`,
+                entry.source_ref,
+              ])}
+            />
+          </Panel>
+
+          <Panel className="p-6">
+            <div className="mb-4 space-y-2">
+              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Resoluciones legacy pendientes</p>
+              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                Ordenes pagadas antiguas sin <code>package_code</code> que requieren seleccion manual del paquete para acreditar saldo.
+              </p>
+            </div>
+            {visibleLegacyResolutions.length > 0 ? (
+              <SimpleTable
+                columns={["Orden", "Monto", "Pagada", "Paquete a acreditar", "Accion"]}
+                rows={visibleLegacyResolutions.map((resolution) => {
+                  const selectedPackageCode =
+                    legacyResolutionDrafts[resolution.order_id] || resolution.candidate_packages[0]?.package_code || "";
+                  return [
+                    <div key={`${resolution.order_id}-summary`} className="space-y-1">
+                      <p className="font-semibold">{resolution.checkout_ref || resolution.order_id}</p>
+                      <p className="text-[12px] text-[var(--text-muted)]">{resolution.reason}</p>
+                    </div>,
+                    formatMoney(resolution.total_cents, resolution.currency),
+                    formatDateTime(resolution.paid_at ?? resolution.created_at),
+                    <div key={`${resolution.order_id}-select`} className="min-w-[260px]">
+                      <select
+                        className="h-10 w-full rounded-[10px] border border-[var(--border-default)] bg-white px-3 text-[13px] text-[var(--text-primary)]"
+                        onChange={(event) => onLegacyPackageDraftChange(resolution.order_id, event.target.value)}
+                        value={selectedPackageCode}
+                      >
+                        {resolution.candidate_packages.map((candidate) => (
+                          <option key={candidate.package_code} value={candidate.package_code}>
+                            {(candidate.display_name || candidate.package_code) +
+                              ` · ${candidate.granted_units_for_order_product} ${resolution.product_key}` +
+                              (candidate.offer_ref ? ` · ${candidate.offer_ref}` : "")}
+                          </option>
+                        ))}
+                      </select>
+                    </div>,
+                    <AppButton
+                      key={`${resolution.order_id}-resolve`}
+                      loading={legacyResolutionPendingId === resolution.order_id}
+                      onClick={() => onResolveLegacyPackageResolution(resolution)}
+                    >
+                      Resolver y acreditar
+                    </AppButton>,
+                  ];
+                })}
+              />
+            ) : (
+              <EmptyState
+                className="px-0 py-4"
+                title="Sin ordenes legacy ambiguas"
+                description="No hay pagos legacy pendientes de seleccion manual de paquete para este producto."
+              />
+            )}
+          </Panel>
+
+          <Panel className="p-6">
+            <div className="mb-4 space-y-2">
+              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Deudas abiertas</p>
+              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                Mientras exista deuda abierta, el saldo nuevo no autoaprueba nuevas solicitudes del mismo producto.
+              </p>
+            </div>
+            {data.debts.length > 0 ? (
+              <SimpleTable
+                columns={["Motivo", "Monto", "Pendiente", "Creada", "Accion"]}
+                rows={data.debts.map((debt) => {
+                  const remaining = Math.max(0, debt.amount_cents - debt.settled_amount_cents);
+                  return [
+                    <div key={`${debt.id}-reason`} className="space-y-1">
+                      <p className="font-semibold">{debt.reason_label || debt.reason_code}</p>
+                      <p className="text-[12px] text-[var(--text-muted)]">{debt.summary}</p>
+                    </div>,
+                    formatMoney(debt.amount_cents, debt.currency),
+                    formatMoney(remaining, debt.currency),
+                    formatDateTime(debt.created_at),
+                    <AppButton key={`${debt.id}-settle`} loading={debtPendingId === debt.id} onClick={() => onSettleDebt(debt)}>
+                      Liquidar total
+                    </AppButton>,
+                  ];
+                })}
+              />
+            ) : (
+              <EmptyState className="px-0 py-4" title="Sin deudas abiertas" description="La consola no detecta deuda comercial pendiente para este producto." />
+            )}
+          </Panel>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function HotmartAdminView({
   api = hotmartAdminApi,
   embedded = false,
@@ -1863,6 +2446,22 @@ export function HotmartAdminView({
   const [refreshPendingId, setRefreshPendingId] = useState<string | null>(null);
   const [deletePromotionPendingId, setDeletePromotionPendingId] = useState<string | null>(null);
   const [resolvePendingIssueId, setResolvePendingIssueId] = useState<string | null>(null);
+  const [commercialProductKey, setCommercialProductKey] = useState("blueprint_pro");
+  const [commercialState, setCommercialState] = useState<AsyncState<CommercialAdminDashboardData>>(createIdleState);
+  const [commercialQuotaDraft, setCommercialQuotaDraft] = useState<CommercialQuotaDraft>(createCommercialQuotaDraft());
+  const [commercialPackageDraft, setCommercialPackageDraft] = useState<CommercialPackageDraft>(createCommercialPackageDraft());
+  const [commercialOverrideDraft, setCommercialOverrideDraft] = useState<CommercialOverrideDraft>(createCommercialOverrideDraft());
+  const [commercialLegacyResolutionDrafts, setCommercialLegacyResolutionDrafts] = useState<LegacyPackageResolutionDrafts>({});
+  const [commercialFeedback, setCommercialFeedback] = useState<FeedbackState | null>(null);
+  const [commercialQuotaPending, setCommercialQuotaPending] = useState(false);
+  const [commercialPackagePending, setCommercialPackagePending] = useState(false);
+  const [commercialOverridePending, setCommercialOverridePending] = useState(false);
+  const [commercialDebtPendingId, setCommercialDebtPendingId] = useState<string | null>(null);
+  const [commercialLegacyResolutionPendingId, setCommercialLegacyResolutionPendingId] = useState<string | null>(null);
+  const hotmartTabs = useMemo(
+    () => (isPlatformAdmin ? [...HOTMART_TABS, ...HOTMART_PLATFORM_TABS] : HOTMART_TABS),
+    [isPlatformAdmin],
+  );
 
   const loadDashboard = useCallback(async () => {
     if (!canManage) {
@@ -1896,6 +2495,52 @@ export function HotmartAdminView({
   }, [loadDashboard]);
 
   const dashboardData = dashboardState.status === "ready" ? dashboardState.data : null;
+  const commercialData = commercialState.status === "ready" ? commercialState.data : null;
+
+  useEffect(() => {
+    if (!dashboardData) {
+      return;
+    }
+    const availableProducts = getProductOptions(dashboardData.products).map((item) => item.value);
+    if (!availableProducts.includes(commercialProductKey)) {
+      setCommercialProductKey(availableProducts[0] ?? "blueprint_pro");
+    }
+  }, [commercialProductKey, dashboardData]);
+
+  const loadCommercialDashboard = useCallback(async () => {
+    if (!canManage || !isPlatformAdmin) {
+      return;
+    }
+    setCommercialState({ data: null, error: null, status: "loading" });
+    try {
+      const data = await api.getCommercialAdminDashboard({ productKey: commercialProductKey });
+      setCommercialState({ data, error: null, status: "ready" });
+      const quotaConfig = data.quotaConfigs.find((item) => item.product_key === commercialProductKey) ?? data.quotaConfigs[0] ?? null;
+      const workspaceOverride =
+        data.workspaceOverrides.find((item) => item.product_key === commercialProductKey) ?? data.workspaceOverrides[0] ?? null;
+      const packageCandidate =
+        data.packageCatalog.find((item) => item.product_key === commercialProductKey) ??
+        data.packageCatalog.find((item) => item.package_type === "bundle_subscription") ??
+        null;
+      setCommercialQuotaDraft(createCommercialQuotaDraft(quotaConfig ?? data.effectiveConfig));
+      setCommercialOverrideDraft(createCommercialOverrideDraft(workspaceOverride));
+      setCommercialPackageDraft(createCommercialPackageDraft(commercialProductKey, packageCandidate));
+      setCommercialLegacyResolutionDrafts(createLegacyPackageResolutionDrafts(data.legacyPackageResolutions));
+    } catch (error) {
+      setCommercialState({
+        data: null,
+        error: getErrorMessage(error, "No se pudo cargar la operacion comercial del workspace."),
+        status: "error",
+      });
+    }
+  }, [api, canManage, commercialProductKey, isPlatformAdmin]);
+
+  useEffect(() => {
+    if (activeTab !== "Comercial" || !isPlatformAdmin) {
+      return;
+    }
+    void loadCommercialDashboard();
+  }, [activeTab, isPlatformAdmin, loadCommercialDashboard]);
 
   async function handleSaveCredentials() {
     if (!canManage) {
@@ -2401,6 +3046,174 @@ export function HotmartAdminView({
     }
   }
 
+  async function handleSaveCommercialQuota() {
+    setCommercialQuotaPending(true);
+    setCommercialFeedback(null);
+    try {
+      await api.saveCommercialQuotaProduct({
+        allow_courtesy: commercialQuotaDraft.allow_courtesy,
+        allow_debt_pending: commercialQuotaDraft.allow_debt_pending,
+        allow_manual_override_without_charge: commercialQuotaDraft.allow_manual_override_without_charge,
+        catalog_priority_strategy: commercialQuotaDraft.catalog_priority_strategy,
+        checkout_required_on_zero_balance: commercialQuotaDraft.checkout_required_on_zero_balance,
+        consumption_priority: parseDelimitedList(commercialQuotaDraft.consumption_priority),
+        debt_enabled: commercialQuotaDraft.debt_enabled,
+        default_blocked_request_ttl_hours: normalizeIntegerInput(commercialQuotaDraft.default_blocked_request_ttl_hours, 72),
+        default_checkout_ttl_minutes: normalizeIntegerInput(commercialQuotaDraft.default_checkout_ttl_minutes, 30),
+        display_name: commercialQuotaDraft.display_name || getProductLabel(dashboardData?.products ?? [], commercialProductKey),
+        duplicate_conflict_visibility: commercialQuotaDraft.duplicate_conflict_visibility,
+        enabled: commercialQuotaDraft.enabled,
+        fifo_auto_approval_enabled: commercialQuotaDraft.fifo_auto_approval_enabled,
+        initial_free_units: normalizeIntegerInput(commercialQuotaDraft.initial_free_units, 0),
+        product_key: commercialProductKey,
+        sync_retry_limit: normalizeIntegerInput(commercialQuotaDraft.sync_retry_limit, 5),
+      });
+      setCommercialFeedback({ message: "Configuracion global del producto actualizada.", tone: "success" });
+      await loadCommercialDashboard();
+    } catch (error) {
+      setCommercialFeedback({
+        message: getErrorMessage(error, "No se pudo guardar la configuracion global del producto."),
+        tone: "error",
+      });
+    } finally {
+      setCommercialQuotaPending(false);
+    }
+  }
+
+  async function handleSaveCommercialOverride() {
+    const workspaceId = dashboardData?.status.workspace_id ?? user?.active_workspace_id;
+    if (!workspaceId) {
+      setCommercialFeedback({ message: "No se pudo resolver el workspace activo para guardar el override.", tone: "error" });
+      return;
+    }
+    setCommercialOverridePending(true);
+    setCommercialFeedback(null);
+    try {
+      await api.saveCommercialWorkspaceOverride({
+        default_blocked_request_ttl_hours_override: commercialOverrideDraft.default_blocked_request_ttl_hours_override
+          ? normalizeIntegerInput(commercialOverrideDraft.default_blocked_request_ttl_hours_override, 0)
+          : null,
+        default_checkout_ttl_minutes_override: commercialOverrideDraft.default_checkout_ttl_minutes_override
+          ? normalizeIntegerInput(commercialOverrideDraft.default_checkout_ttl_minutes_override, 0)
+          : null,
+        debt_enabled_override: normalizeNullableBoolean(commercialOverrideDraft.debt_enabled_override),
+        enabled_override: normalizeNullableBoolean(commercialOverrideDraft.enabled_override),
+        free_units_override: commercialOverrideDraft.free_units_override ? normalizeIntegerInput(commercialOverrideDraft.free_units_override, 0) : null,
+        is_active: commercialOverrideDraft.is_active,
+        notes: commercialOverrideDraft.notes,
+        product_key: commercialProductKey,
+        workspace_id: workspaceId,
+      });
+      setCommercialFeedback({ message: "Override del workspace actualizado.", tone: "success" });
+      await loadCommercialDashboard();
+    } catch (error) {
+      setCommercialFeedback({
+        message: getErrorMessage(error, "No se pudo guardar el override del workspace."),
+        tone: "error",
+      });
+    } finally {
+      setCommercialOverridePending(false);
+    }
+  }
+
+  async function handleSaveCommercialPackage() {
+    setCommercialPackagePending(true);
+    setCommercialFeedback(null);
+    try {
+      await api.saveCommercialPackageCatalog({
+        billing_cycle: commercialPackageDraft.billing_cycle,
+        checkout_currency_mode: commercialPackageDraft.checkout_currency_mode,
+        display_name: commercialPackageDraft.display_name || commercialPackageDraft.package_code,
+        enabled: commercialPackageDraft.enabled,
+        granted_units: normalizeIntegerInput(commercialPackageDraft.granted_units, 1),
+        granted_units_acp: normalizeIntegerInput(commercialPackageDraft.granted_units_acp, 0),
+        granted_units_blueprint_pro: normalizeIntegerInput(commercialPackageDraft.granted_units_blueprint_pro, 0),
+        hotmart_environment: commercialPackageDraft.hotmart_environment,
+        hotmart_price_strategy: commercialPackageDraft.hotmart_price_strategy,
+        hotmart_product_id: commercialPackageDraft.hotmart_product_id,
+        hotmart_product_ucode: commercialPackageDraft.hotmart_product_ucode,
+        offer_code: commercialPackageDraft.offer_code,
+        package_code: commercialPackageDraft.package_code,
+        package_type: commercialPackageDraft.package_type,
+        plan_code: commercialPackageDraft.plan_code,
+        product_key: commercialPackageDraft.product_key || commercialProductKey,
+        recommendation_priority: normalizeIntegerInput(commercialPackageDraft.recommendation_priority, 100),
+        renewal_policy: commercialPackageDraft.renewal_policy,
+        validity_days: commercialPackageDraft.validity_days ? normalizeIntegerInput(commercialPackageDraft.validity_days, 1) : null,
+      });
+      setCommercialFeedback({ message: "Paquete comercial actualizado.", tone: "success" });
+      await loadCommercialDashboard();
+    } catch (error) {
+      setCommercialFeedback({
+        message: getErrorMessage(error, "No se pudo guardar el paquete comercial."),
+        tone: "error",
+      });
+    } finally {
+      setCommercialPackagePending(false);
+    }
+  }
+
+  async function handleSettleCommercialDebt(debt: CommercialDebtResponse) {
+    const remaining = Math.max(0, debt.amount_cents - debt.settled_amount_cents);
+    if (remaining <= 0) {
+      return;
+    }
+    setCommercialDebtPendingId(debt.id);
+    setCommercialFeedback(null);
+    try {
+      await api.settleCommercialDebt(debt.id, {
+        amount_cents: remaining,
+        currency: debt.currency,
+        resolution_note: "Liquidacion total desde consola Hotmart.",
+        settlement_kind: "manual",
+      });
+      setCommercialFeedback({ message: "Deuda liquidada y auditada.", tone: "success" });
+      await loadCommercialDashboard();
+    } catch (error) {
+      setCommercialFeedback({
+        message: getErrorMessage(error, "No se pudo liquidar la deuda comercial."),
+        tone: "error",
+      });
+    } finally {
+      setCommercialDebtPendingId(null);
+    }
+  }
+
+  async function handleResolveCommercialLegacyPackageResolution(resolution: CommercialLegacyPackageResolutionResponse) {
+    const workspaceId = dashboardData?.status.workspace_id ?? user?.active_workspace_id;
+    const selectedPackageCode =
+      commercialLegacyResolutionDrafts[resolution.order_id] || resolution.candidate_packages[0]?.package_code || "";
+    if (!workspaceId) {
+      setCommercialFeedback({ message: "No se pudo resolver el workspace activo para cerrar la orden legacy.", tone: "error" });
+      return;
+    }
+    if (!selectedPackageCode) {
+      setCommercialFeedback({ message: "Selecciona un paquete antes de acreditar la orden legacy.", tone: "error" });
+      return;
+    }
+    setCommercialLegacyResolutionPendingId(resolution.order_id);
+    setCommercialFeedback(null);
+    try {
+      await api.resolveCommercialLegacyPackageResolution(
+        resolution.order_id,
+        {
+          package_code: selectedPackageCode,
+          resolution_note: "Resolucion manual desde consola comercial Hotmart.",
+        },
+        workspaceId,
+      );
+      setCommercialFeedback({ message: "Orden legacy acreditada y lista para procesar solicitudes pendientes.", tone: "success" });
+      await loadCommercialDashboard();
+    } catch (error) {
+      setCommercialFeedback({
+        message: getErrorMessage(error, "No se pudo resolver la orden legacy ni acreditar el paquete seleccionado."),
+        tone: "error",
+      });
+    } finally {
+      setCommercialLegacyResolutionPendingId(null);
+    }
+  }
+
   function handleEditMapping(mapping: HotmartProductMappingResponse) {
     setActiveTab("Productos y ofertas");
     setMappingDraft({
@@ -2481,7 +3294,7 @@ export function HotmartAdminView({
         {dashboardData ? (
           <div className="space-y-5">
             <Panel className="p-5">
-              <TabList active={activeTab} onChange={setActiveTab} tabs={HOTMART_TABS} />
+              <TabList active={activeTab} onChange={setActiveTab} tabs={hotmartTabs} />
             </Panel>
 
             {activeTab === "Resumen" ? <HotmartSummaryPanel data={dashboardData} lastTest={lastTest} /> : null}
@@ -2584,6 +3397,50 @@ export function HotmartAdminView({
             ) : null}
 
             {activeTab === "Auditoria" ? <HotmartAuditPreviewPanel data={dashboardData} /> : null}
+
+            {activeTab === "Comercial" ? (
+              commercialState.status === "loading" ? (
+                <LoadingState title="Cargando motor comercial" description="Resolviendo cupos, paquetes, ledger y deudas del workspace." />
+              ) : commercialState.status === "error" ? (
+                <ErrorState
+                  title="No se pudo cargar la capa comercial"
+                  description={commercialState.error}
+                  action={
+                    <AppButton onClick={() => void loadCommercialDashboard()} variant="primary">
+                      Reintentar
+                    </AppButton>
+                  }
+                />
+              ) : commercialData ? (
+                <HotmartCommercialAdminPanel
+                  data={commercialData}
+                  debtPendingId={commercialDebtPendingId}
+                  feedback={commercialFeedback}
+                  legacyResolutionDrafts={commercialLegacyResolutionDrafts}
+                  legacyResolutionPendingId={commercialLegacyResolutionPendingId}
+                  onLegacyPackageDraftChange={(orderId, packageCode) =>
+                    setCommercialLegacyResolutionDrafts((current) => ({ ...current, [orderId]: packageCode }))
+                  }
+                  onPackageDraftChange={(patch) => setCommercialPackageDraft((current) => ({ ...current, ...patch }))}
+                  onProductChange={setCommercialProductKey}
+                  onQuotaDraftChange={(patch) => setCommercialQuotaDraft((current) => ({ ...current, ...patch, product_key: commercialProductKey }))}
+                  onOverrideDraftChange={(patch) => setCommercialOverrideDraft((current) => ({ ...current, ...patch }))}
+                  onSavePackage={() => void handleSaveCommercialPackage()}
+                  onSaveQuota={() => void handleSaveCommercialQuota()}
+                  onSaveOverride={() => void handleSaveCommercialOverride()}
+                  onResolveLegacyPackageResolution={(resolution) => void handleResolveCommercialLegacyPackageResolution(resolution)}
+                  onSettleDebt={(debt) => void handleSettleCommercialDebt(debt)}
+                  overrideDraft={commercialOverrideDraft}
+                  packageDraft={commercialPackageDraft}
+                  products={dashboardData.products}
+                  quotaDraft={commercialQuotaDraft}
+                  savingPackage={commercialPackagePending}
+                  savingQuota={commercialQuotaPending}
+                  savingOverride={commercialOverridePending}
+                  selectedProductKey={commercialProductKey}
+                />
+              ) : null
+            ) : null}
 
             <Panel className="p-5">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

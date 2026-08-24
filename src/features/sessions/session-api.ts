@@ -7,6 +7,11 @@ import type {
   CanonicalExportResponse,
 } from "@/features/contracts/canonical-contracts";
 import type {
+  HotmartPendingActivationBootstrapRequest,
+  HotmartPendingActivationBootstrapResponse,
+  HotmartPendingActivationResponse,
+} from "@/features/hotmart/hotmart-contracts";
+import type {
   ACPFileEntry,
   ACPPreview,
   ACPValidationReport,
@@ -366,6 +371,25 @@ export function createSessionsApi(client = apiClient) {
     },
     getCommercialOrder(orderId: string) {
       return client.get<CommercialOrderResponse>(`/api/v1/commerce/orders/${encodeURIComponent(orderId)}`);
+    },
+    getHotmartPendingActivationPublic(activationToken: string) {
+      return client.get<HotmartPendingActivationResponse>(
+        `/api/v1/commerce/hotmart/pending-activations/${encodeURIComponent(activationToken)}/public`,
+        {
+          includeWorkspaceId: false,
+        },
+      );
+    },
+    bootstrapHotmartPendingActivation(
+      activationToken: string,
+      payload: HotmartPendingActivationBootstrapRequest = {},
+    ) {
+      return client.post<HotmartPendingActivationBootstrapResponse>(
+        `/api/v1/commerce/hotmart/pending-activations/${encodeURIComponent(activationToken)}/bootstrap`,
+        {
+          body: payload,
+        },
+      );
     },
     getProductOverview(sessionId: string) {
       return client.get<ProductOverviewResponse>(`/api/v1/sessions/${sessionId}/product-overview`);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CircleAlert,
   LoaderCircle,
@@ -31,7 +31,12 @@ import {
   validateLoginCredentials,
   type LoginValidationErrors,
 } from "@/core/auth/login-validation";
-import { HOME_ROUTE, LOGIN_ROUTE } from "@/core/routing/routes";
+import {
+  buildAuthRoute,
+  HOME_ROUTE,
+  LOGIN_ROUTE,
+  REGISTER_ROUTE,
+} from "@/core/routing/routes";
 import {
   runtimeApi,
   type RuntimeHealthResponse,
@@ -559,13 +564,15 @@ export function BootPage() {
 
 export function LoginPage() {
   const router = useRouter();
-  const [redirectTarget, setRedirectTarget] = useState("/projects");
+  const searchParams = useSearchParams();
   const auth = useAuth();
   const { language, t } = useLanguage();
   const localize = (en: string, es: string, pt: string) =>
     language === "en" ? en : language === "pt" ? pt : es;
+  const redirectTarget = searchParams.get("redirect")?.trim() || "/projects";
+  const prefillEmail = searchParams.get("email")?.trim() || "";
   const [formValues, setFormValues] = useState({
-    email: "",
+    email: prefillEmail,
     password: "",
   });
   const [validationErrors, setValidationErrors] =
@@ -576,16 +583,6 @@ export function LoginPage() {
     error: null,
     status: "idle",
   });
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const redirect = params.get("redirect");
-      if (redirect) {
-        setRedirectTarget(redirect);
-      }
-    }
-  }, []);
 
   useEffect(() => {
     if (auth.status === "authenticated") {
@@ -788,6 +785,10 @@ export function LoginPage() {
       : marketingTitle;
   const marketingTitleHighlight =
     accentIndex >= 0 ? marketingTitle.slice(accentIndex) : marketingTitleAccent;
+  const registerRoute = buildAuthRoute(REGISTER_ROUTE, {
+    redirect: redirectTarget !== "/projects" ? redirectTarget : null,
+    email: formValues.email.trim() || prefillEmail || null,
+  });
 
   return (
     <div
@@ -998,7 +999,7 @@ export function LoginPage() {
                   <div className="pt-0 text-center text-[11px] text-[var(--text-secondary)]">
                     <span>{t("login.noAccount")} </span>
                     <a
-                      href={redirectTarget && redirectTarget !== "/projects" ? `/register?redirect=${encodeURIComponent(redirectTarget)}` : "/register"}
+                      href={registerRoute}
                       className="font-semibold text-[var(--brand-primary)] hover:underline"
                     >
                       {t("login.registerFree")}

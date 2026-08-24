@@ -70,6 +70,84 @@ const planAccessResponse: PlanAccessResponse = {
   ],
   session_id: "session-1",
   workspace_id: "workspace-1",
+  workspace_commercial: {
+    contract_version: "workspace-commercial-summary.v1",
+    open_debts: [
+      {
+        amount_cents: 15000,
+        contract_version: "commercial-debt.v1",
+        created_at: "2026-08-14T12:10:00Z",
+        currency: "USD",
+        id: "debt-1",
+        product_key: "acp",
+        reason_code: "debt_pending",
+        reason_label: "Deuda pendiente",
+        settled_amount_cents: 0,
+        status: "open",
+        summary: "Aprobación comercial con deuda pendiente.",
+        updated_at: "2026-08-14T12:12:00Z",
+        workspace_id: "workspace-1",
+      },
+    ],
+    products: [
+      {
+        adjustment_units: 0,
+        available_units: 0,
+        debt_totals: [{ amount_cents: 15000, currency: "USD" }],
+        display_name: "ACP",
+        free_units: 0,
+        one_time_units: 0,
+        open_debt_count: 1,
+        pending_request_count: 1,
+        product_key: "acp",
+        recommendation: {
+          contract_version: "commercial-package-recommendation.v1",
+          display_name: "ACP Mensual",
+          granted_units_for_product: 3,
+          hotmart_environment: "sandbox",
+          hotmart_product_id: "hm-1",
+          hotmart_product_ucode: "ucode-1",
+          offer_code: "offer-1",
+          package_code: "acp_monthly",
+          package_type: "subscription",
+          plan_code: "plan-1",
+          recommendation_priority: 10,
+          recommendation_reason: "Paquete minimo suficiente segun configuracion efectiva.",
+          requested_product_key: "acp",
+          required_units: 1,
+        },
+        subscription_units: 0,
+      },
+    ],
+    recent_orders: [
+      {
+        checkout_url: "https://example.com/checkout/1",
+        created_at: "2026-08-14T12:20:00Z",
+        currency: "USD",
+        order_id: "order-1",
+        product_key: "acp",
+        status: "pending",
+        total_cents: 30000,
+        updated_at: "2026-08-14T12:21:00Z",
+      },
+    ],
+    request_history: [
+      {
+        capability: "acp.build",
+        created_at: "2026-08-14T12:22:00Z",
+        id: "request-1",
+        product_key: "acp",
+        reason: "Continuar ACP",
+        requester_user_id: "user-1",
+        resolution_note: "",
+        session_id: "session-1",
+        status: "pending",
+        target_tier: "acp",
+        updated_at: "2026-08-14T12:22:00Z",
+        workspace_id: "workspace-1",
+      },
+    ],
+  },
 };
 
 describe("PlanAccessAdminPanel", () => {
@@ -85,6 +163,9 @@ describe("PlanAccessAdminPanel", () => {
     await screen.findByText("Acceso actual del proyecto");
     expect(screen.getByText("Plan, permisos y capacidades")).toBeInTheDocument();
     expect(screen.getByText("Ver Blueprint")).toBeInTheDocument();
+    expect(screen.getByText("Saldo comercial del workspace")).toBeInTheDocument();
+    expect(screen.getByText("ACP Mensual")).toBeInTheDocument();
+    expect(screen.getByText("Continuar checkout")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Abrir detalle/i })).toHaveAttribute("href", "/settings/plan-access");
     await waitFor(() => {
       expect(sessionWorkspaceRef.current.getPlanAccess).toHaveBeenCalledWith("session-1");

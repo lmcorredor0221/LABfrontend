@@ -31,6 +31,10 @@ import type {
   WorkflowTemplateEntry,
   WorkspaceContract,
 } from "@/features/sessions/session-contracts";
+import type {
+  CommercialDebtResponse,
+  CommercialPackageRecommendationResponse,
+} from "@/features/hotmart/hotmart-contracts";
 
 export type SessionStage =
   | "draft_capture"
@@ -157,6 +161,7 @@ export type CommercialAccessSnapshotV2 = {
 export type CommercialCheckoutSessionRequest = {
   cancel_url?: string;
   idempotency_key?: string;
+  package_code?: string;
   price_code?: string;
   product_key: string;
   provider?: "sandbox" | "hotmart";
@@ -561,6 +566,44 @@ export type ActivityResponse = {
   workspace_id: string;
 };
 
+export type CommercialCurrencyTotal = {
+  amount_cents: number;
+  currency: string;
+};
+
+export type WorkspaceCommercialProductSummary = {
+  adjustment_units: number;
+  available_units: number;
+  debt_totals: CommercialCurrencyTotal[];
+  display_name: string;
+  free_units: number;
+  one_time_units: number;
+  open_debt_count: number;
+  pending_request_count: number;
+  product_key: string;
+  recommendation?: CommercialPackageRecommendationResponse | null;
+  subscription_units: number;
+};
+
+export type WorkspaceCommercialOrderSummary = {
+  checkout_url: string;
+  created_at: string;
+  currency: string;
+  order_id: string;
+  product_key: string;
+  status: CommercialOrderStatus;
+  total_cents: number;
+  updated_at: string;
+};
+
+export type WorkspaceCommercialSummary = {
+  contract_version: string;
+  open_debts: CommercialDebtResponse[];
+  products: WorkspaceCommercialProductSummary[];
+  recent_orders: WorkspaceCommercialOrderSummary[];
+  request_history: AccessRequestResponse[];
+};
+
 export type PlanAccessResponse = {
   access: CommercialAccessSnapshotV2;
   contract_version: string;
@@ -570,6 +613,7 @@ export type PlanAccessResponse = {
   products: ProductCatalogResponse[];
   session_id: string;
   workspace_id: string;
+  workspace_commercial: WorkspaceCommercialSummary;
 };
 
 export type DiagramCatalogV2Response = DiagramCatalogResponse & {

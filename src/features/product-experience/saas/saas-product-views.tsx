@@ -76,16 +76,19 @@ import { cn } from "@/lib/utils";
 async function executeProductCheckout({
   sessionId,
   productKey,
+  packageCode,
   successUrl,
   cancelUrl,
 }: {
   sessionId: string;
   productKey: "blueprint_pro" | "acp";
+  packageCode?: string;
   successUrl?: string;
   cancelUrl?: string;
 }) {
   const checkout = await sessionsApi.createCheckoutSession({
     session_id: sessionId,
+    package_code: packageCode,
     product_key: productKey,
     success_url: successUrl || (typeof window !== "undefined" ? window.location.href : undefined),
     cancel_url: cancelUrl || (typeof window !== "undefined" ? window.location.href : undefined),
@@ -847,7 +850,12 @@ function CommercialBlueprintResult({
   const hasProductOverview = Boolean(overviewTab);
   const hasAcpWorkflowTabs = tierScope === "acp";
   const hasEnrichmentTab = tierScope === "blueprint_pro";
+  const productBuildKey = overviewTab?.productKey ?? (tierScope === "acp" ? "acp" : tierScope === "blueprint_pro" ? "blueprint_pro" : "blueprint_basic");
   const requestedTab = searchParams.get("acp_tab") ?? searchParams.get("result_tab");
+  const productBuild = useProductBuildStatus(sessionId, productBuildKey, {
+    polling: true,
+    staleWhileRevalidating: true,
+  });
   const diagramCatalogFilter = useMemo(
     () => (item: DiagramCatalogItem) => isTierIncluded(item.required_tier, tierScope),
     [tierScope],
@@ -1227,6 +1235,61 @@ function CommercialBlueprintResult({
           })}
         </div>
       </header>
+
+      {effectiveActiveTab !== "overview" ? (
+        productBuild.isError ? (
+          <UxaSurface className="border-[var(--uxa-state-danger-border)] bg-[var(--uxa-state-danger-bg)] p-4">
+            <p className="text-[12px] font-black uppercase tracking-[0.18em] text-[var(--uxa-state-danger)]">
+              {byLanguage(language, {
+                en: "Product status unavailable",
+                es: "Estado del producto no disponible",
+                pt: "Estado do produto indisponivel",
+              })}
+            </p>
+            <p className="mt-2 text-[13px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {byLanguage(language, {
+                en: "The build status could not be loaded. Diagram and artifact generation may still be running in the background.",
+                es: "No se pudo cargar el estado del build. La generacion de diagramas y artefactos puede seguir ejecutandose en segundo plano.",
+                pt: "Nao foi possivel carregar o estado do build. A geracao de diagramas e artefatos pode seguir executando em segundo plano.",
+              })}
+            </p>
+          </UxaSurface>
+        ) : productBuild.data ? (
+          <DeliverableGenerationLiveTracker
+            productKey={productBuildKey}
+            productLabel={productTierLabel(language, tierScope)}
+            status={productBuild.data}
+          />
+        ) : productBuild.isLoading || productBuild.isFetching ? (
+          <UxaSurface className="border border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-brand)]">
+                  {byLanguage(language, {
+                    en: "Build status",
+                    es: "Estado del build",
+                    pt: "Estado do build",
+                  })}
+                </p>
+                <p className="mt-1 text-[13px] leading-5 text-[var(--uxa-color-ink)]">
+                  {byLanguage(language, {
+                    en: "Checking diagram and artifact progress for this product surface.",
+                    es: "Validando el progreso de diagramas y artefactos para esta superficie del producto.",
+                    pt: "Validando o progresso de diagramas e artefatos para esta superficie do produto.",
+                  })}
+                </p>
+              </div>
+              <UxaBadge tone="info">
+                {byLanguage(language, {
+                  en: "Updating",
+                  es: "Actualizando",
+                  pt: "Atualizando",
+                })}
+              </UxaBadge>
+            </div>
+          </UxaSurface>
+        ) : null
+      ) : null}
 
       {effectiveActiveTab === "enrichment" && hasEnrichmentTab ? (
         <div

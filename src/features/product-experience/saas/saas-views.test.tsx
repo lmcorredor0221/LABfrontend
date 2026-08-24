@@ -24,6 +24,19 @@ import type { SessionCommercialAccess, SessionSnapshot } from "@/features/sessio
 
 const mockPush = vi.fn();
 const mockUseSearchParams = vi.fn(() => new URLSearchParams());
+const mockUseProductBuildStatus = vi.hoisted(() => vi.fn(() => ({
+  data: null,
+  error: null,
+  isEmpty: true,
+  isError: false,
+  isFetching: false,
+  isFinal: false,
+  isLoading: false,
+  isStale: false,
+  refresh: vi.fn(async () => null),
+  status: "empty",
+  updatedAt: null,
+})));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -52,19 +65,7 @@ vi.mock("@/features/deliverables/infrastructure/deliverable-catalog-api", () => 
 }));
 
 vi.mock("@/features/product-experience/saas/use-product-build-status", () => ({
-  useProductBuildStatus: vi.fn(() => ({
-    data: null,
-    error: null,
-    isEmpty: true,
-    isError: false,
-    isFetching: false,
-    isFinal: false,
-    isLoading: false,
-    isStale: false,
-    refresh: vi.fn(async () => null),
-    status: "empty",
-    updatedAt: null,
-  })),
+  useProductBuildStatus: mockUseProductBuildStatus,
 }));
 
 function resource<T>(data: T) {
@@ -695,6 +696,20 @@ function createPremiumWorkspace(): PremiumEnrichmentWorkspace {
 beforeEach(() => {
   mockPush.mockClear();
   mockUseSearchParams.mockReturnValue(new URLSearchParams());
+  mockUseProductBuildStatus.mockReset();
+  mockUseProductBuildStatus.mockReturnValue({
+    data: null,
+    error: null,
+    isEmpty: true,
+    isError: false,
+    isFetching: false,
+    isFinal: false,
+    isLoading: false,
+    isStale: false,
+    refresh: vi.fn(async () => null),
+    status: "empty",
+    updatedAt: null,
+  });
 });
 
 describe("UXA11 SaaS stage views", () => {
@@ -783,6 +798,34 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("tab", { name: /Resumen Blueprint/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Diagramas de Blueprint/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "De una necesidad ambigua a una propuesta clara" })).toBeInTheDocument();
+  });
+
+  it("keeps the build tracker visible when opening the Blueprint diagrams tab directly", () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=diagrams"));
+    mockUseProductBuildStatus.mockReturnValue({
+      data: {
+        lifecycle: "running",
+        progress: {
+          percent: 42,
+        },
+      } as never,
+      error: null,
+      isEmpty: false,
+      isError: false,
+      isFetching: false,
+      isFinal: false,
+      isLoading: false,
+      isStale: false,
+      refresh: vi.fn(async () => null),
+      status: "ready",
+      updatedAt: Date.now(),
+    });
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint" />);
+
+    expect(screen.getByRole("tab", { name: /Diagramas de Blueprint/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Generación de Entregables")).toBeInTheDocument();
+    expect(screen.getByText(/Generando entregables de Blueprint/i)).toBeInTheDocument();
   });
 
   it("renders Blueprint Pro executive overview inside the Blueprint Pro tabs", () => {
