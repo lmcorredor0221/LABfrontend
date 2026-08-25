@@ -132,8 +132,8 @@ function createAdminInvitationDraft(): AdminInvitationDraft {
   };
 }
 
-function canLoadAdminAnalytics(workspaceRole: WorkspaceRole | null, isPlatformAdmin: boolean) {
-  return isPlatformAdmin || workspaceRole === "admin";
+function canLoadAdminAnalytics(_workspaceRole: WorkspaceRole | null, isPlatformAdmin: boolean) {
+  return isPlatformAdmin;
 }
 
 function buildAdminAnalyticsQuery(period: AdminPeriodFilter): AdminAnalyticsQuery {
@@ -412,7 +412,7 @@ export function AdminOverviewSection({
       <AdminViewState
         state="forbidden"
         title="Dashboard administrativo protegido"
-        description="El Overview requiere membresia admin del workspace o permisos de platform admin."
+        description="El Overview solo esta disponible para platform admin."
       />
     );
   }
@@ -721,7 +721,7 @@ export function AdminProjectsSection({
       <AdminViewState
         state="forbidden"
         title="Analítica de proyectos protegida"
-        description="La distribución global de proyectos requiere permisos administrativos del workspace."
+        description="La distribución global de proyectos solo esta disponible para platform admin."
       />
     );
   }
@@ -831,7 +831,7 @@ export function AdminUsersSection({
       <AdminViewState
         state="forbidden"
         title="Directorio administrativo protegido"
-        description="La administracion de usuarios requiere membresia admin del workspace o permisos de platform admin."
+        description="La administracion de usuarios solo esta disponible para platform admin."
       />
     );
   }
@@ -1127,7 +1127,7 @@ export function AdminRolesSection({
       <AdminViewState
         state="forbidden"
         title="Roles y permisos protegidos"
-        description="El catalogo de roles requiere membresia admin del workspace o permisos de platform admin."
+        description="El catalogo de roles solo esta disponible para platform admin."
       />
     );
   }

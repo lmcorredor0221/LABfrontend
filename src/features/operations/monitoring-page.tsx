@@ -19,6 +19,8 @@ import {
 } from "@/features/operations/operations-adapter";
 import { useOperationalSession } from "@/features/operations/use-operational-session";
 import { getSessionProjectRoute } from "@/features/sessions/session-routes";
+import { useAuth } from "@/core/auth/auth-context";
+import { hasPlatformAdminRole } from "@/core/auth/types";
 import { useLanguage } from "@/core/i18n/language-context";
 import type {
   EstimationActualsUpsertRequest,
@@ -729,6 +731,8 @@ function ActualsCapturePanel({
 export function MonitoringWorkspacePage() {
   const router = useRouter();
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const isPlatformAdmin = hasPlatformAdminRole(user);
   const {
     createSession,
     getEstimationCalibration,
@@ -920,7 +924,21 @@ export function MonitoringWorkspacePage() {
             <MetricCard title="Costo estimado" value={formatCurrency(currentMetrics?.cost_estimate_usd ?? 0)} hint={formatDurationMs(currentMetrics?.total_duration_ms ?? 0)} />
           </div>
 
-          <FinOpsDashboard />
+          {isPlatformAdmin ? (
+            <FinOpsDashboard />
+          ) : (
+            <Panel className="p-6">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 text-[var(--warning)]" />
+                <div>
+                  <p className="text-[18px] font-semibold text-[var(--text-primary)]">FinOps IA protegido</p>
+                  <p className="mt-2 text-[14px] leading-6 text-[var(--text-secondary)]">
+                    El detalle de consumo, costos, presupuestos y alertas LLM forma parte de la consola administrativa y solo se muestra a platform admin.
+                  </p>
+                </div>
+              </div>
+            </Panel>
+          )}
 
           <Panel className="p-6">
             <div className="mb-5 flex items-center justify-between gap-4">

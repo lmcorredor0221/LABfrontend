@@ -47,7 +47,7 @@ import { useSettingsConfigNavigation } from "@/features/operations/use-settings-
 import { ApiError } from "@/core/api/errors";
 import { useAuth } from "@/core/auth/auth-context";
 import { useLanguage } from "@/core/i18n/language-context";
-import type { WorkspaceRole } from "@/core/auth/types";
+import { hasPlatformAdminRole, type WorkspaceRole } from "@/core/auth/types";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { cn } from "@/lib/utils";
 import { runtimeApi, type RuntimeStatusResponse } from "@/core/system/runtime-api";
@@ -116,7 +116,6 @@ type PlatformProviderDraftMap = Record<
 >;
 
 const PROVIDER_ORDER: LLMProviderKey[] = ["openai", "deepseek", "codex_local", "antigravity_cli"];
-const WORKSPACE_RUNTIME_ADMIN_ROLES = new Set<WorkspaceRole>(["admin"]);
 function createIdleState<TData>(): AsyncState<TData> {
   return {
     data: null,
@@ -346,11 +345,11 @@ export function SettingsWorkspacePage({
   const router = useRouter();
   const { language, t } = useLanguage();
   const { user } = useAuth();
+  const isPlatformAdmin = hasPlatformAdminRole(user);
   const activeWorkspaceId = user?.active_workspace_id ?? null;
   const activeMembership = user?.workspaces.find((workspace) => workspace.workspace_id === activeWorkspaceId) ?? null;
   const workspaceRole = activeMembership?.role ?? null;
-  const hasWorkspaceAdminRole = workspaceRole ? WORKSPACE_RUNTIME_ADMIN_ROLES.has(workspaceRole) : false;
-  const resolvedInitialConfigTab = initialConfigTab ?? (hasWorkspaceAdminRole ? "llmRuntime" : "general");
+  const resolvedInitialConfigTab = isPlatformAdmin ? (initialConfigTab ?? "llmRuntime") : "general";
   const {
     createSession,
     getEstimationCalibration,
@@ -415,7 +414,7 @@ export function SettingsWorkspacePage({
   const featureFlags = selectedSnapshot?.workspace_contract?.feature_flags ?? [];
   const featureFlagSummary = buildFeatureFlagSummary(featureFlags);
   const isPlatformPanelVisible = Boolean(platformProvidersState.data && platformDefaultsState.data);
-  const canManageWorkspaceRuntime = isPlatformPanelVisible || hasWorkspaceAdminRole;
+  const canManageWorkspaceRuntime = isPlatformAdmin;
   const {
     activeConfigSubTab,
     activeConfigSubTabs,
@@ -429,10 +428,18 @@ export function SettingsWorkspacePage({
   } = useSettingsConfigNavigation({
     initialConfigSubTab,
     initialConfigTab: resolvedInitialConfigTab,
-    isPlatformPanelVisible,
+    isPlatformPanelVisible: isPlatformAdmin,
   });
 
   const loadPlatformPanel = useCallback(async () => {
+    if (!isPlatformAdmin) {
+      setPlatformProvidersState({ data: null, error: null, status: "ready" });
+      setPlatformDefaultsState({ data: null, error: null, status: "ready" });
+      setPlatformAuditState({ data: null, error: null, status: "ready" });
+      setPlatformDefaultsDraft(null);
+      setPlatformProviderDrafts(null);
+      return;
+    }
     setPlatformProvidersState({ data: null, error: null, status: "loading" });
     setPlatformDefaultsState({ data: null, error: null, status: "loading" });
     setPlatformAuditState({ data: null, error: null, status: "loading" });
@@ -488,10 +495,19 @@ export function SettingsWorkspacePage({
         status: "error",
       });
     }
-  }, []);
+  }, [isPlatformAdmin]);
 
   const loadWorkspacePanel = useCallback(
     async (options?: { keepRuntime?: boolean; keepStatus?: boolean }) => {
+      if (!isPlatformAdmin) {
+        setRuntimeState({ data: null, error: null, status: "ready" });
+        setWorkspaceHealthState({ data: null, error: null, status: "ready" });
+        setRuntimeStatusState({ data: null, error: null, status: "ready" });
+        setCalibrationState({ data: null, error: null, status: "ready" });
+        setRuntimeDraft(null);
+        setSecretDrafts(null);
+        return;
+      }
       setRuntimeState((current) => ({
         data: options?.keepRuntime ? current.data : null,
         error: null,
@@ -567,7 +583,7 @@ export function SettingsWorkspacePage({
         });
       }
     },
-    [getEstimationCalibration, getRuntimeSettings],
+    [getEstimationCalibration, getRuntimeSettings, isPlatformAdmin],
   );
 
   useEffect(() => {
@@ -1398,6 +1414,10 @@ export function SettingsWorkspacePage({
     );
   }
 
+  const requestedAdminSurface =
+    (initialSection != null && initialSection !== "configuration") ||
+    (initialConfigTab != null && initialConfigTab !== "general");
+
   const settingsActions = (
     <SettingsWorkspaceActions
       activeScope={activeScope}
@@ -1410,6 +1430,88 @@ export function SettingsWorkspacePage({
       selectedSession={selectedSession}
       t={t}
     />
+  );
+
+  const standalonePersonalContent = (
+    <div className="settings-center space-y-5">
+      <section
+        aria-label={copy("Account and access", "Cuenta y acceso", "Conta e acesso")}
+        className="space-y-5"
+        id="settings-panel-personal"
+      >
+        <SettingsScopeHeader
+          accessLabel={t("settings.personalScopeLabel", "Ámbito personal")}
+          description={t(
+            "settings.personalScopeDesc",
+            "Consulta quién eres dentro del producto, en qué workspace estás trabajando y qué nivel de acceso operativo tiene tu membresía.",
+          )}
+          eyebrow={copy("For you", "Para ti", "Para voce")}
+          icon={<CircleUserRound aria-hidden="true" className="h-5 w-5" />}
+          id="settings-personal-title"
+          title={t("settings.scope.personal", "Cuenta y acceso")}
+        />
+
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Panel className="p-4">
+            <KeyValue
+              label={copy("User", "Usuario", "Usuario")}
+              value={user?.full_name ?? copy("User", "Usuario", "Usuario")}
+              hint={user?.email ?? copy("No email available", "Sin email disponible", "Sem email disponivel")}
+            />
+          </Panel>
+          <Panel className="p-4">
+            <KeyValue
+              label={copy("Active workspace", "Workspace activo", "Workspace ativo")}
+              value={user?.active_workspace_name ?? copy("No workspace", "Sin workspace", "Sem workspace")}
+              hint={activeWorkspaceId ?? copy("No identifier", "Sin identificador", "Sem identificador")}
+            />
+          </Panel>
+          <Panel className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <KeyValue
+                label={copy("Membership", "Membresia", "Vinculacao")}
+                value={getWorkspaceRoleLabel(workspaceRole, language)}
+                hint={copy(
+                  "Functional workspace access only.",
+                  "Acceso funcional al workspace, sin consola administrativa.",
+                  "Acesso funcional ao workspace, sem console administrativa.",
+                )}
+              />
+              <Badge tone="slate">{copy("User", "Usuario", "Usuario")}</Badge>
+            </div>
+          </Panel>
+        </div>
+
+        {requestedAdminSurface ? (
+          <Panel className="border-[var(--warning)]/25 bg-[var(--warning)]/5 p-5">
+            <div className="flex items-start gap-3">
+              <LockKeyhole aria-hidden="true" className="mt-0.5 h-5 w-5 text-[var(--warning)]" />
+              <div>
+                <p className="text-[16px] font-semibold text-[var(--text-primary)]">
+                  {copy(
+                    "Administrative console restricted",
+                    "Consola administrativa restringida",
+                    "Console administrativa restrita",
+                  )}
+                </p>
+                <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+                  {copy(
+                    "This account can keep using the workspace and project flow, but technical settings, Hotmart, runtime, FinOps and administrative reports require the global platform admin role.",
+                    "Esta cuenta puede seguir usando el workspace y el flujo de proyectos, pero la configuración técnica, Hotmart, runtime, FinOps y los reportes administrativos requieren el rol global de platform admin.",
+                    "Esta conta pode seguir usando o workspace e o fluxo de projetos, mas a configuracao tecnica, Hotmart, runtime, FinOps e os relatorios administrativos exigem o papel global de platform admin.",
+                  )}
+                </p>
+              </div>
+            </div>
+          </Panel>
+        ) : null}
+
+        <PlanAccessAdminPanel compact showDetailLink />
+        <UserCurrencyPreferencePanel />
+        <UserLanguagePreferencePanel />
+        <UserPrivacyConsentsPanel />
+      </section>
+    </div>
   );
 
   return (
@@ -1430,6 +1532,7 @@ export function SettingsWorkspacePage({
       onSessionChange={(value) => void selectOperationalSession(value)}
       actions={settingsActions}
     >
+      {isPlatformAdmin ? (
       <AdminSettingsConsoleShell
         activeConfigTab={activeConfigTab}
         activeConfigSubTab={activeConfigSubTab}
@@ -1439,8 +1542,8 @@ export function SettingsWorkspacePage({
         currentUser={user}
         featureFlagCount={featureFlags.length}
         initialProductGovernanceTab={initialProductGovernanceTab}
-        initialSection={initialSection ?? (hasWorkspaceAdminRole ? "overview" : "configuration")}
-        isPlatformAdmin={isPlatformPanelVisible}
+        initialSection={initialSection ?? "overview"}
+        isPlatformAdmin={isPlatformAdmin}
         onConfigSubTabChange={handleConfigSubTabChange}
         onConfigTabChange={handleConfigTabChange}
         projectItems={items}
@@ -1478,7 +1581,7 @@ export function SettingsWorkspacePage({
           selectedSession={selectedSession}
           sessionOptions={sessionOptions}
           sessionValue={selectedSession?.id ?? null}
-          isPlatformAdmin={isPlatformPanelVisible}
+          isPlatformAdmin={isPlatformAdmin}
           user={user}
         />
       ) : null}
@@ -3097,6 +3200,9 @@ export function SettingsWorkspacePage({
       ) : null}
         </div>
       </AdminSettingsConsoleShell>
+      ) : (
+        standalonePersonalContent
+      )}
     </OperationsModuleShell>
   );
 }

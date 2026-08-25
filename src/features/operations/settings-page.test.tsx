@@ -48,6 +48,7 @@ const {
         email: string;
         full_name: string;
         id: string;
+        platform_roles?: string[];
         workspaces: Array<{
           is_active: boolean;
           role: "owner" | "admin" | "editor" | "viewer";
@@ -548,9 +549,9 @@ function buildAdminInvitations(): AdminUserInvitationListResponse {
 function buildAdminRoles(): AdminRolesResponse {
   return {
     definitions: {
-      admin: "Administra runtime y configuraciones del workspace.",
+      admin: "Coordina proyectos y capacidades funcionales del workspace.",
       editor: "Gestiona proyectos y contenidos operativos.",
-      owner: "Administracion total del workspace.",
+      owner: "Ownership funcional del workspace, sin consola administrativa.",
       viewer: "Consulta informacion sin cambios administrativos.",
     },
     effective: {
@@ -572,16 +573,27 @@ function buildAdminRoles(): AdminRolesResponse {
         is_system: true,
         key: "owner",
         label: "Owner",
-        permission_count: 4,
-        permissions: ["workspace.users.manage", "workspace.roles.assign", "runtime.manage", "finops.manage"],
+        permission_count: 5,
+        permissions: [
+          "workspace.members.manage",
+          "workspace.projects.manage",
+          "workspace.preferences.manage",
+          "workspace.commerce.read",
+          "workspace.plan.read",
+        ],
         scope: "workspace",
       },
       {
         is_system: true,
         key: "admin",
         label: "Admin",
-        permission_count: 3,
-        permissions: ["workspace.users.manage", "runtime.manage", "finops.read"],
+        permission_count: 4,
+        permissions: [
+          "workspace.projects.manage",
+          "workspace.members.read",
+          "workspace.preferences.read",
+          "workspace.plan.read",
+        ],
         scope: "workspace",
       },
       {
@@ -650,6 +662,7 @@ describe("SettingsWorkspacePage", () => {
         email: "admin@leanbuilder.local",
         full_name: "Lean Builder Admin",
         id: "user-1",
+        platform_roles: ["platform_admin"],
         workspaces: [
           {
             is_active: true,
@@ -685,56 +698,26 @@ describe("SettingsWorkspacePage", () => {
     patchRuntimeSettingsMock.mockResolvedValue(buildRuntimeSettings("openai", "workspace-a"));
   });
 
-  it("recarga el runtime cuando cambia el workspace activo y mantiene oculto el panel de plataforma para no-admins globales", async () => {
-    getRuntimeSettingsMock.mockImplementation(async () =>
-      authStateRef.current?.user?.active_workspace_id === "workspace-b"
-        ? buildRuntimeSettings("deepseek", "workspace-b")
-        : buildRuntimeSettings("openai", "workspace-a"),
-    );
-    runtimeApiMock.getWorkspaceRuntimeHealth.mockImplementation(async () =>
-      authStateRef.current?.user?.active_workspace_id === "workspace-b"
-        ? buildWorkspaceHealth("workspace-b", "deepseek")
-        : buildWorkspaceHealth("workspace-a", "openai"),
-    );
-    runtimeApiMock.status.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.listPlatformProviders.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.getPlatformDefaults.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.getPlatformAudit.mockRejectedValue(buildForbiddenError());
-
-    const view = renderSettingsPage();
-
-    fireEvent.click(screen.getByRole("button", { name: "Configuración" }));
-    expect(await screen.findByText("Runtime efectivo del workspace")).toBeInTheDocument();
-    await waitFor(() => {
-      expect(getProviderSummaryText()).toContain("openai");
-    });
-    expect(screen.queryByRole("heading", { name: /Administracion de plataforma/i })).not.toBeInTheDocument();
-
+  it("degrada settings al ambito personal cuando el usuario no es platform admin", async () => {
     authStateRef.current = authStateRef.current
       ? {
           ...authStateRef.current,
           user: authStateRef.current.user
-        ? {
-            ...authStateRef.current.user,
-            active_workspace_id: "workspace-b",
-            active_workspace_name: "Workspace B",
-          }
+            ? {
+                ...authStateRef.current.user,
+                platform_roles: [],
+              }
             : null,
         }
       : null;
 
-    view.rerender(
-      <LanguageProvider initialLanguage="es">
-        <SettingsWorkspacePage />
-      </LanguageProvider>,
-    );
+    renderSettingsPage();
 
-    expect(await screen.findByText("Runtime efectivo del workspace")).toBeInTheDocument();
-    await waitFor(() => {
-      expect(getProviderSummaryText()).toContain("deepseek");
-    });
-    expect(getRuntimeSettingsMock).toHaveBeenCalledTimes(2);
-    expect(runtimeApiMock.getWorkspaceRuntimeHealth).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("heading", { name: "Cuenta y acceso" })).toBeInTheDocument();
+    expect(screen.queryByText("Administracion de plataforma")).not.toBeInTheDocument();
+    expect(screen.queryByText("Runtime efectivo del workspace")).not.toBeInTheDocument();
+    expect(getRuntimeSettingsMock).not.toHaveBeenCalled();
+    expect(runtimeApiMock.listPlatformProviders).not.toHaveBeenCalled();
   });
 
   it("muestra precios base en Comercial y costos cuando el runtime global esta habilitado para platform admin", async () => {
@@ -960,6 +943,7 @@ describe("SettingsWorkspacePage", () => {
           user: authStateRef.current.user
             ? {
                 ...authStateRef.current.user,
+                platform_roles: [],
                 workspaces: authStateRef.current.user.workspaces.map((workspace) =>
                   workspace.workspace_id === "workspace-a" ? { ...workspace, role: "viewer" } : workspace,
                 ),
@@ -967,21 +951,15 @@ describe("SettingsWorkspacePage", () => {
             : null,
         }
       : null;
-    getRuntimeSettingsMock.mockResolvedValue(buildRuntimeSettings("openai", "workspace-a"));
-    runtimeApiMock.getWorkspaceRuntimeHealth.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.status.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.listPlatformProviders.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.getPlatformDefaults.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.getPlatformAudit.mockRejectedValue(buildForbiddenError());
-
-    renderSettingsPage();
+    renderSettingsPage({
+      initialConfigTab: "llmRuntime",
+      initialSection: "configuration",
+    });
 
     expect(await screen.findByRole("heading", { name: "Cuenta y acceso" })).toBeInTheDocument();
     expect(screen.queryByText("Runtime efectivo del workspace")).not.toBeInTheDocument();
-
-    const runtimeTab = screen.getByRole("tab", { name: /LLM runtime/i });
-    fireEvent.click(runtimeTab);
-    expect(await screen.findByText(/Se requiere una membres[ií]a admin o permisos de platform admin/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Consola administrativa restringida/i)).toBeInTheDocument();
+    expect(screen.getByText(/requieren el rol global de platform admin/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("Provider activo")).not.toBeInTheDocument();
   });
 
@@ -1046,7 +1024,7 @@ describe("SettingsWorkspacePage", () => {
     await waitFor(() => {
       expect(adminConsoleApiMock.getRoles).toHaveBeenCalled();
     });
-    expect(screen.getByText("workspace.users.manage")).toBeInTheDocument();
+    expect(screen.getByText("workspace.members.manage")).toBeInTheDocument();
     expect(screen.getAllByText("Platform admin").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/platform\.runtime\.manage/).length).toBeGreaterThan(0);
   });

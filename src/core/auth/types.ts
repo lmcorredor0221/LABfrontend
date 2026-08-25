@@ -6,6 +6,7 @@ export type AuthUser = {
   id: string;
   email: string;
   full_name: string;
+  platform_roles?: string[];
   preferred_currency?: string;
   workspaces: WorkspaceMembershipSummary[];
 };
@@ -41,3 +42,7 @@ export type AuthState = {
   token: string | null;
   user: AuthUser | null;
 };
+
+export function hasPlatformAdminRole(user: AuthUser | null | undefined) {
+  return Boolean(user?.platform_roles?.includes("platform_admin"));
+}

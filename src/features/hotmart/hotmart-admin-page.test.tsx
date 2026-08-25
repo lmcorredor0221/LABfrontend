@@ -274,13 +274,14 @@ function createMockApi(overrides: Partial<HotmartAdminApi> = {}): HotmartAdminAp
   } as HotmartAdminApi;
 }
 
-function createUser(role: "admin" | "viewer"): AuthUser {
+function createUser(role: "admin" | "viewer", platformAdmin = false): AuthUser {
   return {
     active_workspace_id: "workspace-1",
     active_workspace_name: "Workspace principal",
     email: "admin@example.com",
     full_name: "Admin",
     id: "user-1",
+    platform_roles: platformAdmin ? ["platform_admin"] : [],
     workspaces: [
       {
         is_active: true,
@@ -293,8 +294,8 @@ function createUser(role: "admin" | "viewer"): AuthUser {
   };
 }
 
-function renderView(api: HotmartAdminApi, role: "admin" | "viewer" = "admin") {
-  const user = createUser(role);
+function renderView(api: HotmartAdminApi, role: "admin" | "viewer" = "admin", platformAdmin = true) {
+  const user = createUser(role, platformAdmin);
   const authStore = createAuthStore({
     api: {
       login: vi.fn(),
@@ -314,6 +315,7 @@ function renderView(api: HotmartAdminApi, role: "admin" | "viewer" = "admin") {
       <AuthProvider store={authStore}>
         <HotmartAdminView
           api={api}
+          isPlatformAdmin={platformAdmin}
           listStatus="ready"
           selectedSession={{
             current_stage: "build_blueprint",
@@ -345,10 +347,10 @@ describe("HotmartAdminView", () => {
     });
   });
 
-  it("loads the admin dashboard for admin workspaces", async () => {
+  it("loads the admin dashboard for platform admins", async () => {
     const api = createMockApi();
 
-    renderView(api);
+    renderView(api, "admin", true);
 
     expect(await screen.findByText("Consola Hotmart")).toBeInTheDocument();
     expect(await screen.findByText("Preparacion operacional")).toBeInTheDocument();
@@ -356,10 +358,10 @@ describe("HotmartAdminView", () => {
     expect(api.getDashboard).toHaveBeenCalledWith("sandbox");
   });
 
-  it("protects the module for non-admin workspace members", async () => {
+  it("protects the module for non-platform-admin users", async () => {
     const api = createMockApi();
 
-    renderView(api, "viewer");
+    renderView(api, "admin", false);
 
     expect(await screen.findByText("Modulo Hotmart protegido")).toBeInTheDocument();
     expect(api.getDashboard).not.toHaveBeenCalled();
@@ -368,7 +370,7 @@ describe("HotmartAdminView", () => {
   it("saves credential configuration without rendering secret values", async () => {
     const api = createMockApi();
 
-    renderView(api);
+    renderView(api, "admin", true);
 
     fireEvent.click(await screen.findByRole("button", { name: "Credenciales" }));
     fireEvent.change(screen.getByLabelText("Client Secret"), { target: { value: "secret-for-test" } });
@@ -412,7 +414,7 @@ describe("HotmartAdminView", () => {
       }),
     });
 
-    renderView(api);
+    renderView(api, "admin", true);
 
     fireEvent.click(await screen.findByRole("button", { name: "Promociones" }));
     expect(await screen.findByText("Crear cupón Hotmart")).toBeInTheDocument();
