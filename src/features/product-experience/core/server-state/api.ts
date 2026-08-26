@@ -451,6 +451,7 @@ export function createProductExperienceApi(client: ProductExperienceApiClient = 
         `/api/v1/sessions/${sessionId}/attention-v2/${encodeURIComponent(itemKey)}/actions`,
         {
           body: payload,
+          timeoutMs: LONG_RUNNING_STAGE_TIMEOUT_MS,
           ...requestOptions(options),
         },
       );

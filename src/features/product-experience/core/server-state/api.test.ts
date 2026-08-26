@@ -205,4 +205,28 @@ describe("product experience api", () => {
     expect(estimateCall[0]).toBe("/api/v1/sessions/session-a/estimate/start");
     expect(estimateCall[1].headers.get("x-idempotency-key")).toBe("estimate-once");
   });
+
+  it("uses the shared long-running timeout for attention actions", async () => {
+    const client = {
+      get: vi.fn(),
+      patch: vi.fn(),
+      post: vi.fn().mockResolvedValue({ status: "applied" }),
+    };
+    const api = createProductExperienceApi(client as never);
+
+    await api.resolveAttentionItemV2(
+      "session-a",
+      "attention.v2:runtime_error:memory",
+      { action_kind: "retry", idempotency_key: "attention-retry" },
+    );
+
+    expect(client.post).toHaveBeenCalledWith(
+      "/api/v1/sessions/session-a/attention-v2/attention.v2%3Aruntime_error%3Amemory/actions",
+      {
+        body: { action_kind: "retry", idempotency_key: "attention-retry" },
+        signal: undefined,
+        timeoutMs: getLongRunningApiRequestTimeoutMs(),
+      },
+    );
+  });
 });
