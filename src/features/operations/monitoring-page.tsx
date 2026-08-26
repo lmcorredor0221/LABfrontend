@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FolderKanban, RefreshCcw } from "lucide-react";
+import { AlertTriangle, FolderKanban, RefreshCcw } from "lucide-react";
 import { BarsByDimension, DonutChart, MultiSeriesChart, Sparkline } from "@/components/lean/charts";
 import { AppButton, Badge, Panel, SelectField, SimpleTable, StatRow, TextAreaField, TextField } from "@/components/lean/ui";
 import { FinOpsDashboard } from "@/features/finops/finops-dashboard";

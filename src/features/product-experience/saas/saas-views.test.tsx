@@ -9,6 +9,7 @@ import {
   type PremiumEnrichmentWorkspace,
 } from "@/features/product-experience/saas/premium-enrichment-api";
 import { ProductSaasView } from "@/features/product-experience/saas/saas-product-views";
+import type { UseProductBuildStatusResult } from "@/features/product-experience/saas/use-product-build-status";
 import {
   EstimateStageView,
   PackageStageView,
@@ -24,9 +25,10 @@ import type { SessionCommercialAccess, SessionSnapshot } from "@/features/sessio
 
 const mockPush = vi.fn();
 const mockUseSearchParams = vi.fn(() => new URLSearchParams());
-const mockUseProductBuildStatus = vi.hoisted(() => vi.fn(() => ({
+const mockUseProductBuildStatus = vi.hoisted(() => vi.fn<() => UseProductBuildStatusResult>(() => ({
   data: null,
   error: null,
+  executeCommand: vi.fn(async () => null),
   isEmpty: true,
   isError: false,
   isFetching: false,
@@ -37,6 +39,26 @@ const mockUseProductBuildStatus = vi.hoisted(() => vi.fn(() => ({
   status: "empty",
   updatedAt: null,
 })));
+
+function createProductBuildStatusMock(
+  overrides: Partial<UseProductBuildStatusResult> = {},
+): UseProductBuildStatusResult {
+  return {
+    data: null,
+    error: null,
+    executeCommand: vi.fn(async () => null),
+    isEmpty: true,
+    isError: false,
+    isFetching: false,
+    isFinal: false,
+    isLoading: false,
+    isStale: false,
+    refresh: vi.fn(async () => null),
+    status: "empty",
+    updatedAt: null,
+    ...overrides,
+  };
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -697,19 +719,7 @@ beforeEach(() => {
   mockPush.mockClear();
   mockUseSearchParams.mockReturnValue(new URLSearchParams());
   mockUseProductBuildStatus.mockReset();
-  mockUseProductBuildStatus.mockReturnValue({
-    data: null,
-    error: null,
-    isEmpty: true,
-    isError: false,
-    isFetching: false,
-    isFinal: false,
-    isLoading: false,
-    isStale: false,
-    refresh: vi.fn(async () => null),
-    status: "empty",
-    updatedAt: null,
-  });
+  mockUseProductBuildStatus.mockReturnValue(createProductBuildStatusMock());
 });
 
 describe("UXA11 SaaS stage views", () => {
@@ -802,7 +812,7 @@ describe("UXA11 SaaS product views", () => {
 
   it("keeps the build tracker visible when opening the Blueprint diagrams tab directly", () => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=diagrams"));
-    mockUseProductBuildStatus.mockReturnValue({
+    mockUseProductBuildStatus.mockReturnValue(createProductBuildStatusMock({
       data: {
         lifecycle: "running",
         progress: {
@@ -816,10 +826,9 @@ describe("UXA11 SaaS product views", () => {
       isFinal: false,
       isLoading: false,
       isStale: false,
-      refresh: vi.fn(async () => null),
-      status: "ready",
+      status: "success",
       updatedAt: Date.now(),
-    });
+    }));
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint" />);
 
