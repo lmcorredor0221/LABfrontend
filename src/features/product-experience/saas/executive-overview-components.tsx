@@ -994,8 +994,8 @@ export function DeliverableGenerationLiveTracker({
   productKey: ProductBuildProductKey;
   productLabel: string;
   status?: ProductBuildStatus | null;
-  onProcessPending?: (() => void | Promise<void>) | undefined;
-  onRetryFailed?: (() => void | Promise<void>) | undefined;
+  onProcessPending?: (() => void | Promise<unknown>) | undefined;
+  onRetryFailed?: (() => void | Promise<unknown>) | undefined;
   processingDisabled?: boolean;
 }) {
   const processingQueue = status?.processing_queue ?? null;
