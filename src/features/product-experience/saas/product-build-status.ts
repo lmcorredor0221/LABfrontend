@@ -31,6 +31,10 @@ export type ProductBuildActionState = "hidden" | "disabled" | "available" | "rec
 
 export type ProductBuildAttentionSeverity = "info" | "warning" | "blocking" | "technical_error";
 
+export type ProductBuildProcessingQueueMode = "process_pending" | "retry_failed";
+
+export type ProductBuildProcessingItemStatus = "pending" | "queued" | "processing" | "completed" | "failed";
+
 export type ProductBuildProgress = {
   percent: number;
   completed_units: number;
@@ -123,6 +127,40 @@ export type ProductBuildRecoverableError = {
   trace_refs: string[];
 };
 
+export type ProductBuildProcessingQueueItem = {
+  deliverable_key: string;
+  title: string;
+  deliverable_type: ProductBuildDeliverableStatus["deliverable_type"];
+  stage_key: string;
+  status: ProductBuildProcessingItemStatus;
+  attempt_count: number;
+  retried: boolean;
+  error_message: string;
+  href: string;
+  job_id: string;
+  updated_at: string;
+};
+
+export type ProductBuildProcessingQueueStatus = {
+  active: boolean;
+  queue_id: string;
+  mode: ProductBuildProcessingQueueMode;
+  status: "idle" | "queued" | "running" | "completed" | "completed_with_errors";
+  total_count: number;
+  pending_count: number;
+  processing_count: number;
+  completed_count: number;
+  failed_count: number;
+  retried_count: number;
+  started_at: string;
+  completed_at: string;
+  updated_at: string;
+  current_deliverable_key: string;
+  summary: string;
+  completed_items: ProductBuildProcessingQueueItem[];
+  failed_items: ProductBuildProcessingQueueItem[];
+};
+
 export type ProductBuildStatus = {
   contract_version: "product-build-status.v1";
   workspace_id: string;
@@ -139,6 +177,7 @@ export type ProductBuildStatus = {
   attention: ProductBuildAttentionSummary;
   actions: ProductBuildAction[];
   last_error: ProductBuildRecoverableError | null;
+  processing_queue?: ProductBuildProcessingQueueStatus | null;
   generated_at: string;
   source_contracts: string[];
 };

@@ -305,6 +305,60 @@ describe("createHotmartAdminApi", () => {
     expect(client.get).toHaveBeenCalledWith("/api/v1/commerce/products");
   });
 
+  it("caps dashboard bootstrap fan-out to five concurrent requests", async () => {
+    let activeRequests = 0;
+    let maxConcurrentRequests = 0;
+
+    const resolveGet = (path: string) => {
+      if (path.includes("/status")) return status;
+      if (path.includes("/mappings")) return [];
+      if (path.includes("/payment-links")) return [link];
+      if (path.includes("/coupons/metrics")) return promotionMetrics;
+      if (path.includes("/coupons")) return [promotion];
+      if (path.includes("/sync-runs")) return [syncRun];
+      if (path.includes("/sync-cursors")) return [syncCursor];
+      if (path.includes("/reconciliation")) return [reconciliationIssue];
+      if (path.includes("/club/overview")) return clubOverview;
+      if (path.includes("/club/modules")) return [clubModule];
+      if (path.includes("/club/pages")) return [clubPage];
+      if (path.includes("/club/students")) return [clubStudent];
+      if (path.includes("/club/progress")) return [clubProgress];
+      if (path.includes("/release-readiness")) return releaseReadiness;
+      if (path.includes("/alerts")) return [operationalAlert];
+      if (path.includes("/runbook")) return [runbookSection];
+      if (path.includes("/commerce/products")) return [];
+      throw new Error(`Unexpected GET ${path}`);
+    };
+
+    const client = {
+      delete: vi.fn(),
+      get: vi.fn(
+        (path: string) =>
+          new Promise((resolve, reject) => {
+            activeRequests += 1;
+            maxConcurrentRequests = Math.max(maxConcurrentRequests, activeRequests);
+            setTimeout(() => {
+              try {
+                resolve(resolveGet(path));
+              } catch (error) {
+                reject(error);
+              } finally {
+                activeRequests -= 1;
+              }
+            }, 0);
+          }),
+      ),
+      post: vi.fn(),
+    };
+    const api = createHotmartAdminApi(client as unknown as NonNullable<Parameters<typeof createHotmartAdminApi>[0]>);
+
+    const dashboard = await api.getDashboard("sandbox");
+
+    expect(dashboard.status.status).toBe("configured");
+    expect(maxConcurrentRequests).toBeLessThanOrEqual(5);
+    expect(client.get).toHaveBeenCalledTimes(17);
+  });
+
   it("creates a Hotmart checkout order before requesting the payment link", async () => {
     const client = {
       delete: vi.fn(),

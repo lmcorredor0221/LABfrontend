@@ -25,7 +25,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
 import {
   UxaBadge,
   UxaPersistentProcessingFeedback,
@@ -988,14 +987,60 @@ export function DeliverableGenerationLiveTracker({
   productKey,
   productLabel,
   status,
+  onProcessPending,
+  onRetryFailed,
+  processingDisabled = false,
 }: {
   productKey: ProductBuildProductKey;
   productLabel: string;
   status?: ProductBuildStatus | null;
+  onProcessPending?: (() => void | Promise<void>) | undefined;
+  onRetryFailed?: (() => void | Promise<void>) | undefined;
+  processingDisabled?: boolean;
 }) {
-  const [isSimulatingRegen, setIsSimulatingRegen] = useState(false);
-  const isActivelyGenerating = isProcessingLifecycle(status?.lifecycle) || isSimulatingRegen;
-  const percent = isSimulatingRegen ? 68 : normalizePercent(status?.progress.percent);
+  const processingQueue = status?.processing_queue ?? null;
+  const deliverableCounts = (status?.deliverables ?? []).reduce(
+    (accumulator, item) => {
+      if (item.state === "pending" || item.state === "stale") {
+        accumulator.pending += 1;
+      } else if (item.state === "queued" || item.state === "generating") {
+        accumulator.processing += 1;
+      } else if (item.state === "available") {
+        accumulator.completed += 1;
+      } else if (item.state === "error") {
+        accumulator.failed += 1;
+      }
+      return accumulator;
+    },
+    { completed: 0, failed: 0, pending: 0, processing: 0 },
+  );
+  const queueMetrics = processingQueue
+    ? {
+        completed: processingQueue.completed_count,
+        failed: processingQueue.failed_count,
+        pending: processingQueue.pending_count,
+        processing: processingQueue.processing_count,
+        retried: processingQueue.retried_count,
+        total: processingQueue.total_count,
+      }
+    : {
+        completed: 0,
+        failed: deliverableCounts.failed,
+        pending: deliverableCounts.pending,
+        processing: deliverableCounts.processing,
+        retried: 0,
+        total: deliverableCounts.pending + deliverableCounts.failed,
+      };
+  const queueActive = Boolean(processingQueue?.active);
+  const isActivelyGenerating = isProcessingLifecycle(status?.lifecycle) || queueActive;
+  const percent = processingQueue?.total_count
+    ? normalizePercent(((processingQueue.total_count - processingQueue.pending_count - processingQueue.processing_count) / Math.max(1, processingQueue.total_count)) * 100)
+    : normalizePercent(status?.progress.percent);
+  const canProcess = Boolean(onProcessPending && !processingDisabled && !queueActive && queueMetrics.total > 0);
+  const canRetryFailed = Boolean(onRetryFailed && !processingDisabled && !queueActive && queueMetrics.failed > 0);
+  const primaryLabel = queueMetrics.pending > 0 ? "Procesar pendientes" : "Reprocesar";
+  const completedItems = processingQueue?.completed_items ?? [];
+  const failedItems = processingQueue?.failed_items ?? [];
 
   const generationPhases = [
     { label: "Consolidando contexto y objetivos de negocio Lean", status: "completed" },
@@ -1014,6 +1059,14 @@ export function DeliverableGenerationLiveTracker({
           : "border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)]",
       )}
     >
+      <UxaPersistentProcessingFeedback
+        active={queueActive}
+        title={`Procesando ${productLabel}`}
+        description={processingQueue?.summary || status?.current_activity?.detail || "La cola sigue ejecutandose en segundo plano."}
+        stageLabel={status?.current_activity?.label || "Cola persistida"}
+        activityLabel={`${queueMetrics.processing} en proceso`}
+      />
+
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div
@@ -1037,22 +1090,58 @@ export function DeliverableGenerationLiveTracker({
             <h3 className="text-[13px] font-black text-[var(--uxa-color-ink)]">
               {isActivelyGenerating
                 ? `Generando entregables de ${productLabel}...`
-                : `Entregables de ${productLabel} generados y actualizados`}
+                : processingQueue?.status === "completed_with_errors"
+                  ? `Procesamiento de ${productLabel} finalizado con errores`
+                  : `Entregables de ${productLabel} generados y actualizados`}
             </h3>
           </div>
         </div>
-        <UxaBadge tone={isActivelyGenerating ? "info" : "success"}>
-          {isActivelyGenerating ? "En Ejecución" : "Completado"}
-        </UxaBadge>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {canRetryFailed ? (
+            <button className="uxa-button uxa-button--secondary" onClick={() => void onRetryFailed?.()} type="button">
+              Reprocesar fallidos
+            </button>
+          ) : null}
+          {canProcess ? (
+            <button className="uxa-button uxa-button--primary" onClick={() => void onProcessPending?.()} type="button">
+              {primaryLabel}
+            </button>
+          ) : null}
+          <UxaBadge tone={isActivelyGenerating ? "info" : processingQueue?.failed_count ? "danger" : "success"}>
+            {isActivelyGenerating ? "En Ejecución" : processingQueue?.failed_count ? "Completado con errores" : "Completado"}
+          </UxaBadge>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        {[
+          ["Total", queueMetrics.total],
+          ["Pendientes", queueMetrics.pending],
+          ["En proceso", queueMetrics.processing],
+          ["Completados", queueMetrics.completed],
+          ["Fallidos", queueMetrics.failed],
+          ["Reintentados", queueMetrics.retried],
+        ].map(([label, value]) => (
+          <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white/80 px-3 py-2" key={String(label)}>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{label}</p>
+            <p className="mt-1 text-[16px] font-black text-[var(--uxa-color-ink)]">{value}</p>
+          </div>
+        ))}
       </div>
 
       <div className="mt-3">
         <div className="flex items-center justify-between text-[11px] font-bold text-[var(--uxa-color-ink-soft)] mb-1">
-          <span>Avance de compilación</span>
+          <span>{processingQueue ? "Avance de la cola" : "Avance de compilación"}</span>
           <span>{percent}%</span>
         </div>
         <UxaProcessingStrip label="Progreso del pipeline de artefactos" value={percent} />
       </div>
+
+      {processingQueue?.summary ? (
+        <p className="mt-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+          {processingQueue.summary}
+        </p>
+      ) : null}
 
       <div className="mt-3 space-y-1.5 rounded-[var(--uxa-radius-md)] bg-white p-2.5">
         {generationPhases.map((phase, idx) => (
@@ -1079,6 +1168,44 @@ export function DeliverableGenerationLiveTracker({
           </div>
         ))}
       </div>
+
+      {(completedItems.length || failedItems.length) ? (
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <div className="rounded-[var(--uxa-radius-md)] border border-emerald-200 bg-white/85 p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700">
+              Generados correctamente
+            </p>
+            {completedItems.length ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {completedItems.slice(0, 6).map((item) => (
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700" key={item.deliverable_key}>
+                    {item.title}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">Aun no hay entregables exitosos en esta corrida.</p>
+            )}
+          </div>
+          <div className="rounded-[var(--uxa-radius-md)] border border-rose-200 bg-white/85 p-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-700">
+              Continúan con error
+            </p>
+            {failedItems.length ? (
+              <div className="mt-2 space-y-2">
+                {failedItems.slice(0, 6).map((item) => (
+                  <div className="rounded-[var(--uxa-radius-sm)] bg-rose-50 px-2.5 py-2" key={item.deliverable_key}>
+                    <p className="text-[11px] font-semibold text-rose-800">{item.title}</p>
+                    <p className="mt-1 text-[11px] leading-4 text-rose-700">{item.error_message || "Sin detalle adicional registrado."}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">Sin errores persistentes en la última ejecución.</p>
+            )}
+          </div>
+        </div>
+      ) : null}
     </UxaSurface>
   );
 }

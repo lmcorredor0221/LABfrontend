@@ -70,27 +70,21 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
       workspaceId?: string;
     }): Promise<CommercialAdminDashboardData> {
       const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
-      const [
-        quotaConfigs,
-        workspaceOverrides,
-        effectiveConfig,
-        balanceSnapshot,
-        balanceLedger,
-        packageCatalog,
-        recommendation,
-        debts,
-        legacyPackageResolutions,
-      ] = await Promise.all([
+      const [quotaConfigs, workspaceOverrides, effectiveConfig, balanceSnapshot] = await Promise.all([
         this.listCommercialQuotaProducts(),
         this.listCommercialWorkspaceOverrides(workspaceId),
         this.getCommercialEffectiveConfig(productKey, workspaceId),
         this.getCommercialBalanceSnapshot(productKey, workspaceId),
+      ]);
+      const [balanceLedger, packageCatalog, recommendation, debts] = await Promise.all([
         this.listCommercialBalanceLedger(productKey, workspaceId),
         this.listCommercialPackageCatalog("", true),
         this.getCommercialPackageRecommendation(productKey, 1, workspaceId),
         client.get<CommercialDebtResponse[]>(
           `/api/v1/admin/integrations/hotmart/commercial/debts?status=open&product_key=${encodeURIComponent(productKey)}${workspaceQuery}`,
         ),
+      ]);
+      const [legacyPackageResolutions] = await Promise.all([
         this.listCommercialLegacyPackageResolutions({ productKey, workspaceId }),
       ]);
       return {
@@ -107,38 +101,26 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
     },
 
     async getDashboard(environment: HotmartEnvironment): Promise<HotmartDashboardData> {
-      const [
-        status,
-        mappings,
-        links,
-        products,
-        promotions,
-        promotionMetrics,
-        syncRuns,
-        syncCursors,
-        reconciliationIssues,
-        clubOverview,
-        clubModules,
-        clubPages,
-        clubStudents,
-        clubProgress,
-        releaseReadiness,
-        operationalAlerts,
-        runbook,
-      ] = await Promise.all([
+      const [status, mappings, links, products, promotionMetrics] = await Promise.all([
         this.getStatus(environment),
         this.listMappings(environment),
         this.listPaymentLinks(),
         this.listProducts(),
-        this.listPromotions(environment),
         this.getPromotionMetrics(environment),
+      ]);
+      const [promotions, syncRuns, syncCursors, reconciliationIssues] = await Promise.all([
+        this.listPromotions(environment),
         this.listSyncRuns(environment),
         this.listSyncCursors(environment),
         this.listReconciliationIssues(environment),
+      ]);
+      const [clubOverview, clubModules, clubPages, clubStudents] = await Promise.all([
         this.getClubOverview(environment),
         this.listClubModules(environment),
         this.listClubPages(environment),
         this.listClubStudents(environment),
+      ]);
+      const [clubProgress, releaseReadiness, operationalAlerts, runbook] = await Promise.all([
         this.listClubProgress(environment),
         this.getReleaseReadiness(environment),
         this.listOperationalAlerts(environment),

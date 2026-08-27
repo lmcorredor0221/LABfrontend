@@ -27,7 +27,10 @@ export type UseProductBuildStatusOptions = {
 };
 
 export type UseProductBuildStatusResult = ProductBuildStatusState & {
-  executeCommand(action: "start" | "resume" | "retry", options?: { allow_llm?: boolean }): Promise<ProductBuildStatus | null>;
+  executeCommand(
+    action: "start" | "resume" | "retry" | "process_pending" | "retry_failed",
+    options?: { allow_llm?: boolean },
+  ): Promise<ProductBuildStatus | null>;
   isEmpty: boolean;
   isError: boolean;
   isFinal: boolean;
@@ -51,6 +54,13 @@ function createIdleState(): ProductBuildStatusState {
 
 function isAbortLikeError(error: unknown) {
   return error instanceof DOMException && error.name === "AbortError";
+}
+
+function createIdempotencyKey() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function isProductBuildLifecycleFinal(lifecycle: ProductBuildLifecycle): boolean {
@@ -157,7 +167,10 @@ export function useProductBuildStatus(
   }, [api, enabled, productKey, sessionId, staleWhileRevalidating]);
 
   const executeCommand = useCallback(
-    async (action: "start" | "resume" | "retry", options?: { allow_llm?: boolean }): Promise<ProductBuildStatus | null> => {
+    async (
+      action: "start" | "resume" | "retry" | "process_pending" | "retry_failed",
+      options?: { allow_llm?: boolean },
+    ): Promise<ProductBuildStatus | null> => {
       if (!enabled || !sessionId || !productKey || !api.executeProductBuildAction) {
         return null;
       }
@@ -171,6 +184,7 @@ export function useProductBuildStatus(
         const data = await api.executeProductBuildAction(sessionId, productKey, {
           action,
           allow_llm: options?.allow_llm,
+          idempotency_key: createIdempotencyKey(),
         });
         const nextState: ProductBuildStatusState = {
           data,

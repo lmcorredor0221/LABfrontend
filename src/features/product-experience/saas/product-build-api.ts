@@ -34,7 +34,7 @@ export function createProductBuildApi(client: ProductBuildApiClient = apiClient)
     async executeProductBuildAction(
       sessionId: string,
       productKey: ProductBuildProductKey,
-      command: { action: "start" | "resume" | "retry"; allow_llm?: boolean; idempotency_key?: string },
+      command: { action: "start" | "resume" | "retry" | "process_pending" | "retry_failed"; allow_llm?: boolean; idempotency_key?: string },
       options?: ProductBuildApiRequestOptions,
     ): Promise<ProductBuildStatus> {
       if (!client.post) {

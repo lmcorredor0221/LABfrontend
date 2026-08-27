@@ -1403,6 +1403,9 @@ function CommercialBlueprintResult({
             productKey={productBuildKey}
             productLabel={productTierLabel(language, tierScope)}
             status={productBuild.data}
+            onProcessPending={() => productBuild.executeCommand("process_pending")}
+            onRetryFailed={() => productBuild.executeCommand("retry_failed")}
+            processingDisabled={productBuild.isFetching}
           />
         ) : productBuild.isLoading || productBuild.isFetching ? (
           <UxaSurface className="border border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-4">
@@ -1705,6 +1708,9 @@ function ProductExecutiveOverviewTab({
             productKey={productKey}
             productLabel={overview.productLabel}
             status={productBuild.data}
+            onProcessPending={() => productBuild.executeCommand("process_pending")}
+            onRetryFailed={() => productBuild.executeCommand("retry_failed")}
+            processingDisabled={productBuild.isFetching}
           />
           <DeliverableProgressSummary groups={overview.deliverableGroups} />
           <ProductNextAction model={overview} />
@@ -1774,6 +1780,9 @@ function ProductExecutiveOverviewPage({
               productKey={config.productKey}
               productLabel={overview.productLabel}
               status={productBuild.data}
+              onProcessPending={() => productBuild.executeCommand("process_pending")}
+              onRetryFailed={() => productBuild.executeCommand("retry_failed")}
+              processingDisabled={productBuild.isFetching}
             />
             <DeliverableProgressSummary groups={overview.deliverableGroups} />
             <ProductNextAction model={overview} />
