@@ -35,8 +35,11 @@ export function createQuestionDraft(question?: ConstructionQuestionViewEntry | n
   };
 }
 
-export function getConstructionQuestionErrors(draft: ConstructionQuestionDraft): ConstructionQuestionFieldErrors {
-  if (!draft.answerText.trim()) {
+export function getConstructionQuestionErrors(
+  draft: ConstructionQuestionDraft,
+  decision: ConstructionQuestionAnswerRequest["decision"] = "answer",
+): ConstructionQuestionFieldErrors {
+  if (decision === "answer" && !draft.answerText.trim()) {
     return {
       answerText: "La respuesta no puede quedar vacia.",
     };
@@ -47,9 +50,11 @@ export function getConstructionQuestionErrors(draft: ConstructionQuestionDraft):
 
 export function buildConstructionQuestionPayload(
   draft: ConstructionQuestionDraft,
+  decision: ConstructionQuestionAnswerRequest["decision"] = "answer",
 ): ConstructionQuestionAnswerRequest {
   return {
     answer_text: draft.answerText.trim(),
+    decision,
     impacted_artifacts: normalizeLines(draft.impactedArtifactsText),
     owner_role: draft.ownerRole.trim(),
   };
@@ -116,7 +121,7 @@ export function getValidationSeverityTone(severity?: ACPValidationSeverity | nul
 }
 
 export function getBlockingQuestions(questions: ConstructionQuestionViewEntry[]) {
-  return questions.filter((item) => item.blocking && item.status !== "resolved");
+  return questions.filter((item) => item.blocking && item.status !== "resolved" && item.status !== "deferred");
 }
 
 export function getOpenQuestions(questions: ConstructionQuestionViewEntry[]) {

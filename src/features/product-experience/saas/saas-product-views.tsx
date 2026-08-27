@@ -20,7 +20,11 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useLanguage } from "@/core/i18n/language-context";
+import { useLanguage, type SupportedLanguage } from "@/core/i18n/language-context";
+import {
+  getBlockingQuestions,
+  getOpenQuestions,
+} from "@/features/acp/acp-adapter";
 import { DiagramCenterPage } from "@/features/diagram-center";
 import type { DiagramCatalogItem } from "@/features/diagram-center/domain/types";
 import diagramCenterStyles from "@/features/diagram-center/presentation/diagram-center.module.css";
@@ -70,7 +74,8 @@ import {
 import { PackageStageView, ValidateStageView } from "@/features/product-experience/saas/saas-stage-views";
 import { ProfessionalArtifactViewer } from "@/features/product-experience/saas/professional-artifact-viewer";
 import { sessionsApi } from "@/features/sessions/session-api";
-import type { CommercialTier } from "@/features/sessions/types";
+import type { ConstructionQuestionViewEntry } from "@/features/sessions/session-contracts";
+import type { ACPWorkspaceResponse, CommercialTier, ExportJobResponse } from "@/features/sessions/types";
 import { cn } from "@/lib/utils";
 
 async function executeProductCheckout({
@@ -173,6 +178,145 @@ async function executeAcpZipDownload({
     return retried;
   }
   return job;
+}
+
+type InlineNoticeTone = "danger" | "warning" | "success";
+
+type InlineNotice = {
+  message: string;
+  tone: InlineNoticeTone;
+};
+
+type AcpPreparationState = {
+  canExportZip: boolean;
+  canStartPackage: boolean;
+  nextHref: string;
+};
+
+function buildExportJobNotice(
+  language: SupportedLanguage,
+  job: ExportJobResponse,
+  productLabel: { en: string; es: string; pt: string },
+): InlineNotice | null {
+  const localizedProduct = byLanguage(language, productLabel);
+  if (job.status === "failed") {
+    return {
+      tone: "danger",
+      message:
+        job.error_message ||
+        byLanguage(language, {
+          en: `The ${localizedProduct} download could not be prepared.`,
+          es: `No se pudo preparar la descarga de ${localizedProduct}.`,
+          pt: `Nao foi possivel preparar o download de ${localizedProduct}.`,
+        }),
+    };
+  }
+  if (job.status === "queued" || job.status === "running") {
+    return {
+      tone: "warning",
+      message: byLanguage(language, {
+        en: `The ${localizedProduct} download is still being prepared. Retry in a few seconds if it does not start automatically.`,
+        es: `La descarga de ${localizedProduct} sigue en preparación. Reintenta en unos segundos si no inicia sola.`,
+        pt: `O download de ${localizedProduct} ainda esta sendo preparado. Tente novamente em alguns segundos se nao iniciar sozinho.`,
+      }),
+    };
+  }
+  if (job.status === "expired") {
+    return {
+      tone: "warning",
+      message: byLanguage(language, {
+        en: `The ${localizedProduct} download expired before it could open. Try again.`,
+        es: `La descarga de ${localizedProduct} expiró antes de abrirse. Inténtalo de nuevo.`,
+        pt: `O download de ${localizedProduct} expirou antes de abrir. Tente novamente.`,
+      }),
+    };
+  }
+  if (job.status === "canceled") {
+    return {
+      tone: "warning",
+      message: byLanguage(language, {
+        en: `The ${localizedProduct} download was canceled.`,
+        es: `La descarga de ${localizedProduct} fue cancelada.`,
+        pt: `O download de ${localizedProduct} foi cancelado.`,
+      }),
+    };
+  }
+  if (job.status === "ready" && !job.download_url) {
+    return {
+      tone: "warning",
+      message: byLanguage(language, {
+        en: `The ${localizedProduct} download is ready but the file URL is missing.`,
+        es: `La descarga de ${localizedProduct} quedó lista, pero falta la URL del archivo.`,
+        pt: `O download de ${localizedProduct} ficou pronto, mas a URL do arquivo esta ausente.`,
+      }),
+    };
+  }
+  return null;
+}
+
+function InlineNoticeBanner({
+  notice,
+}: {
+  notice: InlineNotice | null;
+}) {
+  if (!notice) {
+    return null;
+  }
+  return (
+    <p
+      className={cn(
+        "rounded-[var(--uxa-radius-md)] border px-3 py-2 text-[12px] leading-5",
+        notice.tone === "danger" &&
+          "border-[var(--uxa-state-danger)] bg-[var(--uxa-state-danger-bg)] text-[var(--uxa-color-ink-soft)]",
+        notice.tone === "warning" &&
+          "border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)] text-[var(--uxa-color-ink-soft)]",
+        notice.tone === "success" &&
+          "border-[var(--uxa-state-success)] bg-[var(--uxa-state-success-bg)] text-[var(--uxa-color-ink-soft)]",
+      )}
+      role={notice.tone === "danger" ? "alert" : "status"}
+    >
+      {notice.message}
+    </p>
+  );
+}
+
+function formatAcpPhaseStatus(
+  language: SupportedLanguage,
+  status: string,
+) {
+  switch (status) {
+    case "completed":
+      return byLanguage(language, { en: "Completed", es: "Completada", pt: "Concluida" });
+    case "completed_with_observations":
+      return byLanguage(language, { en: "Completed with observations", es: "Completada con observaciones", pt: "Concluida com observacoes" });
+    case "waiting_user":
+      return byLanguage(language, { en: "Waiting user", es: "Espera usuario", pt: "Aguardando usuario" });
+    case "blocked":
+      return byLanguage(language, { en: "Blocked", es: "Bloqueada", pt: "Bloqueada" });
+    case "running":
+      return byLanguage(language, { en: "Running", es: "Procesando", pt: "Processando" });
+    case "failed":
+      return byLanguage(language, { en: "Failed", es: "Falló", pt: "Falhou" });
+    case "stale":
+      return byLanguage(language, { en: "Stale", es: "Desactualizada", pt: "Desatualizada" });
+    case "canceled":
+      return byLanguage(language, { en: "Canceled", es: "Cancelada", pt: "Cancelada" });
+    default:
+      return byLanguage(language, { en: "Not started", es: "Sin iniciar", pt: "Nao iniciada" });
+  }
+}
+
+function phaseTone(status: string) {
+  if (status === "completed" || status === "completed_with_observations") return "success";
+  if (status === "blocked" || status === "failed") return "danger";
+  if (status === "running") return "info";
+  return "warning";
+}
+
+function formatDomainLabel(domain: string) {
+  const normalized = domain.replace(/_/g, " ").trim();
+  if (!normalized) return "general";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 type ProductSaasViewProps = {
@@ -1817,9 +1961,9 @@ function EnrichmentInputModal({
               </h3>
               <p className="text-[11px] text-[var(--uxa-color-ink-muted)]">
                 {byLanguage(language, {
-                  en: "Personalized context will trigger FIFO queue reprocessing.",
-                  es: "El contexto personalizado disparará el reprocesamiento en cola FIFO.",
-                  pt: "O contexto personalizado disparará o reprocessamento em fila FIFO.",
+                  en: "Personalized context is analyzed first. Reprocessing runs only when the impact justifies it.",
+                  es: "El contexto personalizado se analiza primero. El reprocesamiento solo corre cuando el impacto lo justifica.",
+                  pt: "O contexto personalizado e analisado primeiro. O reprocessamento so acontece quando o impacto o justifica.",
                 })}
               </p>
             </div>
@@ -1899,11 +2043,11 @@ function EnrichmentInputModal({
             type="button"
           >
             {resolving
-              ? byLanguage(language, { en: "Reprocessing (FIFO)...", es: "Reprocesando (FIFO)...", pt: "Reprocessando (FIFO)..." })
+              ? byLanguage(language, { en: "Analyzing impact...", es: "Analizando impacto...", pt: "Analisando impacto..." })
               : byLanguage(language, {
-                  en: "Save and Reprocess (FIFO)",
-                  es: "Guardar y Reprocesar (FIFO)",
-                  pt: "Salvar e Reprocessar (FIFO)",
+                  en: "Save and Analyze Impact",
+                  es: "Guardar y Analizar Impacto",
+                  pt: "Salvar e Analisar Impacto",
                 })}
           </button>
         </div>
@@ -1928,6 +2072,68 @@ function PremiumEnrichmentPanel({
   const [resolvingId, setResolvingId] = useState("");
   const [modalItem, setModalItem] = useState<PremiumEnrichmentItem | null>(null);
   const [activeTab, setActiveTab] = useState<"prioritized" | "deferred" | "resolved">("prioritized");
+  const resultHasExecutedReprocess = Boolean(
+    result && (((result.generation_job_ids ?? []).length > 0) || ((result.queue_completed ?? 0) > 0)),
+  );
+  const resultNeedsExplicitReprocess = Boolean(result && result.material_impact && !resultHasExecutedReprocess);
+  const resultDecisionTone =
+    result?.reprocess_decision === "structural_reprocess"
+      ? ("warning" as const)
+      : result?.reprocess_decision === "localized_reprocess"
+      ? ("success" as const)
+      : ("neutral" as const);
+  const resultDecisionLabel = result
+    ? result.reprocess_decision === "structural_reprocess"
+      ? byLanguage(language, {
+          en: "Structural impact",
+          es: "Impacto estructural",
+          pt: "Impacto estrutural",
+        })
+      : result.reprocess_decision === "localized_reprocess"
+      ? byLanguage(language, {
+          en: "Localized impact",
+          es: "Impacto localizado",
+          pt: "Impacto localizado",
+        })
+      : byLanguage(language, {
+          en: "No reprocessing",
+          es: "Sin reproceso",
+          pt: "Sem reprocessamento",
+        })
+    : "";
+  const resultBannerTitle = result
+    ? resultHasExecutedReprocess
+      ? byLanguage(language, {
+          en: "Selective reprocessing completed",
+          es: "Reprocesamiento selectivo completado",
+          pt: "Reprocessamento seletivo concluido",
+        })
+      : result.material_impact
+      ? byLanguage(language, {
+          en: "Impact analysis completed",
+          es: "Análisis de impacto completado",
+          pt: "Analise de impacto concluida",
+        })
+      : byLanguage(language, {
+          en: "Decision documented without reprocessing",
+          es: "Decisión documentada sin reproceso",
+          pt: "Decisao documentada sem reprocessamento",
+        })
+    : "";
+  const resultActionLabel = result
+    ? result.reprocess_decision === "structural_reprocess"
+      ? byLanguage(language, {
+          en: "Reprocess dependent stages",
+          es: "Reprocesar etapas dependientes",
+          pt: "Reprocessar etapas dependentes",
+        })
+      : byLanguage(language, {
+          en: "Update affected deliverables",
+          es: "Actualizar entregables afectados",
+          pt: "Atualizar entregaveis afetados",
+        })
+    : "";
+  const resultItem = result ? workspace?.items.find((item) => item.entry.id === result.resolved_entry.id) ?? null : null;
 
   useEffect(() => {
     if (!sessionId) {
@@ -1968,26 +2174,35 @@ function PremiumEnrichmentPanel({
     };
   }, [language, sessionId]);
 
-  async function resolveItem(item: PremiumEnrichmentItem, selectedOptionKey = "", customAnswer = "") {
+  async function resolveItem(
+    item: PremiumEnrichmentItem,
+    selectedOptionKey = "",
+    customAnswer = "",
+    executionMode: "analyze_only" | "apply_reprocess" = "analyze_only",
+  ) {
     if (!sessionId || !unlocked) {
       return;
     }
     const suggestedAnswer =
       customAnswer ||
+      item.entry.assumed_answer ||
       (selectedOptionKey
         ? ""
         : item.entry.suggested_answer ||
           item.entry.answer_options.find((option) => option.recommended)?.label ||
           "");
+    const maxDeliverables =
+      executionMode === "apply_reprocess" ? Math.max(1, Math.min(item.ordered_regeneration_keys.length || 1, 12)) : 5;
     setStatus("resolving");
     setResolvingId(item.entry.id);
     setError("");
     try {
       const data = await premiumEnrichmentApi.resolveItem(sessionId, item.entry.id, {
         answer: suggestedAnswer,
+        execution_mode: executionMode,
         selected_option_key: selectedOptionKey,
-        regenerate: true,
-        max_deliverables: 5,
+        regenerate: executionMode === "apply_reprocess",
+        max_deliverables: maxDeliverables,
       });
       const refreshed = await premiumEnrichmentApi.getWorkspace(sessionId, 6);
       setResult(data);
@@ -1997,15 +2212,36 @@ function PremiumEnrichmentPanel({
     } catch {
       setError(
         byLanguage(language, {
-          en: "The item could not be resolved. Check entitlement, permissions, or backend availability.",
-          es: "No se pudo resolver el item. Revisa entitlement, permisos o disponibilidad del backend.",
-          pt: "Nao foi possivel resolver o item. Revise entitlement, permissoes ou backend.",
+          en:
+            executionMode === "apply_reprocess"
+              ? "The selective reprocessing could not be completed. Check backend availability and retry."
+              : "The answer could not be registered or analyzed. Check entitlement, permissions, or backend availability.",
+          es:
+            executionMode === "apply_reprocess"
+              ? "No se pudo completar el reprocesamiento selectivo. Revisa el backend y vuelve a intentarlo."
+              : "No se pudo registrar o analizar la respuesta. Revisa entitlement, permisos o disponibilidad del backend.",
+          pt:
+            executionMode === "apply_reprocess"
+              ? "Nao foi possivel concluir o reprocessamento seletivo. Revise o backend e tente novamente."
+              : "Nao foi possivel registrar ou analisar a resposta. Revise entitlement, permissoes ou disponibilidade do backend.",
         }),
       );
       setStatus("error");
     } finally {
       setResolvingId("");
     }
+  }
+
+  async function applySuggestedReprocess() {
+    if (!result || !resultItem) {
+      return;
+    }
+    await resolveItem(
+      resultItem,
+      "",
+      resultItem.entry.assumed_answer || result.resolved_entry.assumed_answer || resultItem.entry.suggested_answer || "",
+      "apply_reprocess",
+    );
   }
 
   async function deferItemToAcp(item: PremiumEnrichmentItem) {
@@ -2176,28 +2412,46 @@ function PremiumEnrichmentPanel({
         <div className="mt-4 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-brand-muted)] bg-[var(--uxa-color-muted-panel)] p-4.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="flex h-2.5 w-2.5 rounded-full bg-[var(--uxa-color-brand)] animate-pulse" />
+              <span
+                className={cn(
+                  "flex h-2.5 w-2.5 rounded-full",
+                  resultHasExecutedReprocess
+                    ? "bg-[var(--uxa-color-brand)] animate-pulse"
+                    : result.material_impact
+                    ? "bg-[var(--uxa-color-brand)]"
+                    : "bg-[var(--uxa-state-success)]",
+                )}
+              />
               <p className="text-[13px] font-bold text-[var(--uxa-color-ink-rich)]">
-                {byLanguage(language, {
-                  en: "FIFO Reprocessing Queue Progress",
-                  es: "Progreso de Cola de Reprocesamiento FIFO",
-                  pt: "Progresso da Fila de Reprocessamento FIFO",
-                })}
+                {resultBannerTitle}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <UxaBadge tone="success">
-                {result.regenerated_deliverable_keys.length}{" "}
-                {byLanguage(language, { en: "regenerated", es: "regenerados", pt: "regenerados" })}
+              <UxaBadge tone={resultDecisionTone}>{resultDecisionLabel}</UxaBadge>
+              <UxaBadge tone="info">
+                {result.ordered_regeneration_keys.length}{" "}
+                {byLanguage(language, {
+                  en: "deliverables under review",
+                  es: "entregables bajo revisión",
+                  pt: "entregaveis em revisao",
+                })}
               </UxaBadge>
-              <UxaBadge tone="neutral">
-                {result.preserved_deliverable_keys.length}{" "}
-                {byLanguage(language, { en: "preserved", es: "conservados", pt: "preservados" })}
-              </UxaBadge>
+              {resultHasExecutedReprocess ? (
+                <>
+                  <UxaBadge tone="success">
+                    {result.regenerated_deliverable_keys.length}{" "}
+                    {byLanguage(language, { en: "regenerated", es: "regenerados", pt: "regenerados" })}
+                  </UxaBadge>
+                  <UxaBadge tone="neutral">
+                    {result.preserved_deliverable_keys.length}{" "}
+                    {byLanguage(language, { en: "preserved", es: "conservados", pt: "preservados" })}
+                  </UxaBadge>
+                </>
+              ) : null}
             </div>
           </div>
 
-          {result.queue_total ? (
+          {resultHasExecutedReprocess && result.queue_total ? (
             <div className="mt-3">
               <div className="flex items-center justify-between text-[11px] font-medium text-[var(--uxa-color-ink-muted)] mb-1">
                 <span>
@@ -2223,8 +2477,33 @@ function PremiumEnrichmentPanel({
           ) : null}
 
           <p className="mt-2.5 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-            {result.comparison_summary}
+            {result.impact_summary || result.comparison_summary}
           </p>
+          {result.impact_summary && result.impact_summary !== result.comparison_summary ? (
+            <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">{result.comparison_summary}</p>
+          ) : null}
+          {resultNeedsExplicitReprocess ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/70 px-3.5 py-3">
+              <p className="text-[12px] leading-5 text-[var(--uxa-color-ink-rich)]">{result.recommended_action}</p>
+              {resultItem ? (
+                <button
+                  className="uxa-button uxa-button--primary justify-center gap-1.5"
+                  disabled={!unlocked || status === "resolving"}
+                  onClick={() => void applySuggestedReprocess()}
+                  type="button"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {status === "resolving" && resolvingId === resultItem.entry.id
+                    ? byLanguage(language, {
+                        en: "Reprocessing...",
+                        es: "Reprocesando...",
+                        pt: "Reprocessando...",
+                      })
+                    : resultActionLabel}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -2302,9 +2581,9 @@ function PremiumEnrichmentPanel({
                             pt: "Resolver agora",
                           })
                         : byLanguage(language, {
-                            en: "Enrich with client input",
-                            es: "Enriquecer con input",
-                            pt: "Enriquecer com input",
+                            en: "Answer and analyze",
+                            es: "Responder y analizar",
+                            pt: "Responder e analisar",
                           })}
                     </button>
 
@@ -2354,9 +2633,9 @@ function PremiumEnrichmentPanel({
                       >
                         <Zap className="h-3 w-3" />
                         {byLanguage(language, {
-                          en: "Use direct suggestion",
-                          es: "Usar sugerencia directa",
-                          pt: "Usar sugestão direta",
+                          en: "Use suggestion and analyze",
+                          es: "Usar sugerencia y analizar",
+                          pt: "Usar sugestao e analisar",
                         })}
                       </button>
                     ) : null}
@@ -2417,10 +2696,14 @@ function BlueprintProPage({
   const unlocked =
     hasTier(viewModel.accessTier, "blueprint_pro") ||
     viewModel.canDownloadBlueprint;
+  const canOpenAcp =
+    hasTier(viewModel.accessTier, "acp") ||
+    Boolean(viewModel.access?.can_build_acp);
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadNotice, setDownloadNotice] = useState<InlineNotice | null>(null);
 
   return (
     <div className="space-y-5">
@@ -2432,6 +2715,7 @@ function BlueprintProPage({
         tierScope="blueprint_pro"
         unlocked={unlocked}
       />
+      <InlineNoticeBanner notice={downloadNotice} />
       <UxaStickyActionBar
         label={byLanguage(language, {
           en: "Blueprint Pro actions",
@@ -2453,6 +2737,20 @@ function BlueprintProPage({
         </a>
         {unlocked ? (
           <>
+            {canOpenAcp ? (
+              <a
+                className="uxa-button uxa-button--secondary"
+                href={`/projects/${sessionId}/acp`}
+              >
+                <span>
+                  {byLanguage(language, {
+                    en: "Continue to ACP",
+                    es: "Continuar con ACP",
+                    pt: "Continuar com ACP",
+                  })}
+                </span>
+              </a>
+            ) : null}
             <a
               className="uxa-button uxa-button--secondary"
               href={`/projects/${sessionId}/artifacts`}
@@ -2473,9 +2771,17 @@ function BlueprintProPage({
               disabled={downloading}
               onClick={async () => {
                 if (downloading) return;
+                setDownloadNotice(null);
                 setDownloading(true);
                 try {
-                  await executeBlueprintProDownload({ sessionId });
+                  const job = await executeBlueprintProDownload({ sessionId });
+                  setDownloadNotice(
+                    buildExportJobNotice(language, job, {
+                      en: "Blueprint Pro",
+                      es: "Blueprint Pro",
+                      pt: "Blueprint Pro",
+                    }),
+                  );
                 } finally {
                   setDownloading(false);
                 }
@@ -2566,20 +2872,27 @@ function BlueprintProPage({
 function AcpDirectReadinessPanel({
   activeRoute,
   canBuild,
+  onPreparationStateChange,
 }: {
   activeRoute: ProductExperienceRouteSnapshot | null;
   canBuild: boolean;
+  onPreparationStateChange?: (state: AcpPreparationState | null) => void;
 }) {
   const { language } = useLanguage();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const [resolution, setResolution] = useState<AcpDirectRouteResolution | null>(null);
+  const [workspace, setWorkspace] = useState<ACPWorkspaceResponse | null>(null);
+  const [questions, setQuestions] = useState<ConstructionQuestionViewEntry[]>([]);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   useEffect(() => {
     if (!sessionId) {
       deferStateUpdate(() => {
         setResolution(null);
+        setWorkspace(null);
+        setQuestions([]);
         setStatus("idle");
+        onPreparationStateChange?.(null);
       });
       return;
     }
@@ -2590,81 +2903,123 @@ function AcpDirectReadinessPanel({
         setStatus("loading");
       }
     });
-    acpDirectApi
-      .getResolution(sessionId)
-      .then((payload) => {
+    Promise.all([
+      acpDirectApi.getResolution(sessionId),
+      canBuild ? sessionsApi.getAcpWorkspace(sessionId) : Promise.resolve(null),
+      canBuild ? sessionsApi.getAcpQuestions(sessionId) : Promise.resolve([]),
+    ])
+      .then(([resolutionPayload, workspacePayload, questionPayload]) => {
         if (cancelled) {
           return;
         }
-        setResolution(payload);
+        const canStartPackage =
+          resolutionPayload.can_start_package || Boolean(workspacePayload?.readiness.can_start_build);
+        const nextHref = canStartPackage
+          ? getAcpResultTabHref(sessionId, "package")
+          : getAcpResultTabHref(sessionId, "validate");
+        setResolution(resolutionPayload);
+        setWorkspace(workspacePayload);
+        setQuestions(questionPayload);
         setStatus("ready");
+        onPreparationStateChange?.({
+          canExportZip: Boolean(workspacePayload?.validation.can_export_zip),
+          canStartPackage,
+          nextHref,
+        });
       })
       .catch(() => {
         if (cancelled) {
           return;
         }
         setResolution(null);
+        setWorkspace(null);
+        setQuestions([]);
         setStatus("error");
+        onPreparationStateChange?.(null);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [canBuild, onPreparationStateChange, sessionId]);
 
-  const nextStage = resolution?.next_stage_key && resolution.next_stage_key !== "package"
-    ? resolution.next_stage_key
-    : "package";
+  const leanCompletedCount = resolution?.completed_stage_keys.length ?? 0;
+  const leanRequiredCount = resolution?.required_stage_keys.length ?? 7;
+  const workspacePhaseCount = workspace?.phase_definitions.length ?? 6;
+  const completedPhaseCount =
+    workspace?.phases.filter((phase) => phase.status === "completed" || phase.status === "completed_with_observations").length ?? 0;
+  const openQuestions = useMemo(() => getOpenQuestions(questions), [questions]);
+  const blockingQuestions = useMemo(() => getBlockingQuestions(questions), [questions]);
+  const activeBlockerCount = (workspace?.readiness.blocking_gaps ?? 0) + blockingQuestions.length;
+  const preparationPending = status === "idle" || status === "loading";
+  const questionGroups = useMemo(() => {
+    const grouped = new Map<string, { artifacts: Set<string>; blocking: number; count: number; domain: string }>();
+    for (const question of openQuestions) {
+      const key = question.domain || "general";
+      const current = grouped.get(key) ?? {
+        artifacts: new Set<string>(),
+        blocking: 0,
+        count: 0,
+        domain: key,
+      };
+      current.count += 1;
+      if (question.blocking) {
+        current.blocking += 1;
+      }
+      for (const artifact of question.impacted_artifacts ?? []) {
+        if (artifact) current.artifacts.add(artifact);
+      }
+      grouped.set(key, current);
+    }
+    return Array.from(grouped.values())
+      .sort((left, right) => {
+        if (right.blocking !== left.blocking) return right.blocking - left.blocking;
+        if (right.count !== left.count) return right.count - left.count;
+        return left.domain.localeCompare(right.domain);
+      })
+      .slice(0, 4);
+  }, [openQuestions]);
   const nextHref =
-    nextStage === "validate" || nextStage === "package"
-      ? getAcpResultTabHref(sessionId, nextStage)
-      : `/projects/${sessionId}/work/${nextStage}`;
-  const completedCount = resolution?.completed_stage_keys.length ?? 0;
-  const requiredCount = resolution?.required_stage_keys.length ?? 7;
-  const blockerCount = resolution?.readiness_blockers.length ?? 0;
+    resolution?.can_start_package || workspace?.readiness.can_start_build
+      ? getAcpResultTabHref(sessionId, "package")
+      : getAcpResultTabHref(sessionId, "validate");
+  const missingLeanCount = resolution?.missing_stage_keys.length ?? 0;
 
   return (
     <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <UxaBadge tone={resolution?.can_start_package ? "success" : canBuild ? "warning" : "info"}>
-            {resolution?.route_kind === "acp_after_blueprint"
-              ? byLanguage(language, {
-                  en: "ACP after Blueprint",
-                  es: "ACP despues del Blueprint",
-                  pt: "ACP depois do Blueprint",
-                })
-              : byLanguage(language, {
-                  en: "Direct ACP path",
-                  es: "Ruta ACP directa",
-                  pt: "Rota ACP direta",
-                })}
+          <UxaBadge tone={resolution?.can_start_package || workspace?.readiness.can_start_build ? "success" : canBuild ? "warning" : "info"}>
+            {byLanguage(language, {
+              en: "ACP preparation",
+              es: "Preparacion ACP",
+              pt: "Preparacao ACP",
+            })}
           </UxaBadge>
           <h2 className="mt-3 text-[20px] font-black">
             {byLanguage(language, {
-              en: "Full LEAN flow before Package",
-              es: "Flujo LEAN completo antes de Package",
-              pt: "Fluxo LEAN completo antes do Package",
+              en: "Concentrated ACP workspace without restarting the Blueprint",
+              es: "Espacio concentrado del ACP sin reiniciar el Blueprint",
+              pt: "Espaco concentrado do ACP sem reiniciar o Blueprint",
             })}
           </h2>
           <p className="mt-2 max-w-[780px] text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
-            {resolution?.processing_guidance ??
-              byLanguage(language, {
-                en: "ACP requires full readiness: stages, implementation questions, blockers and portable deliverables are evaluated before generating the package.",
-                es: "ACP exige readiness completo: etapas, preguntas de implementacion, bloqueos y entregables portables se evaluan antes de generar el paquete.",
-                pt: "ACP exige readiness completo: etapas, perguntas de implementacao, bloqueios e entregaveis portaveis sao avaliados antes de gerar o pacote.",
-              })}
+            {byLanguage(language, {
+              en: "ACP keeps you inside a dedicated preparation space: answers are accumulated, prerequisites stay visible, and the package only recalculates when Validate, Package, or a required ACP phase is resumed.",
+              es: "ACP te mantiene dentro de un espacio dedicado de preparación: las respuestas se acumulan, los prerequisitos siguen visibles y el paquete solo se recalcula cuando reanudas Validar, Package o una fase requerida del ACP.",
+              pt: "O ACP mantem voce em um espaco dedicado de preparacao: as respostas se acumulam, os prerequisitos permanecem visiveis e o pacote so e recalculado quando voce retoma Validar, Package ou uma fase obrigatoria do ACP.",
+            })}
           </p>
         </div>
         <a
-          className={cn("uxa-button", resolution?.can_start_package ? "uxa-button--primary" : "uxa-button--secondary")}
+          className={cn("uxa-button", resolution?.can_start_package || workspace?.readiness.can_start_build ? "uxa-button--primary" : "uxa-button--secondary")}
           href={canBuild ? nextHref : `/projects/${sessionId}/acp`}
         >
           <span>
             {canBuild
-              ? resolution?.can_start_package
+              ? resolution?.can_start_package || workspace?.readiness.can_start_build
                 ? byLanguage(language, { en: "Go to Package", es: "Ir a Package", pt: "Ir para Package" })
-                : byLanguage(language, { en: "Continue required stage", es: "Continuar etapa requerida", pt: "Continuar etapa requerida" })
+                : byLanguage(language, { en: "Open ACP preparation", es: "Abrir preparación ACP", pt: "Abrir preparacao ACP" })
               : byLanguage(language, { en: "Request ACP", es: "Solicitar ACP", pt: "Solicitar ACP" })}
           </span>
           <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
@@ -2674,24 +3029,24 @@ function AcpDirectReadinessPanel({
       <div className="mt-5 grid gap-3 md:grid-cols-4">
         {[
           {
-            label: byLanguage(language, { en: "Stages", es: "Etapas", pt: "Etapas" }),
-            value: `${completedCount}/${requiredCount}`,
-            detail: byLanguage(language, { en: "Completed or justified", es: "Completadas o justificadas", pt: "Concluidas ou justificadas" }),
+            label: byLanguage(language, { en: "Blueprint foundations", es: "Bases del Blueprint", pt: "Bases do Blueprint" }),
+            value: preparationPending ? "..." : `${leanCompletedCount}/${leanRequiredCount}`,
+            detail: byLanguage(language, { en: "Reused or justified by ACP", es: "Reutilizadas o justificadas por ACP", pt: "Reutilizadas ou justificadas pelo ACP" }),
           },
           {
-            label: byLanguage(language, { en: "Technical questions", es: "Preguntas tecnicas", pt: "Perguntas tecnicas" }),
-            value: String(resolution?.total_technical_questions ?? 0),
-            detail: byLanguage(language, { en: "Shown in the right stage", es: "Ubicadas en su etapa", pt: "Na etapa correta" }),
+            label: byLanguage(language, { en: "ACP phases", es: "Fases ACP", pt: "Fases ACP" }),
+            value: preparationPending ? "..." : `${completedPhaseCount}/${workspacePhaseCount}`,
+            detail: byLanguage(language, { en: "Closed or observed", es: "Cerradas u observadas", pt: "Fechadas ou observadas" }),
           },
           {
-            label: byLanguage(language, { en: "Blockers", es: "Bloqueos", pt: "Bloqueios" }),
-            value: String(blockerCount),
-            detail: byLanguage(language, { en: "Must close before Package", es: "Cierran antes de Package", pt: "Fecham antes do Package" }),
+            label: byLanguage(language, { en: "Open questions", es: "Preguntas abiertas", pt: "Perguntas abertas" }),
+            value: preparationPending ? "..." : String(openQuestions.length),
+            detail: byLanguage(language, { en: "Persisted and accumulative", es: "Persistidas y acumulativas", pt: "Persistidas e acumulativas" }),
           },
           {
-            label: byLanguage(language, { en: "ACP catalog", es: "Catalogo ACP", pt: "Catalogo ACP" }),
-            value: String(resolution?.catalog_counts.acp_deliverables ?? 0),
-            detail: byLanguage(language, { en: "Governed deliverables", es: "Entregables gobernados", pt: "Entregaveis governados" }),
+            label: byLanguage(language, { en: "Active blockers", es: "Bloqueos activos", pt: "Bloqueios ativos" }),
+            value: preparationPending ? "..." : String(activeBlockerCount),
+            detail: byLanguage(language, { en: "Gaps and blocking questions", es: "Gaps y preguntas bloqueantes", pt: "Gaps e perguntas bloqueantes" }),
           },
         ].map((metric) => (
           <div
@@ -2707,9 +3062,69 @@ function AcpDirectReadinessPanel({
         ))}
       </div>
 
+      <div className="mt-5 grid gap-3 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/75 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
+            {byLanguage(language, {
+              en: "What ACP is reusing",
+              es: "Lo que ACP está reutilizando",
+              pt: "O que o ACP está reutilizando",
+            })}
+          </p>
+          <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+            {preparationPending
+              ? byLanguage(language, {
+                  en: "We are loading the approved Blueprint foundations, ACP questions, and package dependencies for this workspace.",
+                  es: "Estamos cargando las bases aprobadas del Blueprint, las preguntas ACP y las dependencias del Package para este workspace.",
+                  pt: "Estamos carregando as bases aprovadas do Blueprint, as perguntas do ACP e as dependencias do Package para este workspace.",
+                })
+              : missingLeanCount > 0
+              ? byLanguage(language, {
+                  en: `ACP still needs ${missingLeanCount} canonical LEAN prerequisite(s). This does not restart the project: it explains which approved foundations are still missing before Package can be released.`,
+                  es: `ACP todavía necesita ${missingLeanCount} prerequisito(s) canónicos del LEAN. Esto no reinicia el proyecto: explica qué bases aprobadas siguen faltando antes de liberar el Package.`,
+                  pt: `O ACP ainda precisa de ${missingLeanCount} prerequisito(s) canonicos do LEAN. Isso nao reinicia o projeto: apenas explica quais bases aprovadas ainda faltam antes de liberar o Package.`,
+                })
+              : workspace?.next_action || resolution?.processing_guidance || ""}
+          </p>
+        </div>
+        <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/75 p-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
+            {byLanguage(language, {
+              en: "Package readiness",
+              es: "Readiness de Package",
+              pt: "Readiness do Package",
+            })}
+          </p>
+          <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+            {preparationPending
+              ? byLanguage(language, {
+                  en: "We are validating whether the current ACP can export and what still needs to be closed before Package.",
+                  es: "Estamos validando si el ACP actual puede exportarse y qué falta cerrar antes de liberar el Package.",
+                  pt: "Estamos validando se o ACP atual pode ser exportado e o que falta fechar antes de liberar o Package.",
+                })
+              : workspace?.validation.can_export_zip
+              ? byLanguage(language, {
+                  en: "The package is already exportable from ACP.",
+                  es: "El paquete ya es exportable desde ACP.",
+                  pt: "O pacote ja pode ser exportado a partir do ACP.",
+                })
+              : byLanguage(language, {
+                  en: "The package is still protected by backend readiness. Resolve the blocking gaps or open questions shown below before trying to export again.",
+                  es: "El paquete sigue protegido por el readiness del backend. Resuelve los gaps bloqueantes o las preguntas abiertas que ves abajo antes de volver a exportar.",
+                  pt: "O pacote ainda esta protegido pelo readiness do backend. Resolva os gaps bloqueantes ou as perguntas abertas abaixo antes de tentar exportar novamente.",
+                })}
+          </p>
+        </div>
+      </div>
+
       <div className="mt-5 grid gap-2 lg:grid-cols-7">
         {(resolution?.stages ?? []).map((stage) => {
           const tone = stage.completed || stage.justified ? "success" : stage.blocking_question_count ? "danger" : "warning";
+          const stageTitle = byLanguage(language, {
+            en: `Foundation · ${stage.label}`,
+            es: `Base · ${stage.label}`,
+            pt: `Base · ${stage.label}`,
+          });
           return (
             <div
               className={cn(
@@ -2721,7 +3136,7 @@ function AcpDirectReadinessPanel({
               key={stage.stage_key}
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[12px] font-black">{stage.label}</p>
+                <p className="text-[12px] font-black">{stageTitle}</p>
                 {stage.completed || stage.justified ? (
                   <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-[var(--uxa-state-success)]" />
                 ) : (
@@ -2730,7 +3145,7 @@ function AcpDirectReadinessPanel({
               </div>
               <p className="mt-2 text-[11px] leading-4 text-[var(--uxa-color-ink-soft)]">
                 {stage.completed
-                  ? byLanguage(language, { en: "Ready", es: "Lista", pt: "Pronta" })
+                  ? byLanguage(language, { en: "Reused by ACP", es: "Reutilizada por ACP", pt: "Reutilizada pelo ACP" })
                   : stage.justified
                     ? byLanguage(language, { en: "Justified", es: "Justificada", pt: "Justificada" })
                     : stage.next_action}
@@ -2746,17 +3161,117 @@ function AcpDirectReadinessPanel({
         })}
       </div>
 
+      {workspace?.phases?.length ? (
+        <div className="mt-5">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
+            {byLanguage(language, {
+              en: "ACP phases",
+              es: "Fases del ACP",
+              pt: "Fases do ACP",
+            })}
+          </p>
+          <div className="mt-3 grid gap-2 lg:grid-cols-3">
+            {workspace.phases.map((phase) => {
+              const tone = phaseTone(phase.status);
+              return (
+                <div
+                  className={cn(
+                    "rounded-[var(--uxa-radius-md)] border p-3",
+                    tone === "success" && "border-[var(--uxa-state-success)] bg-[var(--uxa-state-success-bg)]",
+                    tone === "danger" && "border-[var(--uxa-state-danger)] bg-[var(--uxa-state-danger-bg)]",
+                    tone === "warning" && "border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)]",
+                    tone === "info" && "border-[var(--uxa-color-brand)] bg-white",
+                  )}
+                  key={phase.phase_key}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[12px] font-black">{phase.phase_label}</p>
+                    {workspace.run.current_phase_key === phase.phase_key ? (
+                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-brand)]">
+                        {byLanguage(language, { en: "Current", es: "Actual", pt: "Atual" })}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-[11px] leading-4 text-[var(--uxa-color-ink-soft)]">
+                    {formatAcpPhaseStatus(language, phase.status)}
+                  </p>
+                  {phase.attempt_count > 0 ? (
+                    <p className="mt-2 text-[11px] font-bold text-[var(--uxa-color-ink)]">
+                      {byLanguage(language, {
+                        en: `${phase.attempt_count} attempt(s)`,
+                        es: `${phase.attempt_count} intento(s)`,
+                        pt: `${phase.attempt_count} tentativa(s)`,
+                      })}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-5">
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
+          {byLanguage(language, {
+            en: "Open question groups",
+            es: "Grupos de preguntas abiertas",
+            pt: "Grupos de perguntas abertas",
+          })}
+        </p>
+        {preparationPending ? (
+          <p className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/75 px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
+            {byLanguage(language, {
+              en: "Loading ACP questions, gaps, and impacted artifacts...",
+              es: "Cargando preguntas ACP, gaps y artefactos impactados...",
+              pt: "Carregando perguntas do ACP, gaps e artefatos impactados...",
+            })}
+          </p>
+        ) : questionGroups.length ? (
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            {questionGroups.map((group) => (
+              <div
+                className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/75 p-3"
+                key={group.domain}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[12px] font-black">{formatDomainLabel(group.domain)}</p>
+                  <span className="text-[11px] font-bold text-[var(--uxa-color-ink-soft)]">
+                    {group.count} {byLanguage(language, { en: "pending", es: "pendiente(s)", pt: "pendente(s)" })}
+                  </span>
+                </div>
+                <p className="mt-2 text-[11px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                  {byLanguage(language, {
+                    en: `${group.blocking} blocking • ${group.artifacts.size} impacted artifact(s)`,
+                    es: `${group.blocking} bloqueante(s) • ${group.artifacts.size} artefacto(s) impactado(s)`,
+                    pt: `${group.blocking} bloqueante(s) • ${group.artifacts.size} artefato(s) impactado(s)`,
+                  })}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-[var(--uxa-radius-md)] bg-[var(--uxa-state-success-bg)] px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
+            {byLanguage(language, {
+              en: "There are no open ACP questions in the current workspace snapshot.",
+              es: "No hay preguntas ACP abiertas en el snapshot actual del workspace.",
+              pt: "Nao ha perguntas ACP abertas no snapshot atual do workspace.",
+            })}
+          </p>
+        )}
+      </div>
+
       {status === "loading" ? (
         <p className="mt-4 text-[12px] text-[var(--uxa-color-ink-soft)]">
-          {byLanguage(language, { en: "Checking ACP readiness...", es: "Verificando readiness ACP...", pt: "Verificando readiness ACP..." })}
+          {byLanguage(language, { en: "Loading ACP preparation workspace...", es: "Cargando el workspace de preparación ACP...", pt: "Carregando o workspace de preparacao do ACP..." })}
         </p>
       ) : null}
       {status === "error" ? (
         <p className="mt-4 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)] px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
           {byLanguage(language, {
-            en: "ACP route resolution could not be loaded. The package export still remains protected by backend readiness gates.",
-            es: "No se pudo cargar la resolucion ACP. El export del paquete sigue protegido por los gates de readiness del backend.",
-            pt: "Nao foi possivel carregar a resolucao ACP. A exportacao continua protegida pelos gates de readiness do backend.",
+            en: "The ACP preparation workspace could not be loaded. Package export remains protected by backend readiness gates.",
+            es: "No se pudo cargar el workspace de preparación ACP. La exportación del Package sigue protegida por los gates de readiness del backend.",
+            pt: "Nao foi possivel carregar o workspace de preparacao do ACP. A exportacao do Package continua protegida pelos gates de readiness do backend.",
           })}
         </p>
       ) : null}
@@ -2775,10 +3290,25 @@ function AcpProductPage({
   const canBuild =
     hasTier(viewModel.accessTier, "acp") ||
     Boolean(viewModel.access?.can_build_acp);
+  const [preparationState, setPreparationState] = useState<AcpPreparationState | null>(null);
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadNotice, setDownloadNotice] = useState<InlineNotice | null>(null);
+  const canExportZip = canBuild && Boolean(preparationState?.canExportZip);
+  const preparationHref = preparationState?.nextHref ?? getAcpResultTabHref(sessionId, "validate");
+  const preparationLabel = preparationState?.canStartPackage
+    ? byLanguage(language, {
+        en: "Go to Package",
+        es: "Ir a Package",
+        pt: "Ir para Package",
+      })
+    : byLanguage(language, {
+        en: "Open ACP preparation",
+        es: "Abrir preparación ACP",
+        pt: "Abrir preparacao ACP",
+      });
 
   return (
     <div className="space-y-5">
@@ -2810,7 +3340,11 @@ function AcpProductPage({
       />
       ) : null}
       <MetricStrip metrics={viewModel.package.metrics} />
-      <AcpDirectReadinessPanel activeRoute={activeRoute} canBuild={canBuild} />
+      <AcpDirectReadinessPanel
+        activeRoute={activeRoute}
+        canBuild={canBuild}
+        onPreparationStateChange={setPreparationState}
+      />
       <CommercialBlueprintResult
         activeRoute={activeRoute}
         artifactCards={viewModel.artifactCards}
@@ -2818,6 +3352,7 @@ function AcpProductPage({
         sessionId={sessionId}
         tierScope="acp"
       />
+      <InlineNoticeBanner notice={downloadNotice} />
       <div className="grid gap-5 xl:grid-cols-[1fr_0.85fr]">
         <UxaSurface
           className={cn(
@@ -2944,52 +3479,71 @@ function AcpProductPage({
           </span>
         </a>
         {canBuild ? (
-          <>
-            <button
-              className={cn(
-                "uxa-button uxa-button--primary inline-flex items-center gap-1.5",
-                downloading && "opacity-60 cursor-not-allowed",
-              )}
-              disabled={downloading}
-              onClick={async () => {
-                if (downloading) return;
-                setDownloading(true);
-                try {
-                  await executeAcpZipDownload({ sessionId });
-                } finally {
-                  setDownloading(false);
-                }
-              }}
-              type="button"
-            >
-              <Download aria-hidden="true" className="mr-1.5 h-4 w-4" />
-              <span>
-                {downloading
-                  ? byLanguage(language, {
-                      en: "Preparing download...",
-                      es: "Preparando descarga...",
-                      pt: "Preparando download...",
-                    })
-                  : byLanguage(language, {
-                      en: "Download ACP ZIP",
-                      es: "Descargar ACP ZIP",
-                      pt: "Baixar ACP ZIP",
-                    })}
-              </span>
-            </button>
+          canExportZip ? (
+            <>
+              <button
+                className={cn(
+                  "uxa-button uxa-button--primary inline-flex items-center gap-1.5",
+                  downloading && "opacity-60 cursor-not-allowed",
+                )}
+                disabled={downloading}
+                onClick={async () => {
+                  if (downloading) return;
+                  setDownloadNotice(null);
+                  setDownloading(true);
+                  try {
+                    const job = await executeAcpZipDownload({ sessionId });
+                    setDownloadNotice(
+                      buildExportJobNotice(language, job, {
+                        en: "ACP ZIP",
+                        es: "ACP ZIP",
+                        pt: "ACP ZIP",
+                      }),
+                    );
+                  } finally {
+                    setDownloading(false);
+                  }
+                }}
+                type="button"
+              >
+                <Download aria-hidden="true" className="mr-1.5 h-4 w-4" />
+                <span>
+                  {downloading
+                    ? byLanguage(language, {
+                        en: "Preparing download...",
+                        es: "Preparando descarga...",
+                        pt: "Preparando download...",
+                      })
+                    : byLanguage(language, {
+                        en: "Download ACP ZIP",
+                        es: "Descargar ACP ZIP",
+                        pt: "Baixar ACP ZIP",
+                      })}
+                </span>
+              </button>
+              <a
+                className="uxa-button uxa-button--secondary"
+                href={getAcpResultTabHref(sessionId, "package")}
+              >
+                <span>
+                  {byLanguage(language, {
+                    en: "Generate package",
+                    es: "Generar Package",
+                    pt: "Gerar Package",
+                  })}
+                </span>
+              </a>
+            </>
+          ) : (
             <a
-              className="uxa-button uxa-button--secondary"
-              href={getAcpResultTabHref(sessionId, "package")}
+              className="uxa-button uxa-button--primary"
+              href={preparationHref}
             >
               <span>
-                {byLanguage(language, {
-                  en: "Generate package",
-                  es: "Generar Package",
-                  pt: "Gerar Package",
-                })}
+                {preparationLabel}
               </span>
             </a>
-          </>
+          )
         ) : (
           <button
             className={cn(

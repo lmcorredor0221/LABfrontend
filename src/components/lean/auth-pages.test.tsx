@@ -4,6 +4,10 @@ import { ApiError } from "@/core/api";
 import { LoginPage } from "@/components/lean/auth-pages";
 import { AuthProvider } from "@/core/auth/auth-context";
 import { createAuthStore } from "@/core/auth/auth-store";
+import {
+  SEEDED_LOCAL_ADMIN_EMAIL,
+  SEEDED_LOCAL_ADMIN_PASSWORD,
+} from "@/core/auth/constants";
 import { runtimeApi } from "@/core/system/runtime-api";
 import { LanguageProvider } from "@/core/i18n/language-context";
 
@@ -33,6 +37,7 @@ vi.mock("next/navigation", () => ({
     push: vi.fn(),
     replace: replaceMock,
   }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/core/system/runtime-api", () => ({
@@ -91,7 +96,7 @@ describe("LoginPage", () => {
     await waitFor(() => expect(runtimeApi.health).toHaveBeenCalled());
     await user.type(
       screen.getByRole("textbox", { name: /correo electr[oó]nico/i }),
-      "lmcorredor@leanagentbuilder.com",
+      SEEDED_LOCAL_ADMIN_EMAIL,
     );
     await user.type(screen.getByLabelText(/contrase[nñ]a/i), "wrong-password");
     await user.click(
@@ -131,10 +136,8 @@ describe("LoginPage", () => {
 
     expect(
       screen.getByRole("textbox", { name: /correo electr[oó]nico/i }),
-    ).toHaveValue("lmcorredor@leanagentbuilder.com");
-    expect(screen.getByLabelText(/contrase[nñ]a/i)).toHaveValue(
-      "LeanBuilder123!",
-    );
+    ).toHaveValue(SEEDED_LOCAL_ADMIN_EMAIL);
+    expect(screen.getByLabelText(/contrase[nñ]a/i)).toHaveValue(SEEDED_LOCAL_ADMIN_PASSWORD);
     await waitFor(() => expect(replaceMock).not.toHaveBeenCalled());
   });
 

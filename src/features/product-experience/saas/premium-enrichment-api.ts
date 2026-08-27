@@ -67,6 +67,7 @@ export type PremiumEnrichmentWorkspace = {
 
 export type PremiumUncertaintyResolutionRequest = {
   answer?: string;
+  execution_mode?: "analyze_only" | "apply_reprocess";
   selected_option_key?: string;
   regenerate?: boolean;
   max_deliverables?: number;
@@ -80,6 +81,10 @@ export type PremiumSelectiveReprocessResult = {
   ordered_regeneration_keys: string[];
   regenerated_deliverable_keys: string[];
   preserved_deliverable_keys: string[];
+  material_impact: boolean;
+  reprocess_decision: "document_only" | "localized_reprocess" | "structural_reprocess";
+  recommended_action: string;
+  impact_summary: string;
   generation_job_ids: string[];
   generation_status_by_deliverable: Record<string, string>;
   superseded_uncertainty_count: number;

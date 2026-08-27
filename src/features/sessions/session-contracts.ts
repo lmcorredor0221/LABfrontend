@@ -1845,7 +1845,7 @@ export type EstimationErrorMetricEntry = {
 
 export type ACPFileStatus = "complete" | "incomplete" | "needs_review";
 export type ACPValidationSeverity = "info" | "warning" | "error";
-export type ConstructionQuestionStatus = "open" | "answered" | "resolved";
+export type ConstructionQuestionStatus = "open" | "answered" | "deferred" | "resolved";
 export type ConstructionGapSeverity = "info" | "warning" | "blocking";
 export type ConstructionGapStatus = "open" | "answered" | "waived" | "resolved";
 export type ConstructionReadinessStatus = "not_started" | "needs_questions" | "blocked" | "ready_to_build";
@@ -1927,6 +1927,7 @@ export type ConstructionQuestionViewEntry = {
 
 export type ConstructionQuestionAnswerRequest = {
   answer_text: string;
+  decision?: "answer" | "delegate";
   impacted_artifacts: string[];
   owner_role: string;
 };

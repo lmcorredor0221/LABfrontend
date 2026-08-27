@@ -1,6 +1,7 @@
 import {
   buildConstructionQuestionPayload,
   createQuestionDraft,
+  getBlockingQuestions,
   getConstructionQuestionErrors,
   getExportBlockedReason,
 } from "@/features/acp/acp-adapter";
@@ -21,7 +22,28 @@ describe("acp adapter", () => {
 
     expect(payload).toEqual({
       answer_text: "Definir owner tecnico y ruta de despliegue",
+      decision: "answer",
       impacted_artifacts: ["ACP/manifest.yaml", "ACP/runtime/system-prompt.md"],
+      owner_role: "Platform Lead",
+    });
+  });
+
+  it("allows delegating a continuity question without forcing an answer", () => {
+    expect(getConstructionQuestionErrors(createQuestionDraft(), "delegate")).toEqual({});
+
+    const payload = buildConstructionQuestionPayload(
+      {
+        answerText: "   ",
+        impactedArtifactsText: "",
+        ownerRole: "  Platform Lead  ",
+      },
+      "delegate",
+    );
+
+    expect(payload).toEqual({
+      answer_text: "",
+      decision: "delegate",
+      impacted_artifacts: [],
       owner_role: "Platform Lead",
     });
   });
@@ -84,5 +106,29 @@ describe("acp adapter", () => {
         },
       ]),
     ).toBe("Todavia hay preguntas bloqueantes sin resolver.");
+
+    const delegatedBlockingQuestion = [
+      {
+        answer_text: "Delegado a implementacion.",
+        answered_at: null,
+        answered_by_display: "",
+        blocking: true,
+        domain: "deployment",
+        expected_answer_format: "text",
+        gap_key: "gap-1",
+        gap_title: "Deployment owner",
+        impacted_artifacts: [],
+        owner_role: "",
+        question_key: "question-1",
+        question_text: "Quien es el owner?",
+        rationale: "",
+        resolved_at: "2026-08-27T09:00:00Z",
+        status: "deferred" as const,
+        target_owner: "Platform",
+      },
+    ];
+
+    expect(getBlockingQuestions(delegatedBlockingQuestion)).toEqual([]);
+    expect(getExportBlockedReason(exportablePreview, delegatedBlockingQuestion)).toBeNull();
   });
 });
