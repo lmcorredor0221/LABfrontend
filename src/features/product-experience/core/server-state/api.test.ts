@@ -206,6 +206,36 @@ describe("product experience api", () => {
     expect(estimateCall[1].headers.get("x-idempotency-key")).toBe("estimate-once");
   });
 
+  it("stops polling when Design pauses for user attention", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = {
+        get: vi.fn().mockResolvedValue(createStageOperation({
+          current_step: "await_attention",
+          detail: "Resolver item en Atencion.",
+          status: "waiting_for_user",
+          technical_detail: "Requiere validacion humana antes de continuar.",
+        })),
+        patch: vi.fn(),
+        post: vi.fn().mockResolvedValue(createStageOperation({
+          current_step: "draft_design",
+          detail: "Generando propuesta.",
+          status: "running",
+        })),
+      };
+      const api = createProductExperienceApi(client as never);
+
+      const promise = api.proposeDesign("session-a", { instructions: "Diseno gobernado." });
+      const rejection = expect(promise).rejects.toThrow(/Requiere validacion humana antes de continuar/);
+      await vi.advanceTimersByTimeAsync(2_500);
+
+      await rejection;
+      expect(client.get).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uses the shared long-running timeout for attention actions", async () => {
     const client = {
       get: vi.fn(),

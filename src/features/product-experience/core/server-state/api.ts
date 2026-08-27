@@ -101,7 +101,7 @@ function waitForPollInterval(signal: AbortSignal | null | undefined) {
 }
 
 function isOperationPending(status: ProductExperienceStageOperation["status"]) {
-  return status === "queued" || status === "running" || status === "waiting_for_user";
+  return status === "queued" || status === "running";
 }
 
 async function pollStageOperationUntilArtifact(

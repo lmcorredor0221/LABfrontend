@@ -146,6 +146,30 @@ describe("ToolsStageView and MemoryStageView UXA9", () => {
     expect(mockRouterPush).toHaveBeenCalledWith("/projects/session-uxa9/work/memory");
   });
 
+  it("keeps Tools actionable when the server operation is waiting for user input", () => {
+    const actions = createActions();
+    const route = createToolsRouteFixture();
+    route.operation.data!.stageOperation = createStageOperation({
+      action: "recommend_tools",
+      current_step: "await_attention",
+      detail: "Resolver item en Atencion.",
+      id: "operation-tools",
+      stage_key: "tools",
+      status: "waiting_for_user",
+    });
+
+    renderWithLanguage(
+      <ToolsStageView
+        actionState={{ status: "idle" }}
+        actions={actions}
+        activeRoute={route}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Promover herramientas/i })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /Generando herramientas/i })).not.toBeInTheDocument();
+  });
+
   it("shows Basic Blueprint gaps as assumptions and enrichment opportunities", async () => {
     const actions = createActions();
     const base = createToolRecommendationPayload();
@@ -255,5 +279,37 @@ describe("ToolsStageView and MemoryStageView UXA9", () => {
     ));
     expect(actions.approveMemoryProfile).toHaveBeenCalledWith(expect.objectContaining({ note: "uxa9_memory_approved" }));
     expect(mockRouterPush).toHaveBeenCalledWith("/projects/session-uxa9/work/estimate");
+  });
+
+  it("keeps Memory actionable when the server operation is waiting for user input", () => {
+    mockUsePathname.mockReturnValue("/projects/session-uxa9/work/memory");
+    const actions = createActions();
+    const route = createToolsRouteFixture({
+      memoryArtifact: createMemoryArtifactFixture(),
+      stage: "memory",
+      toolsArtifact: createToolsArtifactFixture({
+        proposal_payload: createToolRecommendationPayload({ approved_tools_digest: createApprovedToolsDigest() }) as unknown as Record<string, unknown>,
+        state: "approved",
+      }),
+    });
+    route.operation.data!.stageOperation = createStageOperation({
+      action: "recommend_memory",
+      current_step: "await_attention",
+      detail: "Resolver item en Atencion.",
+      id: "operation-memory",
+      stage_key: "memory",
+      status: "waiting_for_user",
+    });
+
+    renderWithLanguage(
+      <MemoryStageView
+        actionState={{ status: "idle" }}
+        actions={actions}
+        activeRoute={route}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Aprobar Memoria/i })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /Generando Memoria/i })).not.toBeInTheDocument();
   });
 });

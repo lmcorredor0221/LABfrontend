@@ -112,7 +112,7 @@ function hasActiveServerOperation(
     operation &&
       operation.stage_key === stageKey &&
       actions.includes(operation.action) &&
-      ["queued", "running", "waiting_for_user"].includes(operation.status),
+      ["queued", "running"].includes(operation.status),
   );
 }
 
