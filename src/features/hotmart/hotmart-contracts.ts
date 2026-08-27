@@ -422,6 +422,11 @@ export type HotmartDashboardData = {
   syncRuns: HotmartSyncRunResponse[];
 };
 
+export type HotmartDashboardBootstrapData = Pick<
+  HotmartDashboardData,
+  "clubOverview" | "products" | "promotionMetrics" | "releaseReadiness" | "status"
+>;
+
 export type CommercialQuotaProductConfigUpsertRequest = {
   allow_courtesy?: boolean;
   allow_debt_pending?: boolean;
@@ -706,16 +711,20 @@ export type CommercialDebtResponse = {
   workspace_id: string;
 };
 
-export type CommercialAdminDashboardData = {
-  balanceLedger: CommercialBalanceLedgerResponse[];
+export type CommercialAdminBootstrapData = {
   balanceSnapshot: CommercialBalanceSnapshotResponse;
-  debts: CommercialDebtResponse[];
   effectiveConfig: CommercialQuotaEffectiveConfigResponse;
+  openDebtCount: number;
+  quotaConfigs: CommercialQuotaProductConfigResponse[];
+  recommendation: CommercialPackageRecommendationResponse;
+  workspaceOverrides: CommercialQuotaWorkspaceOverrideResponse[];
+};
+
+export type CommercialAdminDashboardData = CommercialAdminBootstrapData & {
+  balanceLedger: CommercialBalanceLedgerResponse[];
+  debts: CommercialDebtResponse[];
   legacyPackageResolutions: CommercialLegacyPackageResolutionResponse[];
   packageCatalog: CommercialPackageCatalogResponse[];
-  recommendation: CommercialPackageRecommendationResponse;
-  quotaConfigs: CommercialQuotaProductConfigResponse[];
-  workspaceOverrides: CommercialQuotaWorkspaceOverrideResponse[];
 };
 
 export type HotmartCheckoutLinkFlowResponse = {

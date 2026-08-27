@@ -36,6 +36,7 @@ import { EmptyState, ErrorState, LoadingState } from "@/shared/states/runtime-st
 import { cn } from "@/lib/utils";
 import { hotmartAdminApi, type HotmartAdminApi } from "@/features/hotmart/hotmart-api";
 import type {
+  CommercialAdminBootstrapData,
   CommercialAdminDashboardData,
   CommercialDebtResponse,
   CommercialLegacyPackageResolutionResponse,
@@ -49,6 +50,7 @@ import type {
   HotmartClubPageResponse,
   HotmartClubProgressResponse,
   HotmartClubStudentResponse,
+  HotmartDashboardBootstrapData,
   HotmartDashboardData,
   HotmartEnvironment,
   HotmartIntegrationStatusResponse,
@@ -160,6 +162,202 @@ const HOTMART_TABS = [
   "Auditoria",
 ];
 const HOTMART_PLATFORM_TABS = ["Comercial"];
+
+type HotmartDashboardSection = "club" | "links" | "mappings" | "promotions" | "reconciliation" | "sync";
+type HotmartSectionLoadState = {
+  error: string | null;
+  status: "error" | "idle" | "loading" | "ready";
+};
+type HotmartSectionStates = Record<HotmartDashboardSection, HotmartSectionLoadState>;
+
+const HOTMART_TAB_SECTIONS: Record<string, HotmartDashboardSection[]> = {
+  Comunidad: ["club"],
+  "Links de pago": ["mappings", "links"],
+  Promociones: ["mappings", "promotions"],
+  Reconciliacion: ["reconciliation"],
+  Sincronizacion: ["sync"],
+  "Productos y ofertas": ["mappings"],
+};
+
+const COMMERCIAL_TABS = ["Configuracion", "Balance", "Paquetes", "Deudas"] as const;
+
+type CommercialTab = (typeof COMMERCIAL_TABS)[number];
+type CommercialDashboardSection = "balance" | "debts" | "packages";
+type CommercialSectionLoadState = {
+  error: string | null;
+  status: "error" | "idle" | "loading" | "ready";
+};
+type CommercialSectionStates = Record<CommercialDashboardSection, CommercialSectionLoadState>;
+
+const COMMERCIAL_TAB_SECTIONS: Record<CommercialTab, CommercialDashboardSection[]> = {
+  Balance: ["balance"],
+  Configuracion: [],
+  Deudas: ["debts"],
+  Paquetes: ["packages"],
+};
+
+function createHotmartSectionStates(): HotmartSectionStates {
+  return {
+    club: { error: null, status: "idle" },
+    links: { error: null, status: "idle" },
+    mappings: { error: null, status: "idle" },
+    promotions: { error: null, status: "idle" },
+    reconciliation: { error: null, status: "idle" },
+    sync: { error: null, status: "idle" },
+  };
+}
+
+function createCommercialSectionStates(): CommercialSectionStates {
+  return {
+    balance: { error: null, status: "idle" },
+    debts: { error: null, status: "idle" },
+    packages: { error: null, status: "idle" },
+  };
+}
+
+function createHotmartDashboardData(bootstrap: HotmartDashboardBootstrapData): HotmartDashboardData {
+  return {
+    clubModules: [],
+    clubOverview: bootstrap.clubOverview,
+    clubPages: [],
+    clubProgress: [],
+    clubStudents: [],
+    links: [],
+    mappings: [],
+    operationalAlerts: bootstrap.releaseReadiness.alerts,
+    products: bootstrap.products,
+    promotionMetrics: bootstrap.promotionMetrics,
+    promotions: [],
+    reconciliationIssues: [],
+    releaseReadiness: bootstrap.releaseReadiness,
+    runbook: bootstrap.releaseReadiness.runbook,
+    status: bootstrap.status,
+    syncCursors: [],
+    syncRuns: [],
+  };
+}
+
+function createCommercialAdminDashboardData(bootstrap: CommercialAdminBootstrapData): CommercialAdminDashboardData {
+  return {
+    ...bootstrap,
+    balanceLedger: [],
+    debts: [],
+    legacyPackageResolutions: [],
+    packageCatalog: [],
+  };
+}
+
+function getHotmartTabSections(tab: string): HotmartDashboardSection[] {
+  return HOTMART_TAB_SECTIONS[tab] ?? [];
+}
+
+function getHotmartTabLoadState(tab: string, sectionStates: HotmartSectionStates): HotmartSectionLoadState | null {
+  const sections = getHotmartTabSections(tab);
+  if (sections.length === 0) {
+    return null;
+  }
+  const errorState = sections.map((section) => sectionStates[section]).find((state) => state.status === "error");
+  if (errorState) {
+    return errorState;
+  }
+  if (sections.some((section) => sectionStates[section].status === "loading")) {
+    return { error: null, status: "loading" };
+  }
+  if (sections.every((section) => sectionStates[section].status === "ready")) {
+    return { error: null, status: "ready" };
+  }
+  return { error: null, status: "idle" };
+}
+
+function getCommercialTabSections(tab: CommercialTab): CommercialDashboardSection[] {
+  return COMMERCIAL_TAB_SECTIONS[tab] ?? [];
+}
+
+function getCommercialTabLoadState(
+  tab: CommercialTab,
+  sectionStates: CommercialSectionStates,
+): CommercialSectionLoadState | null {
+  const sections = getCommercialTabSections(tab);
+  if (sections.length === 0) {
+    return null;
+  }
+  const errorState = sections.map((section) => sectionStates[section]).find((state) => state.status === "error");
+  if (errorState) {
+    return errorState;
+  }
+  if (sections.some((section) => sectionStates[section].status === "loading")) {
+    return { error: null, status: "loading" };
+  }
+  if (sections.every((section) => sectionStates[section].status === "ready")) {
+    return { error: null, status: "ready" };
+  }
+  return { error: null, status: "idle" };
+}
+
+function getHotmartTabLoadingCopy(tab: string) {
+  switch (tab) {
+    case "Productos y ofertas":
+      return {
+        description: "Cargando mappings y productos internos del workspace.",
+        title: "Cargando productos y ofertas",
+      };
+    case "Links de pago":
+      return {
+        description: "Consultando mappings vigentes y links de pago registrados.",
+        title: "Cargando links de pago",
+      };
+    case "Promociones":
+      return {
+        description: "Recuperando promociones publicadas y sus metricas actuales.",
+        title: "Cargando promociones",
+      };
+    case "Sincronizacion":
+      return {
+        description: "Buscando runs y cursores persistidos del sincronizador Hotmart.",
+        title: "Cargando sincronizacion",
+      };
+    case "Comunidad":
+      return {
+        description: "Recuperando snapshot de Club solo para esta vista.",
+        title: "Cargando comunidad",
+      };
+    case "Reconciliacion":
+      return {
+        description: "Consultando diferencias abiertas pendientes de resolver.",
+        title: "Cargando reconciliacion",
+      };
+    default:
+      return {
+        description: "Recuperando la informacion solicitada del modulo Hotmart.",
+        title: "Cargando Hotmart",
+      };
+  }
+}
+
+function getCommercialTabLoadingCopy(tab: CommercialTab) {
+  switch (tab) {
+    case "Balance":
+      return {
+        description: "Consultando el ledger y la composicion vigente del saldo comercial.",
+        title: "Cargando balance comercial",
+      };
+    case "Paquetes":
+      return {
+        description: "Recuperando catalogo Hotmart y resoluciones legacy pendientes para este producto.",
+        title: "Cargando paquetes comerciales",
+      };
+    case "Deudas":
+      return {
+        description: "Buscando deuda comercial abierta sin recalcular otras vistas.",
+        title: "Cargando deudas comerciales",
+      };
+    default:
+      return {
+        description: "Recuperando la configuracion comercial solicitada.",
+        title: "Cargando configuracion comercial",
+      };
+  }
+}
 
 type CommercialQuotaDraft = {
   allow_courtesy: boolean;
@@ -629,9 +827,15 @@ function HotmartSummaryPanel({
   data: HotmartDashboardData;
   lastTest: HotmartTestConnectionResponse | null;
 }) {
-  const activeLinks = data.links.filter((link) => link.activation_status === "active").length;
+  const releaseMetrics = data.releaseReadiness.metrics;
+  const activeLinks = releaseMetrics.active_payment_links ?? data.links.filter((link) => link.activation_status === "active").length;
   const activePromotions = data.promotionMetrics.active;
+  const activeMappings = releaseMetrics.active_mappings ?? data.mappings.length;
   const configuredCount = getConfiguredCount(data.status);
+  const openReconciliationIssues = releaseMetrics.open_reconciliation_issues ?? data.reconciliationIssues.length;
+  const syncedResources = releaseMetrics.successful_sync_resources ?? data.syncRuns.length;
+  const totalLinks = releaseMetrics.payment_links ?? data.links.length;
+  const syncTarget = releaseMetrics.required_sync_resource_target ?? 0;
 
   return (
     <div className="space-y-5">
@@ -643,10 +847,10 @@ function HotmartSummaryPanel({
           <KeyValue label="Credenciales" value={`${configuredCount}/4`} hint={`Storage: ${data.status.storage_mode}`} />
         </Panel>
         <Panel className="p-5">
-          <KeyValue label="Mappings" value={String(data.mappings.length)} hint="Productos internos conectados" />
+          <KeyValue label="Mappings" value={String(activeMappings)} hint="Mappings activos para productos internos" />
         </Panel>
         <Panel className="p-5">
-          <KeyValue label="Links activos" value={String(activeLinks)} hint={`${data.links.length} links registrados`} />
+          <KeyValue label="Links activos" value={String(activeLinks)} hint={`${totalLinks} links registrados`} />
         </Panel>
         <Panel className="p-5">
           <KeyValue label="Promos activas" value={String(activePromotions)} hint={`${data.promotionMetrics.total} promociones`} />
@@ -655,7 +859,11 @@ function HotmartSummaryPanel({
           <KeyValue label="Club alumnos" value={String(data.clubOverview.students_count)} hint={`${data.clubOverview.open_issue_count} diferencias`} />
         </Panel>
         <Panel className="p-5">
-          <KeyValue label="Diferencias" value={String(data.reconciliationIssues.length)} hint={`${data.syncRuns.length} sync runs`} />
+          <KeyValue
+            label="Diferencias"
+            value={String(openReconciliationIssues)}
+            hint={syncTarget > 0 ? `${syncedResources}/${syncTarget} recursos sincronizados` : `${syncedResources} recursos sincronizados`}
+          />
         </Panel>
         <Panel className="p-5">
           <KeyValue
@@ -1949,6 +2157,7 @@ function HotmartAuditPreviewPanel({ data }: { data: HotmartDashboardData }) {
 }
 
 function HotmartCommercialAdminPanel({
+  activeSectionTab,
   data,
   debtPendingId,
   feedback,
@@ -1958,10 +2167,12 @@ function HotmartCommercialAdminPanel({
   onLegacyPackageDraftChange,
   onProductChange,
   onQuotaDraftChange,
+  onReloadSection,
   onOverrideDraftChange,
   onSavePackage,
   onSaveQuota,
   onSaveOverride,
+  onSectionChange,
   onResolveLegacyPackageResolution,
   onSettleDebt,
   overrideDraft,
@@ -1971,8 +2182,10 @@ function HotmartCommercialAdminPanel({
   savingPackage,
   savingQuota,
   savingOverride,
+  sectionLoadState,
   selectedProductKey,
 }: {
+  activeSectionTab: CommercialTab;
   data: CommercialAdminDashboardData;
   debtPendingId: string | null;
   feedback: FeedbackState | null;
@@ -1982,10 +2195,12 @@ function HotmartCommercialAdminPanel({
   onLegacyPackageDraftChange: (orderId: string, packageCode: string) => void;
   onProductChange: (productKey: string) => void;
   onQuotaDraftChange: (patch: Partial<CommercialQuotaDraft>) => void;
+  onReloadSection: () => void;
   onOverrideDraftChange: (patch: Partial<CommercialOverrideDraft>) => void;
   onSavePackage: () => void;
   onSaveQuota: () => void;
   onSaveOverride: () => void;
+  onSectionChange: (tab: CommercialTab) => void;
   onResolveLegacyPackageResolution: (resolution: CommercialLegacyPackageResolutionResponse) => void;
   onSettleDebt: (debt: CommercialDebtResponse) => void;
   overrideDraft: CommercialOverrideDraft;
@@ -1995,6 +2210,7 @@ function HotmartCommercialAdminPanel({
   savingPackage: boolean;
   savingQuota: boolean;
   savingOverride: boolean;
+  sectionLoadState: CommercialSectionLoadState | null;
   selectedProductKey: string;
 }) {
   const productOptions = getProductOptions(products).map((item) => ({
@@ -2006,252 +2222,248 @@ function HotmartCommercialAdminPanel({
   );
   const visibleLegacyResolutions = data.legacyPackageResolutions.filter((item) => item.product_key === selectedProductKey);
 
-  return (
-    <div className="space-y-5">
-      <div className="grid gap-4 xl:grid-cols-4">
-        <Panel className="p-5">
-          <KeyValue label="Saldo disponible" value={String(data.balanceSnapshot.total_available_units)} hint={selectedProductKey} />
+  const detailContent =
+    activeSectionTab === "Configuracion" ? (
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Panel className="p-6">
+          <div className="mb-4 space-y-2">
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Config global por producto</p>
+            <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+              Fuente base para nuevos workspaces y para el resolvedor efectivo.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextField label="Display name" onValueChange={(value) => onQuotaDraftChange({ display_name: value })} value={quotaDraft.display_name} />
+            <TextField
+              label="Free units iniciales"
+              onValueChange={(value) => onQuotaDraftChange({ initial_free_units: value })}
+              value={quotaDraft.initial_free_units}
+            />
+            <TextField
+              label="Prioridad de consumo"
+              onValueChange={(value) => onQuotaDraftChange({ consumption_priority: value })}
+              placeholder="free,subscription,one_time"
+              value={quotaDraft.consumption_priority}
+            />
+            <TextField
+              label="TTL checkout (min)"
+              onValueChange={(value) => onQuotaDraftChange({ default_checkout_ttl_minutes: value })}
+              value={quotaDraft.default_checkout_ttl_minutes}
+            />
+            <TextField
+              label="TTL bloqueo (horas)"
+              onValueChange={(value) => onQuotaDraftChange({ default_blocked_request_ttl_hours: value })}
+              value={quotaDraft.default_blocked_request_ttl_hours}
+            />
+            <TextField
+              label="Sync retry limit"
+              onValueChange={(value) => onQuotaDraftChange({ sync_retry_limit: value })}
+              value={quotaDraft.sync_retry_limit}
+            />
+            <SelectField
+              label="Enabled"
+              onValueChange={(value) => onQuotaDraftChange({ enabled: value === "true" })}
+              options={[
+                { label: "Activo", value: "true" },
+                { label: "Inactivo", value: "false" },
+              ]}
+              value={String(quotaDraft.enabled)}
+            />
+            <SelectField
+              label="Checkout en cero"
+              onValueChange={(value) => onQuotaDraftChange({ checkout_required_on_zero_balance: value === "true" })}
+              options={[
+                { label: "Si", value: "true" },
+                { label: "No", value: "false" },
+              ]}
+              value={String(quotaDraft.checkout_required_on_zero_balance)}
+            />
+            <SelectField
+              label="FIFO autoapproval"
+              onValueChange={(value) => onQuotaDraftChange({ fifo_auto_approval_enabled: value === "true" })}
+              options={[
+                { label: "Si", value: "true" },
+                { label: "No", value: "false" },
+              ]}
+              value={String(quotaDraft.fifo_auto_approval_enabled)}
+            />
+            <SelectField
+              label="Debt enabled"
+              onValueChange={(value) => onQuotaDraftChange({ debt_enabled: value === "true" })}
+              options={[
+                { label: "Si", value: "true" },
+                { label: "No", value: "false" },
+              ]}
+              value={String(quotaDraft.debt_enabled)}
+            />
+          </div>
+          <AppButton className="mt-5" loading={savingQuota} onClick={onSaveQuota} variant="primary">
+            Guardar config global
+          </AppButton>
         </Panel>
-        <Panel className="p-5">
-          <KeyValue label="Gratis inicial" value={String(data.effectiveConfig.initial_free_units)} hint={data.effectiveConfig.display_name} />
+
+        <Panel className="p-6">
+          <div className="mb-4 space-y-2">
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Override del workspace</p>
+            <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+              Sobrescribe cupo gratis y flags efectivos sin reescribir la historia del ledger.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextField
+              label="Free units override"
+              onValueChange={(value) => onOverrideDraftChange({ free_units_override: value })}
+              placeholder="Vacio = heredar"
+              value={overrideDraft.free_units_override}
+            />
+            <SelectField
+              label="Enabled override"
+              onValueChange={(value) => onOverrideDraftChange({ enabled_override: value as CommercialOverrideDraft["enabled_override"] })}
+              options={[
+                { label: "Heredar", value: "inherit" },
+                { label: "Forzar activo", value: "true" },
+                { label: "Forzar inactivo", value: "false" },
+              ]}
+              value={overrideDraft.enabled_override}
+            />
+            <SelectField
+              label="Debt enabled override"
+              onValueChange={(value) => onOverrideDraftChange({ debt_enabled_override: value as CommercialOverrideDraft["debt_enabled_override"] })}
+              options={[
+                { label: "Heredar", value: "inherit" },
+                { label: "Si", value: "true" },
+                { label: "No", value: "false" },
+              ]}
+              value={overrideDraft.debt_enabled_override}
+            />
+            <SelectField
+              label="Registro activo"
+              onValueChange={(value) => onOverrideDraftChange({ is_active: value === "true" })}
+              options={[
+                { label: "Activo", value: "true" },
+                { label: "Inactivo", value: "false" },
+              ]}
+              value={String(overrideDraft.is_active)}
+            />
+            <TextField
+              label="TTL checkout override"
+              onValueChange={(value) => onOverrideDraftChange({ default_checkout_ttl_minutes_override: value })}
+              placeholder="Vacio = heredar"
+              value={overrideDraft.default_checkout_ttl_minutes_override}
+            />
+            <TextField
+              label="TTL bloqueo override"
+              onValueChange={(value) => onOverrideDraftChange({ default_blocked_request_ttl_hours_override: value })}
+              placeholder="Vacio = heredar"
+              value={overrideDraft.default_blocked_request_ttl_hours_override}
+            />
+          </div>
+          <TextField className="mt-4" label="Notas" onValueChange={(value) => onOverrideDraftChange({ notes: value })} value={overrideDraft.notes} />
+          <AppButton className="mt-5" loading={savingOverride} onClick={onSaveOverride}>
+            Guardar override
+          </AppButton>
         </Panel>
-        <Panel className="p-5">
-          <KeyValue label="Deudas abiertas" value={String(data.debts.length)} hint="Bloquean autoaprobacion por saldo" />
+      </div>
+    ) : sectionLoadState?.status === "loading" || sectionLoadState?.status === "idle" ? (
+      <LoadingState {...getCommercialTabLoadingCopy(activeSectionTab)} />
+    ) : sectionLoadState?.status === "error" ? (
+      <ErrorState
+        title={`No se pudo abrir ${activeSectionTab.toLowerCase()}`}
+        description={sectionLoadState.error ?? "No se pudo cargar la informacion solicitada."}
+        action={
+          <AppButton onClick={onReloadSection} variant="primary">
+            Reintentar
+          </AppButton>
+        }
+      />
+    ) : activeSectionTab === "Balance" ? (
+      <div className="space-y-5">
+        <Panel className="p-6">
+          <div className="mb-4 space-y-2">
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Saldo por bolsas</p>
+            <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+              El saldo visible al workspace se explica aqui por fuente y por vigencia.
+            </p>
+          </div>
+          <SimpleTable
+            columns={["Bucket", "Fuente", "Estado", "Disponible", "Vigencia"]}
+            rows={data.balanceSnapshot.buckets.map((bucket) => [
+              bucket.bucket_key,
+              bucket.source_kind,
+              <Badge key={`${bucket.bucket_id}-status`} tone={bucket.available_units > 0 ? "green" : "slate"}>
+                {bucket.status}
+              </Badge>,
+              String(bucket.available_units),
+              `${formatDateTime(bucket.starts_at)} -> ${formatDateTime(bucket.ends_at)}`,
+            ])}
+          />
         </Panel>
-        <Panel className="p-5">
-          <KeyValue
-            label="Paquete sugerido"
-            value={data.recommendation.display_name || "Sin recomendacion"}
-            hint={data.recommendation.recommendation_reason}
+
+        <Panel className="p-6">
+          <div className="mb-4 space-y-2">
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Ledger reciente</p>
+            <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+              Movimiento inmutable que explica por que una solicitud fue aprobada, consumida o sobreescrita.
+            </p>
+          </div>
+          <SimpleTable
+            columns={["Fecha", "Movimiento", "Delta", "Balance", "Ref"]}
+            rows={data.balanceLedger.slice(-8).reverse().map((entry) => [
+              formatDateTime(entry.created_at),
+              entry.movement_type,
+              String(entry.delta_units),
+              `${entry.balance_before_units} -> ${entry.balance_after_units}`,
+              entry.source_ref,
+            ])}
           />
         </Panel>
       </div>
-
-      <Panel className="p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl space-y-2">
-            <Badge tone="violet">Platform Admin</Badge>
-            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Motor comercial por workspace</p>
+    ) : activeSectionTab === "Paquetes" ? (
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <Panel className="p-6">
+          <div className="mb-4 space-y-2">
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Catalogo de paquetes</p>
             <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-              Parametriza cupos globales, override efectivo, paquetes Hotmart, saldo por bolsas y deudas abiertas. Esta vista no se expone a usuarios de workspace.
+              Soporta compra unica, suscripcion y bundle multi-producto para Hotmart.
             </p>
           </div>
-          <SelectField label="Producto" onValueChange={onProductChange} options={productOptions} value={selectedProductKey} />
-        </div>
-        {feedback ? (
-          <p aria-live="polite" className={cn("mt-4 text-[13px] font-medium", getFeedbackClass(feedback.tone))}>
-            {feedback.message}
-          </p>
-        ) : null}
-      </Panel>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-        <div className="space-y-5">
-          <Panel className="p-6">
-            <div className="mb-4 space-y-2">
-              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Config global por producto</p>
-              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-                Fuente base para nuevos workspaces y para el resolvedor efectivo.
-              </p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextField label="Display name" onValueChange={(value) => onQuotaDraftChange({ display_name: value })} value={quotaDraft.display_name} />
-              <TextField
-                label="Free units iniciales"
-                onValueChange={(value) => onQuotaDraftChange({ initial_free_units: value })}
-                value={quotaDraft.initial_free_units}
-              />
-              <TextField
-                label="Prioridad de consumo"
-                onValueChange={(value) => onQuotaDraftChange({ consumption_priority: value })}
-                placeholder="free,subscription,one_time"
-                value={quotaDraft.consumption_priority}
-              />
-              <TextField
-                label="TTL checkout (min)"
-                onValueChange={(value) => onQuotaDraftChange({ default_checkout_ttl_minutes: value })}
-                value={quotaDraft.default_checkout_ttl_minutes}
-              />
-              <TextField
-                label="TTL bloqueo (horas)"
-                onValueChange={(value) => onQuotaDraftChange({ default_blocked_request_ttl_hours: value })}
-                value={quotaDraft.default_blocked_request_ttl_hours}
-              />
-              <TextField
-                label="Sync retry limit"
-                onValueChange={(value) => onQuotaDraftChange({ sync_retry_limit: value })}
-                value={quotaDraft.sync_retry_limit}
-              />
-              <SelectField
-                label="Enabled"
-                onValueChange={(value) => onQuotaDraftChange({ enabled: value === "true" })}
-                options={[
-                  { label: "Activo", value: "true" },
-                  { label: "Inactivo", value: "false" },
-                ]}
-                value={String(quotaDraft.enabled)}
-              />
-              <SelectField
-                label="Checkout en cero"
-                onValueChange={(value) => onQuotaDraftChange({ checkout_required_on_zero_balance: value === "true" })}
-                options={[
-                  { label: "Si", value: "true" },
-                  { label: "No", value: "false" },
-                ]}
-                value={String(quotaDraft.checkout_required_on_zero_balance)}
-              />
-              <SelectField
-                label="FIFO autoapproval"
-                onValueChange={(value) => onQuotaDraftChange({ fifo_auto_approval_enabled: value === "true" })}
-                options={[
-                  { label: "Si", value: "true" },
-                  { label: "No", value: "false" },
-                ]}
-                value={String(quotaDraft.fifo_auto_approval_enabled)}
-              />
-              <SelectField
-                label="Debt enabled"
-                onValueChange={(value) => onQuotaDraftChange({ debt_enabled: value === "true" })}
-                options={[
-                  { label: "Si", value: "true" },
-                  { label: "No", value: "false" },
-                ]}
-                value={String(quotaDraft.debt_enabled)}
-              />
-            </div>
-            <AppButton className="mt-5" loading={savingQuota} onClick={onSaveQuota} variant="primary">
-              Guardar config global
-            </AppButton>
-          </Panel>
-
-          <Panel className="p-6">
-            <div className="mb-4 space-y-2">
-              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Override del workspace</p>
-              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-                Sobrescribe cupo gratis y flags efectivos sin reescribir la historia del ledger.
-              </p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextField
-                label="Free units override"
-                onValueChange={(value) => onOverrideDraftChange({ free_units_override: value })}
-                placeholder="Vacio = heredar"
-                value={overrideDraft.free_units_override}
-              />
-              <SelectField
-                label="Enabled override"
-                onValueChange={(value) => onOverrideDraftChange({ enabled_override: value as CommercialOverrideDraft["enabled_override"] })}
-                options={[
-                  { label: "Heredar", value: "inherit" },
-                  { label: "Forzar activo", value: "true" },
-                  { label: "Forzar inactivo", value: "false" },
-                ]}
-                value={overrideDraft.enabled_override}
-              />
-              <SelectField
-                label="Debt enabled override"
-                onValueChange={(value) => onOverrideDraftChange({ debt_enabled_override: value as CommercialOverrideDraft["debt_enabled_override"] })}
-                options={[
-                  { label: "Heredar", value: "inherit" },
-                  { label: "Si", value: "true" },
-                  { label: "No", value: "false" },
-                ]}
-                value={overrideDraft.debt_enabled_override}
-              />
-              <SelectField
-                label="Registro activo"
-                onValueChange={(value) => onOverrideDraftChange({ is_active: value === "true" })}
-                options={[
-                  { label: "Activo", value: "true" },
-                  { label: "Inactivo", value: "false" },
-                ]}
-                value={String(overrideDraft.is_active)}
-              />
-              <TextField
-                label="TTL checkout override"
-                onValueChange={(value) => onOverrideDraftChange({ default_checkout_ttl_minutes_override: value })}
-                placeholder="Vacio = heredar"
-                value={overrideDraft.default_checkout_ttl_minutes_override}
-              />
-              <TextField
-                label="TTL bloqueo override"
-                onValueChange={(value) => onOverrideDraftChange({ default_blocked_request_ttl_hours_override: value })}
-                placeholder="Vacio = heredar"
-                value={overrideDraft.default_blocked_request_ttl_hours_override}
-              />
-            </div>
-            <TextField className="mt-4" label="Notas" onValueChange={(value) => onOverrideDraftChange({ notes: value })} value={overrideDraft.notes} />
-            <AppButton className="mt-5" loading={savingOverride} onClick={onSaveOverride}>
-              Guardar override
-            </AppButton>
-          </Panel>
-
-          <Panel className="p-6">
-            <div className="mb-4 space-y-2">
-              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Catalogo de paquetes</p>
-              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-                Soporta compra unica, suscripcion y bundle multi-producto para Hotmart.
-              </p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <TextField label="Package code" onValueChange={(value) => onPackageDraftChange({ package_code: value })} value={packageDraft.package_code} />
-              <TextField label="Display name" onValueChange={(value) => onPackageDraftChange({ display_name: value })} value={packageDraft.display_name} />
-              <SelectField
-                label="Tipo"
-                onValueChange={(value) => onPackageDraftChange({ package_type: value as CommercialPackageType })}
-                options={[
-                  { label: "One time", value: "one_time" },
-                  { label: "Subscription", value: "subscription" },
-                  { label: "Bundle subscription", value: "bundle_subscription" },
-                ]}
-                value={packageDraft.package_type}
-              />
-              <TextField
-                label="Prioridad"
-                onValueChange={(value) => onPackageDraftChange({ recommendation_priority: value })}
-                value={packageDraft.recommendation_priority}
-              />
-              <TextField label="Granted units" onValueChange={(value) => onPackageDraftChange({ granted_units: value })} value={packageDraft.granted_units} />
-              <TextField
-                label="Units Blueprint Pro"
-                onValueChange={(value) => onPackageDraftChange({ granted_units_blueprint_pro: value })}
-                value={packageDraft.granted_units_blueprint_pro}
-              />
-              <TextField label="Units ACP" onValueChange={(value) => onPackageDraftChange({ granted_units_acp: value })} value={packageDraft.granted_units_acp} />
-              <TextField label="Validity days" onValueChange={(value) => onPackageDraftChange({ validity_days: value })} value={packageDraft.validity_days} />
-              <TextField label="Product ID" onValueChange={(value) => onPackageDraftChange({ hotmart_product_id: value })} value={packageDraft.hotmart_product_id} />
-              <TextField label="UCODE" onValueChange={(value) => onPackageDraftChange({ hotmart_product_ucode: value })} value={packageDraft.hotmart_product_ucode} />
-              <TextField label="Offer code" onValueChange={(value) => onPackageDraftChange({ offer_code: value })} value={packageDraft.offer_code} />
-              <TextField label="Plan code" onValueChange={(value) => onPackageDraftChange({ plan_code: value })} value={packageDraft.plan_code} />
-            </div>
-            <AppButton className="mt-5" loading={savingPackage} onClick={onSavePackage} variant="primary">
-              Guardar paquete
-            </AppButton>
-          </Panel>
-        </div>
-
-        <div className="space-y-5">
-          <Panel className="p-6">
-            <div className="mb-4 space-y-2">
-              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Saldo por bolsas</p>
-              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-                El saldo visible al workspace se explica aqui por fuente y por vigencia.
-              </p>
-            </div>
-            <SimpleTable
-              columns={["Bucket", "Fuente", "Estado", "Disponible", "Vigencia"]}
-              rows={data.balanceSnapshot.buckets.map((bucket) => [
-                bucket.bucket_key,
-                bucket.source_kind,
-                <Badge key={`${bucket.bucket_id}-status`} tone={bucket.available_units > 0 ? "green" : "slate"}>
-                  {bucket.status}
-                </Badge>,
-                String(bucket.available_units),
-                `${formatDateTime(bucket.starts_at)} -> ${formatDateTime(bucket.ends_at)}`,
-              ])}
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextField label="Package code" onValueChange={(value) => onPackageDraftChange({ package_code: value })} value={packageDraft.package_code} />
+            <TextField label="Display name" onValueChange={(value) => onPackageDraftChange({ display_name: value })} value={packageDraft.display_name} />
+            <SelectField
+              label="Tipo"
+              onValueChange={(value) => onPackageDraftChange({ package_type: value as CommercialPackageType })}
+              options={[
+                { label: "One time", value: "one_time" },
+                { label: "Subscription", value: "subscription" },
+                { label: "Bundle subscription", value: "bundle_subscription" },
+              ]}
+              value={packageDraft.package_type}
             />
-          </Panel>
+            <TextField
+              label="Prioridad"
+              onValueChange={(value) => onPackageDraftChange({ recommendation_priority: value })}
+              value={packageDraft.recommendation_priority}
+            />
+            <TextField label="Granted units" onValueChange={(value) => onPackageDraftChange({ granted_units: value })} value={packageDraft.granted_units} />
+            <TextField
+              label="Units Blueprint Pro"
+              onValueChange={(value) => onPackageDraftChange({ granted_units_blueprint_pro: value })}
+              value={packageDraft.granted_units_blueprint_pro}
+            />
+            <TextField label="Units ACP" onValueChange={(value) => onPackageDraftChange({ granted_units_acp: value })} value={packageDraft.granted_units_acp} />
+            <TextField label="Validity days" onValueChange={(value) => onPackageDraftChange({ validity_days: value })} value={packageDraft.validity_days} />
+            <TextField label="Product ID" onValueChange={(value) => onPackageDraftChange({ hotmart_product_id: value })} value={packageDraft.hotmart_product_id} />
+            <TextField label="UCODE" onValueChange={(value) => onPackageDraftChange({ hotmart_product_ucode: value })} value={packageDraft.hotmart_product_ucode} />
+            <TextField label="Offer code" onValueChange={(value) => onPackageDraftChange({ offer_code: value })} value={packageDraft.offer_code} />
+            <TextField label="Plan code" onValueChange={(value) => onPackageDraftChange({ plan_code: value })} value={packageDraft.plan_code} />
+          </div>
+          <AppButton className="mt-5" loading={savingPackage} onClick={onSavePackage} variant="primary">
+            Guardar paquete
+          </AppButton>
+        </Panel>
 
+        <div className="space-y-5">
           <Panel className="p-6">
             <div className="mb-4 space-y-2">
               <p className="text-[20px] font-semibold text-[var(--text-primary)]">Paquetes visibles al motor</p>
@@ -2272,25 +2484,6 @@ function HotmartCommercialAdminPanel({
             ) : (
               <EmptyState className="px-0 py-4" title="Sin paquetes" description="Guarda al menos un paquete para este producto o bundle." />
             )}
-          </Panel>
-
-          <Panel className="p-6">
-            <div className="mb-4 space-y-2">
-              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Ledger reciente</p>
-              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-                Movimiento inmutable que explica por que una solicitud fue aprobada, consumida o sobreescrita.
-              </p>
-            </div>
-            <SimpleTable
-              columns={["Fecha", "Movimiento", "Delta", "Balance", "Ref"]}
-              rows={data.balanceLedger.slice(-8).reverse().map((entry) => [
-                formatDateTime(entry.created_at),
-                entry.movement_type,
-                String(entry.delta_units),
-                `${entry.balance_before_units} -> ${entry.balance_after_units}`,
-                entry.source_ref,
-              ])}
-            />
           </Panel>
 
           <Panel className="p-6">
@@ -2346,39 +2539,84 @@ function HotmartCommercialAdminPanel({
               />
             )}
           </Panel>
-
-          <Panel className="p-6">
-            <div className="mb-4 space-y-2">
-              <p className="text-[20px] font-semibold text-[var(--text-primary)]">Deudas abiertas</p>
-              <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-                Mientras exista deuda abierta, el saldo nuevo no autoaprueba nuevas solicitudes del mismo producto.
-              </p>
-            </div>
-            {data.debts.length > 0 ? (
-              <SimpleTable
-                columns={["Motivo", "Monto", "Pendiente", "Creada", "Accion"]}
-                rows={data.debts.map((debt) => {
-                  const remaining = Math.max(0, debt.amount_cents - debt.settled_amount_cents);
-                  return [
-                    <div key={`${debt.id}-reason`} className="space-y-1">
-                      <p className="font-semibold">{debt.reason_label || debt.reason_code}</p>
-                      <p className="text-[12px] text-[var(--text-muted)]">{debt.summary}</p>
-                    </div>,
-                    formatMoney(debt.amount_cents, debt.currency),
-                    formatMoney(remaining, debt.currency),
-                    formatDateTime(debt.created_at),
-                    <AppButton key={`${debt.id}-settle`} loading={debtPendingId === debt.id} onClick={() => onSettleDebt(debt)}>
-                      Liquidar total
-                    </AppButton>,
-                  ];
-                })}
-              />
-            ) : (
-              <EmptyState className="px-0 py-4" title="Sin deudas abiertas" description="La consola no detecta deuda comercial pendiente para este producto." />
-            )}
-          </Panel>
         </div>
       </div>
+    ) : (
+      <Panel className="p-6">
+        <div className="mb-4 space-y-2">
+          <p className="text-[20px] font-semibold text-[var(--text-primary)]">Deudas abiertas</p>
+          <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+            Mientras exista deuda abierta, el saldo nuevo no autoaprueba nuevas solicitudes del mismo producto.
+          </p>
+        </div>
+        {data.debts.length > 0 ? (
+          <SimpleTable
+            columns={["Motivo", "Monto", "Pendiente", "Creada", "Accion"]}
+            rows={data.debts.map((debt) => {
+              const remaining = Math.max(0, debt.amount_cents - debt.settled_amount_cents);
+              return [
+                <div key={`${debt.id}-reason`} className="space-y-1">
+                  <p className="font-semibold">{debt.reason_label || debt.reason_code}</p>
+                  <p className="text-[12px] text-[var(--text-muted)]">{debt.summary}</p>
+                </div>,
+                formatMoney(debt.amount_cents, debt.currency),
+                formatMoney(remaining, debt.currency),
+                formatDateTime(debt.created_at),
+                <AppButton key={`${debt.id}-settle`} loading={debtPendingId === debt.id} onClick={() => onSettleDebt(debt)}>
+                  Liquidar total
+                </AppButton>,
+              ];
+            })}
+          />
+        ) : (
+          <EmptyState className="px-0 py-4" title="Sin deudas abiertas" description="La consola no detecta deuda comercial pendiente para este producto." />
+        )}
+      </Panel>
+    );
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 xl:grid-cols-4">
+        <Panel className="p-5">
+          <KeyValue label="Saldo disponible" value={String(data.balanceSnapshot.total_available_units)} hint={selectedProductKey} />
+        </Panel>
+        <Panel className="p-5">
+          <KeyValue label="Gratis inicial" value={String(data.effectiveConfig.initial_free_units)} hint={data.effectiveConfig.display_name} />
+        </Panel>
+        <Panel className="p-5">
+          <KeyValue label="Deudas abiertas" value={String(data.openDebtCount)} hint="Bloquean autoaprobacion por saldo" />
+        </Panel>
+        <Panel className="p-5">
+          <KeyValue
+            label="Paquete sugerido"
+            value={data.recommendation.display_name || "Sin recomendacion"}
+            hint={data.recommendation.recommendation_reason}
+          />
+        </Panel>
+      </div>
+
+      <Panel className="p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="max-w-3xl space-y-2">
+            <Badge tone="violet">Platform Admin</Badge>
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Motor comercial por workspace</p>
+            <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+              Esta vista se divide por capacidad y solo carga datos detallados cuando entras en cada seccion. Asi evitamos abrir el tablero comercial completo en cada acceso.
+            </p>
+          </div>
+          <SelectField label="Producto" onValueChange={onProductChange} options={productOptions} value={selectedProductKey} />
+        </div>
+        <div className="mt-4">
+          <TabList active={activeSectionTab} onChange={(value) => onSectionChange(value as CommercialTab)} tabs={[...COMMERCIAL_TABS]} />
+        </div>
+        {feedback ? (
+          <p aria-live="polite" className={cn("mt-4 text-[13px] font-medium", getFeedbackClass(feedback.tone))}>
+            {feedback.message}
+          </p>
+        ) : null}
+      </Panel>
+
+      {detailContent}
     </div>
   );
 }
@@ -2417,6 +2655,7 @@ export function HotmartAdminView({
   const [environment, setEnvironment] = useState<HotmartEnvironment>("sandbox");
   const [activeTab, setActiveTab] = useState("Resumen");
   const [dashboardState, setDashboardState] = useState<AsyncState<HotmartDashboardData>>(createIdleState);
+  const [sectionStates, setSectionStates] = useState<HotmartSectionStates>(createHotmartSectionStates);
   const [credentialDraft, setCredentialDraft] = useState<CredentialDraft>(createCredentialDraft);
   const [mappingDraft, setMappingDraft] = useState<MappingDraft>(createMappingDraft);
   const [linkDraft, setLinkDraft] = useState<LinkDraft>(createLinkDraft);
@@ -2443,7 +2682,9 @@ export function HotmartAdminView({
   const [deletePromotionPendingId, setDeletePromotionPendingId] = useState<string | null>(null);
   const [resolvePendingIssueId, setResolvePendingIssueId] = useState<string | null>(null);
   const [commercialProductKey, setCommercialProductKey] = useState("blueprint_pro");
+  const [activeCommercialTab, setActiveCommercialTab] = useState<CommercialTab>("Configuracion");
   const [commercialState, setCommercialState] = useState<AsyncState<CommercialAdminDashboardData>>(createIdleState);
+  const [commercialSectionStates, setCommercialSectionStates] = useState<CommercialSectionStates>(createCommercialSectionStates);
   const [commercialQuotaDraft, setCommercialQuotaDraft] = useState<CommercialQuotaDraft>(createCommercialQuotaDraft());
   const [commercialPackageDraft, setCommercialPackageDraft] = useState<CommercialPackageDraft>(createCommercialPackageDraft());
   const [commercialOverrideDraft, setCommercialOverrideDraft] = useState<CommercialOverrideDraft>(createCommercialOverrideDraft());
@@ -2459,23 +2700,168 @@ export function HotmartAdminView({
     [isPlatformAdmin],
   );
 
+  const updateSectionStates = useCallback(
+    (sections: HotmartDashboardSection[], status: HotmartSectionLoadState["status"], error: string | null = null) => {
+      setSectionStates((current) => {
+        const nextState = { ...current };
+        sections.forEach((section) => {
+          nextState[section] = {
+            error: status === "error" ? error : null,
+            status,
+          };
+        });
+        return nextState;
+      });
+    },
+    [],
+  );
+
+  const updateCommercialSectionStates = useCallback(
+    (sections: CommercialDashboardSection[], status: CommercialSectionLoadState["status"], error: string | null = null) => {
+      setCommercialSectionStates((current) => {
+        const nextState = { ...current };
+        sections.forEach((section) => {
+          nextState[section] = {
+            error: status === "error" ? error : null,
+            status,
+          };
+        });
+        return nextState;
+      });
+    },
+    [],
+  );
+
+  const loadDashboardSection = useCallback(
+    async (section: HotmartDashboardSection): Promise<Partial<HotmartDashboardData>> => {
+      switch (section) {
+        case "mappings":
+          return {
+            mappings: await api.listMappings(environment),
+          };
+        case "links":
+          return {
+            links: await api.listPaymentLinks(),
+          };
+        case "promotions": {
+          const [promotions, promotionMetrics] = await Promise.all([
+            api.listPromotions(environment),
+            api.getPromotionMetrics(environment),
+          ]);
+          return {
+            promotionMetrics,
+            promotions,
+          };
+        }
+        case "sync": {
+          const [syncRuns, syncCursors] = await Promise.all([
+            api.listSyncRuns(environment),
+            api.listSyncCursors(environment),
+          ]);
+          return {
+            syncCursors,
+            syncRuns,
+          };
+        }
+        case "club": {
+          const [clubOverview, clubModules, clubPages, clubStudents, clubProgress] = await Promise.all([
+            api.getClubOverview(environment),
+            api.listClubModules(environment),
+            api.listClubPages(environment),
+            api.listClubStudents(environment),
+            api.listClubProgress(environment),
+          ]);
+          return {
+            clubModules,
+            clubOverview,
+            clubPages,
+            clubProgress,
+            clubStudents,
+          };
+        }
+        case "reconciliation":
+          return {
+            reconciliationIssues: await api.listReconciliationIssues(environment),
+          };
+        default:
+          return {};
+      }
+    },
+    [api, environment],
+  );
+
+  const ensureDashboardSections = useCallback(
+    async (
+      sections: HotmartDashboardSection[],
+      options: { baseData?: HotmartDashboardData; forceReload?: boolean } = {},
+    ): Promise<HotmartDashboardData | null> => {
+      const pendingSections = options.forceReload
+        ? sections
+        : sections.filter((section) => sectionStates[section].status !== "ready");
+      if (pendingSections.length === 0) {
+        return options.baseData ?? (dashboardState.status === "ready" ? dashboardState.data : null);
+      }
+
+      updateSectionStates(pendingSections, "loading");
+      try {
+        const patches = await Promise.all(pendingSections.map((section) => loadDashboardSection(section)));
+        const patch = Object.assign({}, ...patches);
+        const currentData = options.baseData ?? (dashboardState.status === "ready" ? dashboardState.data : null);
+        if (!currentData) {
+          return null;
+        }
+        const nextData = {
+          ...currentData,
+          ...patch,
+        };
+        setDashboardState({ data: nextData, error: null, status: "ready" });
+        updateSectionStates(pendingSections, "ready");
+        return nextData;
+      } catch (error) {
+        updateSectionStates(
+          pendingSections,
+          "error",
+          getErrorMessage(error, "No se pudo cargar la informacion solicitada de Hotmart."),
+        );
+        throw error;
+      }
+    },
+    [dashboardState, loadDashboardSection, sectionStates, updateSectionStates],
+  );
+
   const loadDashboard = useCallback(async () => {
     if (!canManage) {
       return;
     }
     setDashboardState({ data: null, error: null, status: "loading" });
+    setSectionStates(createHotmartSectionStates());
     try {
-      const data = await api.getDashboard(environment);
-      setDashboardState({ data, error: null, status: "ready" });
-      setCredentialDraft(createCredentialDraft(data.status));
-      const defaultProduct = data.products[0]?.product_key ?? data.mappings[0]?.internal_product_key ?? "blueprint_pro";
-      setMappingDraft((current) => (current.internal_product_key ? current : createMappingDraft(defaultProduct)));
-      setLinkDraft((current) => (current.product_key ? current : createLinkDraft(defaultProduct)));
-      const defaultMapping = findActiveMappingForProduct(data.mappings, defaultProduct);
-      setPromotionDraft((current) =>
-        current.internal_product_key ? current : createPromotionDraft(defaultProduct, defaultMapping?.offer_code ?? ""),
-      );
-      setClubDraft((current) => (current.subdomain ? current : createClubDraft(data.clubOverview.subdomain)));
+      const bootstrap = await api.getDashboardBootstrap(environment);
+      let nextData = createHotmartDashboardData(bootstrap);
+      const initialSections = getHotmartTabSections(activeTab);
+      if (initialSections.length > 0) {
+        updateSectionStates(initialSections, "loading");
+        try {
+          const initialPatches = await Promise.all(initialSections.map((section) => loadDashboardSection(section)));
+          nextData = {
+            ...nextData,
+            ...Object.assign({}, ...initialPatches),
+          };
+          updateSectionStates(initialSections, "ready");
+        } catch (error) {
+          updateSectionStates(
+            initialSections,
+            "error",
+            getErrorMessage(error, "No se pudo cargar la informacion solicitada de Hotmart."),
+          );
+          throw error;
+        }
+      } else {
+        setDashboardState({ data: nextData, error: null, status: "ready" });
+      }
+      setDashboardState({ data: nextData, error: null, status: "ready" });
+      setCredentialDraft(createCredentialDraft(nextData.status));
+      setClubDraft((current) => (current.subdomain ? current : createClubDraft(nextData.clubOverview.subdomain)));
     } catch (error) {
       setDashboardState({
         data: null,
@@ -2483,7 +2869,7 @@ export function HotmartAdminView({
         status: "error",
       });
     }
-  }, [api, canManage, environment]);
+  }, [activeTab, api, canManage, environment, loadDashboardSection, updateSectionStates]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- La consola debe sincronizar su estado inicial con el backend al cambiar ambiente o permisos.
@@ -2492,6 +2878,19 @@ export function HotmartAdminView({
 
   const dashboardData = dashboardState.status === "ready" ? dashboardState.data : null;
   const commercialData = commercialState.status === "ready" ? commercialState.data : null;
+  const activeTabLoadState = useMemo(() => getHotmartTabLoadState(activeTab, sectionStates), [activeTab, sectionStates]);
+
+  useEffect(() => {
+    if (!dashboardData || activeTab === "Comercial") {
+      return;
+    }
+    const sections = getHotmartTabSections(activeTab);
+    if (sections.length === 0 || sections.every((section) => sectionStates[section].status === "ready")) {
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- El modulo hidrata la pestaña activa bajo demanda cuando cambia el foco de la vista.
+    void ensureDashboardSections(sections);
+  }, [activeTab, dashboardData, ensureDashboardSections, sectionStates]);
 
   useEffect(() => {
     if (!dashboardData) {
@@ -2499,29 +2898,127 @@ export function HotmartAdminView({
     }
     const availableProducts = getProductOptions(dashboardData.products).map((item) => item.value);
     if (!availableProducts.includes(commercialProductKey)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- El selector comercial debe caer al primer producto disponible cuando cambia el bootstrap.
       setCommercialProductKey(availableProducts[0] ?? "blueprint_pro");
     }
   }, [commercialProductKey, dashboardData]);
+
+  const loadCommercialSection = useCallback(
+    async (section: CommercialDashboardSection): Promise<Partial<CommercialAdminDashboardData>> => {
+      switch (section) {
+        case "balance":
+          return {
+            balanceLedger: await api.listCommercialBalanceLedger(commercialProductKey),
+          };
+        case "packages": {
+          const [packageCatalog, legacyPackageResolutions] = await Promise.all([
+            api.listCommercialPackageCatalog("", true),
+            api.listCommercialLegacyPackageResolutions({ productKey: commercialProductKey }),
+          ]);
+          const packageCandidate =
+            packageCatalog.find((item) => item.product_key === commercialProductKey) ??
+            packageCatalog.find((item) => item.package_type === "bundle_subscription") ??
+            null;
+          setCommercialPackageDraft(createCommercialPackageDraft(commercialProductKey, packageCandidate));
+          setCommercialLegacyResolutionDrafts(createLegacyPackageResolutionDrafts(legacyPackageResolutions));
+          return {
+            legacyPackageResolutions,
+            packageCatalog,
+          };
+        }
+        case "debts": {
+          const debts = await api.listCommercialDebts({ productKey: commercialProductKey, status: "open" });
+          return {
+            debts,
+            openDebtCount: debts.length,
+          };
+        }
+        default:
+          return {};
+      }
+    },
+    [api, commercialProductKey],
+  );
+
+  const ensureCommercialSections = useCallback(
+    async (
+      sections: CommercialDashboardSection[],
+      options: { baseData?: CommercialAdminDashboardData; forceReload?: boolean } = {},
+    ): Promise<CommercialAdminDashboardData | null> => {
+      const pendingSections = options.forceReload
+        ? sections
+        : sections.filter((section) => commercialSectionStates[section].status !== "ready");
+      if (pendingSections.length === 0) {
+        return options.baseData ?? (commercialState.status === "ready" ? commercialState.data : null);
+      }
+
+      updateCommercialSectionStates(pendingSections, "loading");
+      try {
+        const patches = await Promise.all(pendingSections.map((section) => loadCommercialSection(section)));
+        const patch = Object.assign({}, ...patches);
+        const currentData = options.baseData ?? (commercialState.status === "ready" ? commercialState.data : null);
+        if (!currentData) {
+          return null;
+        }
+        const nextData = {
+          ...currentData,
+          ...patch,
+        };
+        setCommercialState({ data: nextData, error: null, status: "ready" });
+        updateCommercialSectionStates(pendingSections, "ready");
+        return nextData;
+      } catch (error) {
+        updateCommercialSectionStates(
+          pendingSections,
+          "error",
+          getErrorMessage(error, "No se pudo cargar la informacion solicitada del motor comercial."),
+        );
+        throw error;
+      }
+    },
+    [commercialSectionStates, commercialState, loadCommercialSection, updateCommercialSectionStates],
+  );
 
   const loadCommercialDashboard = useCallback(async () => {
     if (!canManage || !isPlatformAdmin) {
       return;
     }
     setCommercialState({ data: null, error: null, status: "loading" });
+    setCommercialSectionStates(createCommercialSectionStates());
     try {
-      const data = await api.getCommercialAdminDashboard({ productKey: commercialProductKey });
-      setCommercialState({ data, error: null, status: "ready" });
-      const quotaConfig = data.quotaConfigs.find((item) => item.product_key === commercialProductKey) ?? data.quotaConfigs[0] ?? null;
+      const bootstrap = await api.getCommercialBootstrap({ productKey: commercialProductKey });
+      let nextData = createCommercialAdminDashboardData(bootstrap);
+      const initialSections = getCommercialTabSections(activeCommercialTab);
+      if (initialSections.length > 0) {
+        updateCommercialSectionStates(initialSections, "loading");
+        try {
+          const initialPatches = await Promise.all(initialSections.map((section) => loadCommercialSection(section)));
+          nextData = {
+            ...nextData,
+            ...Object.assign({}, ...initialPatches),
+          };
+          updateCommercialSectionStates(initialSections, "ready");
+        } catch (error) {
+          updateCommercialSectionStates(
+            initialSections,
+            "error",
+            getErrorMessage(error, "No se pudo cargar la informacion solicitada del motor comercial."),
+          );
+          throw error;
+        }
+      }
+      setCommercialState({ data: nextData, error: null, status: "ready" });
+      const quotaConfig =
+        nextData.quotaConfigs.find((item) => item.product_key === commercialProductKey) ?? nextData.quotaConfigs[0] ?? null;
       const workspaceOverride =
-        data.workspaceOverrides.find((item) => item.product_key === commercialProductKey) ?? data.workspaceOverrides[0] ?? null;
+        nextData.workspaceOverrides.find((item) => item.product_key === commercialProductKey) ?? nextData.workspaceOverrides[0] ?? null;
       const packageCandidate =
-        data.packageCatalog.find((item) => item.product_key === commercialProductKey) ??
-        data.packageCatalog.find((item) => item.package_type === "bundle_subscription") ??
+        nextData.packageCatalog.find((item) => item.product_key === commercialProductKey) ??
+        nextData.packageCatalog.find((item) => item.package_type === "bundle_subscription") ??
         null;
-      setCommercialQuotaDraft(createCommercialQuotaDraft(quotaConfig ?? data.effectiveConfig));
+      setCommercialQuotaDraft(createCommercialQuotaDraft(quotaConfig ?? nextData.effectiveConfig));
       setCommercialOverrideDraft(createCommercialOverrideDraft(workspaceOverride));
       setCommercialPackageDraft(createCommercialPackageDraft(commercialProductKey, packageCandidate));
-      setCommercialLegacyResolutionDrafts(createLegacyPackageResolutionDrafts(data.legacyPackageResolutions));
     } catch (error) {
       setCommercialState({
         data: null,
@@ -2529,14 +3026,65 @@ export function HotmartAdminView({
         status: "error",
       });
     }
-  }, [api, canManage, commercialProductKey, isPlatformAdmin]);
+  }, [activeCommercialTab, api, canManage, commercialProductKey, isPlatformAdmin, loadCommercialSection, updateCommercialSectionStates]);
 
   useEffect(() => {
     if (activeTab !== "Comercial" || !isPlatformAdmin) {
       return;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- La vista comercial se carga solo al entrar a la pestaña correspondiente.
     void loadCommercialDashboard();
   }, [activeTab, isPlatformAdmin, loadCommercialDashboard]);
+
+  const activeCommercialTabLoadState = useMemo(
+    () => getCommercialTabLoadState(activeCommercialTab, commercialSectionStates),
+    [activeCommercialTab, commercialSectionStates],
+  );
+
+  useEffect(() => {
+    if (!commercialData) {
+      return;
+    }
+    const sections = getCommercialTabSections(activeCommercialTab);
+    if (sections.length === 0 || sections.every((section) => commercialSectionStates[section].status === "ready")) {
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- El panel comercial hidrata solo la subvista que el admin decide abrir.
+    void ensureCommercialSections(sections);
+  }, [activeCommercialTab, commercialData, commercialSectionStates, ensureCommercialSections]);
+
+  const refreshActiveHotmartView = useCallback(async () => {
+    if (activeTab === "Comercial") {
+      await loadCommercialDashboard();
+      return;
+    }
+    await loadDashboard();
+  }, [activeTab, loadCommercialDashboard, loadDashboard]);
+
+  function renderLazyHotmartTab(tab: string, content: ReactNode) {
+    if (activeTab !== tab) {
+      return null;
+    }
+    const tabState = getHotmartTabLoadState(tab, sectionStates);
+    if (tabState?.status === "loading" || tabState?.status === "idle") {
+      const copy = getHotmartTabLoadingCopy(tab);
+      return <LoadingState title={copy.title} description={copy.description} />;
+    }
+    if (tabState?.status === "error") {
+      return (
+        <ErrorState
+          title={`No se pudo abrir ${tab.toLowerCase()}`}
+          description={tabState.error ?? "No se pudo cargar la informacion solicitada."}
+          action={
+            <AppButton onClick={() => void ensureDashboardSections(getHotmartTabSections(tab), { forceReload: true })} variant="primary">
+              Reintentar
+            </AppButton>
+          }
+        />
+      );
+    }
+    return content;
+  }
 
   async function handleSaveCredentials() {
     if (!canManage) {
@@ -2721,6 +3269,7 @@ export function HotmartAdminView({
       api.listPromotions(environment),
       api.getPromotionMetrics(environment),
     ]);
+    updateSectionStates(["promotions"], "ready");
     setDashboardState({
       data: {
         ...baseData,
@@ -2866,20 +3415,21 @@ export function HotmartAdminView({
         product_id: syncDraft.product_id,
         resource: syncDraft.resource,
       });
-      const [syncRuns, syncCursors, reconciliationIssues, status, releaseReadiness, operationalAlerts] = await Promise.all([
+      const [syncRuns, syncCursors, reconciliationIssues, status, releaseReadiness] = await Promise.all([
         api.listSyncRuns(environment),
         api.listSyncCursors(environment),
         api.listReconciliationIssues(environment),
         api.getStatus(environment),
         api.getReleaseReadiness(environment),
-        api.listOperationalAlerts(environment),
       ]);
+      updateSectionStates(["reconciliation", "sync"], "ready");
       setDashboardState({
         data: {
           ...dashboardData,
-          operationalAlerts,
+          operationalAlerts: releaseReadiness.alerts,
           reconciliationIssues,
           releaseReadiness,
+          runbook: releaseReadiness.runbook,
           status,
           syncCursors,
           syncRuns: upsertListItem(syncRuns, run),
@@ -2909,6 +3459,7 @@ export function HotmartAdminView({
       api.listClubStudents(environment),
       api.listClubProgress(environment),
     ]);
+    updateSectionStates(["club"], "ready");
     setDashboardState({
       data: {
         ...baseData,
@@ -2958,7 +3509,6 @@ export function HotmartAdminView({
         syncCursors,
         status,
         releaseReadiness,
-        operationalAlerts,
       ] = await Promise.all([
         api.getClubOverview(environment),
         api.listClubModules(environment),
@@ -2970,8 +3520,8 @@ export function HotmartAdminView({
         api.listSyncCursors(environment),
         api.getStatus(environment),
         api.getReleaseReadiness(environment),
-        api.listOperationalAlerts(environment),
       ]);
+      updateSectionStates(["club", "reconciliation", "sync"], "ready");
       setDashboardState({
         data: {
           ...dashboardData,
@@ -2980,9 +3530,10 @@ export function HotmartAdminView({
           clubPages,
           clubProgress,
           clubStudents,
-          operationalAlerts,
+          operationalAlerts: releaseReadiness.alerts,
           reconciliationIssues,
           releaseReadiness,
+          runbook: releaseReadiness.runbook,
           status,
           syncCursors,
           syncRuns: upsertListItem(syncRuns, run),
@@ -3228,6 +3779,11 @@ export function HotmartAdminView({
     });
   }
 
+  const isHotmartViewRefreshing =
+    activeTab === "Comercial"
+      ? commercialState.status === "loading" || activeCommercialTabLoadState?.status === "loading"
+      : dashboardState.status === "loading" || activeTabLoadState?.status === "loading";
+
   const shellActions = (
     <>
       <SelectField
@@ -3240,7 +3796,11 @@ export function HotmartAdminView({
         ]}
         value={environment}
       />
-      <AppButton icon={<RefreshCcw className="h-4 w-4" />} loading={dashboardState.status === "loading"} onClick={() => void loadDashboard()}>
+      <AppButton
+        icon={<RefreshCcw className="h-4 w-4" />}
+        loading={isHotmartViewRefreshing}
+        onClick={() => void refreshActiveHotmartView()}
+      >
         Refrescar
       </AppButton>
       {selectedSession ? (
@@ -3272,7 +3832,7 @@ export function HotmartAdminView({
         ) : null}
 
         {canManage && dashboardState.status === "loading" ? (
-          <LoadingState title="Cargando Hotmart" description="Consultando status, mappings, catalogo interno y payment links." />
+          <LoadingState title="Cargando Hotmart" description="Consultando el bootstrap minimo y el resumen operativo del modulo." />
         ) : null}
 
         {canManage && dashboardState.status === "error" ? (
@@ -3280,7 +3840,7 @@ export function HotmartAdminView({
             title="No se pudo abrir Hotmart"
             description={dashboardState.error}
             action={
-              <AppButton onClick={() => void loadDashboard()} variant="primary">
+              <AppButton onClick={() => void refreshActiveHotmartView()} variant="primary">
                 Reintentar
               </AppButton>
             }
@@ -3309,7 +3869,8 @@ export function HotmartAdminView({
               />
             ) : null}
 
-            {activeTab === "Productos y ofertas" ? (
+            {renderLazyHotmartTab(
+              "Productos y ofertas",
               <HotmartMappingsPanel
                 draft={mappingDraft}
                 feedback={mappingFeedback}
@@ -3319,10 +3880,11 @@ export function HotmartAdminView({
                 onSave={() => void handleSaveMapping()}
                 pending={mappingPending}
                 products={dashboardData.products}
-              />
-            ) : null}
+              />,
+            )}
 
-            {activeTab === "Links de pago" ? (
+            {renderLazyHotmartTab(
+              "Links de pago",
               <HotmartPaymentLinksPanel
                 draft={linkDraft}
                 feedback={linkFeedback}
@@ -3335,10 +3897,11 @@ export function HotmartAdminView({
                 products={dashboardData.products}
                 refreshPendingId={refreshPendingId}
                 selectedSession={selectedSession}
-              />
-            ) : null}
+              />,
+            )}
 
-            {activeTab === "Promociones" ? (
+            {renderLazyHotmartTab(
+              "Promociones",
               <HotmartPromotionsPanel
                 deletePendingId={deletePromotionPendingId}
                 draft={promotionDraft}
@@ -3351,10 +3914,11 @@ export function HotmartAdminView({
                 pending={promotionPending}
                 products={dashboardData.products}
                 promotions={dashboardData.promotions}
-              />
-            ) : null}
+              />,
+            )}
 
-            {activeTab === "Sincronizacion" ? (
+            {renderLazyHotmartTab(
+              "Sincronizacion",
               <HotmartSyncPanel
                 cursors={dashboardData.syncCursors}
                 draft={syncDraft}
@@ -3363,10 +3927,11 @@ export function HotmartAdminView({
                 onRunSync={() => void handleRunSync()}
                 pending={syncPending}
                 runs={dashboardData.syncRuns}
-              />
-            ) : null}
+              />,
+            )}
 
-            {activeTab === "Comunidad" ? (
+            {renderLazyHotmartTab(
+              "Comunidad",
               <HotmartClubPanel
                 draft={clubDraft}
                 feedback={clubFeedback}
@@ -3378,10 +3943,11 @@ export function HotmartAdminView({
                 pending={clubPending}
                 progress={dashboardData.clubProgress}
                 students={dashboardData.clubStudents}
-              />
-            ) : null}
+              />,
+            )}
 
-            {activeTab === "Reconciliacion" ? (
+            {renderLazyHotmartTab(
+              "Reconciliacion",
               <HotmartReconciliationPanel
                 feedback={reconciliationFeedback}
                 issues={dashboardData.reconciliationIssues}
@@ -3389,8 +3955,8 @@ export function HotmartAdminView({
                 onResolveIssue={(issue) => void handleResolveIssue(issue)}
                 pendingIssueId={resolvePendingIssueId}
                 resolutionDraft={resolutionDraft}
-              />
-            ) : null}
+              />,
+            )}
 
             {activeTab === "Auditoria" ? <HotmartAuditPreviewPanel data={dashboardData} /> : null}
 
@@ -3409,6 +3975,7 @@ export function HotmartAdminView({
                 />
               ) : commercialData ? (
                 <HotmartCommercialAdminPanel
+                  activeSectionTab={activeCommercialTab}
                   data={commercialData}
                   debtPendingId={commercialDebtPendingId}
                   feedback={commercialFeedback}
@@ -3420,10 +3987,14 @@ export function HotmartAdminView({
                   onPackageDraftChange={(patch) => setCommercialPackageDraft((current) => ({ ...current, ...patch }))}
                   onProductChange={setCommercialProductKey}
                   onQuotaDraftChange={(patch) => setCommercialQuotaDraft((current) => ({ ...current, ...patch, product_key: commercialProductKey }))}
+                  onReloadSection={() =>
+                    void ensureCommercialSections(getCommercialTabSections(activeCommercialTab), { forceReload: true })
+                  }
                   onOverrideDraftChange={(patch) => setCommercialOverrideDraft((current) => ({ ...current, ...patch }))}
                   onSavePackage={() => void handleSaveCommercialPackage()}
                   onSaveQuota={() => void handleSaveCommercialQuota()}
                   onSaveOverride={() => void handleSaveCommercialOverride()}
+                  onSectionChange={setActiveCommercialTab}
                   onResolveLegacyPackageResolution={(resolution) => void handleResolveCommercialLegacyPackageResolution(resolution)}
                   onSettleDebt={(debt) => void handleSettleCommercialDebt(debt)}
                   overrideDraft={commercialOverrideDraft}
@@ -3433,6 +4004,7 @@ export function HotmartAdminView({
                   savingPackage={commercialPackagePending}
                   savingQuota={commercialQuotaPending}
                   savingOverride={commercialOverridePending}
+                  sectionLoadState={activeCommercialTabLoadState}
                   selectedProductKey={commercialProductKey}
                 />
               ) : null

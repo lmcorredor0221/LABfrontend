@@ -1,5 +1,6 @@
 import { createHotmartAdminApi } from "@/features/hotmart/hotmart-api";
 import type {
+  CommercialAdminBootstrapData,
   HotmartClubModuleResponse,
   HotmartClubOverviewResponse,
   HotmartClubPageResponse,
@@ -243,7 +244,92 @@ const releaseReadiness: HotmartReleaseReadinessResponse = {
   workspace_id: "workspace-1",
 };
 
+const commercialBootstrap: CommercialAdminBootstrapData = {
+  balanceSnapshot: {
+    buckets: [],
+    by_source_kind: {
+      adjustment: 0,
+      free: 2,
+      one_time: 0,
+      subscription: 0,
+    },
+    contract_version: "commercial-balance-snapshot.v1",
+    product_key: "blueprint_pro",
+    total_available_units: 2,
+    workspace_id: "workspace-1",
+  },
+  effectiveConfig: {
+    allow_courtesy: true,
+    allow_debt_pending: true,
+    allow_manual_override_without_charge: true,
+    catalog_priority_strategy: "minimum_sufficient",
+    checkout_required_on_zero_balance: true,
+    consumption_priority: ["free", "subscription", "one_time"],
+    contract_version: "commercial-quota-effective-config.v1",
+    debt_enabled: true,
+    default_blocked_request_ttl_hours: 72,
+    default_checkout_ttl_minutes: 30,
+    display_name: "Blueprint Pro",
+    duplicate_conflict_visibility: "platform_admin_only",
+    enabled: true,
+    fifo_auto_approval_enabled: true,
+    initial_free_units: 2,
+    override_id: null,
+    product_key: "blueprint_pro",
+    sync_retry_limit: 5,
+    workspace_id: "workspace-1",
+  },
+  openDebtCount: 1,
+  quotaConfigs: [],
+  recommendation: {
+    contract_version: "commercial-package-recommendation.v1",
+    display_name: "Plan BP Pro",
+    granted_units_for_product: 10,
+    hotmart_environment: "sandbox",
+    hotmart_product_id: "123",
+    hotmart_product_ucode: "",
+    offer_code: "offer-1",
+    package_code: "pkg-bp-pro",
+    package_type: "one_time",
+    plan_code: "",
+    recommendation_priority: 10,
+    recommendation_reason: "Paquete minimo suficiente segun configuracion efectiva.",
+    requested_product_key: "blueprint_pro",
+    required_units: 1,
+  },
+  workspaceOverrides: [],
+};
+
 describe("createHotmartAdminApi", () => {
+  it("loads the Hotmart bootstrap from the summary endpoints only", async () => {
+    const client = {
+      delete: vi.fn(),
+      get: vi.fn((path: string) => {
+        if (path.includes("/status")) return Promise.resolve(status);
+        if (path.includes("/coupons/metrics")) return Promise.resolve(promotionMetrics);
+        if (path.includes("/club/overview")) return Promise.resolve(clubOverview);
+        if (path.includes("/release-readiness")) return Promise.resolve(releaseReadiness);
+        if (path.includes("/commerce/products")) return Promise.resolve([]);
+        return Promise.reject(new Error(`Unexpected GET ${path}`));
+      }),
+      post: vi.fn(),
+    };
+    const api = createHotmartAdminApi(client as unknown as NonNullable<Parameters<typeof createHotmartAdminApi>[0]>);
+
+    const dashboard = await api.getDashboardBootstrap("sandbox");
+
+    expect(dashboard.status.status).toBe("configured");
+    expect(dashboard.promotionMetrics.active).toBe(1);
+    expect(dashboard.clubOverview.subdomain).toBe("leanclub");
+    expect(dashboard.releaseReadiness.overall_status).toBe("needs_attention");
+    expect(client.get).toHaveBeenCalledTimes(5);
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/status?environment=sandbox");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/coupons/metrics?environment=sandbox");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/overview?environment=sandbox");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/release-readiness?environment=sandbox");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/commerce/products");
+  });
+
   it("loads the admin dashboard from the scoped Hotmart endpoints", async () => {
     const client = {
       delete: vi.fn(),
@@ -311,21 +397,9 @@ describe("createHotmartAdminApi", () => {
 
     const resolveGet = (path: string) => {
       if (path.includes("/status")) return status;
-      if (path.includes("/mappings")) return [];
-      if (path.includes("/payment-links")) return [link];
       if (path.includes("/coupons/metrics")) return promotionMetrics;
-      if (path.includes("/coupons")) return [promotion];
-      if (path.includes("/sync-runs")) return [syncRun];
-      if (path.includes("/sync-cursors")) return [syncCursor];
-      if (path.includes("/reconciliation")) return [reconciliationIssue];
       if (path.includes("/club/overview")) return clubOverview;
-      if (path.includes("/club/modules")) return [clubModule];
-      if (path.includes("/club/pages")) return [clubPage];
-      if (path.includes("/club/students")) return [clubStudent];
-      if (path.includes("/club/progress")) return [clubProgress];
       if (path.includes("/release-readiness")) return releaseReadiness;
-      if (path.includes("/alerts")) return [operationalAlert];
-      if (path.includes("/runbook")) return [runbookSection];
       if (path.includes("/commerce/products")) return [];
       throw new Error(`Unexpected GET ${path}`);
     };
@@ -352,11 +426,30 @@ describe("createHotmartAdminApi", () => {
     };
     const api = createHotmartAdminApi(client as unknown as NonNullable<Parameters<typeof createHotmartAdminApi>[0]>);
 
-    const dashboard = await api.getDashboard("sandbox");
+    const dashboard = await api.getDashboardBootstrap("sandbox");
 
     expect(dashboard.status.status).toBe("configured");
     expect(maxConcurrentRequests).toBeLessThanOrEqual(5);
-    expect(client.get).toHaveBeenCalledTimes(17);
+    expect(client.get).toHaveBeenCalledTimes(5);
+  });
+
+  it("loads the commercial bootstrap from a single scoped endpoint", async () => {
+    const client = {
+      delete: vi.fn(),
+      get: vi.fn((path: string) => {
+        if (path.includes("/commercial/bootstrap")) return Promise.resolve(commercialBootstrap);
+        return Promise.reject(new Error(`Unexpected GET ${path}`));
+      }),
+      post: vi.fn(),
+    };
+    const api = createHotmartAdminApi(client as unknown as NonNullable<Parameters<typeof createHotmartAdminApi>[0]>);
+
+    const response = await api.getCommercialBootstrap({ productKey: "blueprint_pro" });
+
+    expect(response.openDebtCount).toBe(1);
+    expect(client.get).toHaveBeenCalledWith(
+      "/api/v1/admin/integrations/hotmart/commercial/bootstrap?product_key=blueprint_pro",
+    );
   });
 
   it("creates a Hotmart checkout order before requesting the payment link", async () => {

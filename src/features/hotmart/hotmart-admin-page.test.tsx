@@ -5,7 +5,7 @@ import type { AuthUser } from "@/core/auth/types";
 import { LanguageProvider } from "@/core/i18n/language-context";
 import { HotmartAdminView } from "@/features/hotmart/hotmart-admin-page";
 import type { HotmartAdminApi } from "@/features/hotmart/hotmart-api";
-import type { HotmartDashboardData } from "@/features/hotmart/hotmart-contracts";
+import type { CommercialAdminBootstrapData, HotmartDashboardData } from "@/features/hotmart/hotmart-contracts";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/settings/hotmart",
@@ -227,6 +227,92 @@ const dashboard: HotmartDashboardData = {
   syncRuns: [],
 };
 
+const dashboardBootstrap = {
+  clubOverview: dashboard.clubOverview,
+  products: dashboard.products,
+  promotionMetrics: dashboard.promotionMetrics,
+  releaseReadiness: dashboard.releaseReadiness,
+  status: dashboard.status,
+};
+
+const commercialBootstrap: CommercialAdminBootstrapData = {
+  balanceSnapshot: {
+    buckets: [],
+    by_source_kind: {
+      adjustment: 0,
+      free: 2,
+      one_time: 0,
+      subscription: 0,
+    },
+    contract_version: "commercial-balance-snapshot.v1",
+    product_key: "blueprint_pro",
+    total_available_units: 2,
+    workspace_id: "workspace-1",
+  },
+  effectiveConfig: {
+    allow_courtesy: true,
+    allow_debt_pending: true,
+    allow_manual_override_without_charge: true,
+    catalog_priority_strategy: "minimum_sufficient",
+    checkout_required_on_zero_balance: true,
+    consumption_priority: ["free", "subscription", "one_time"],
+    contract_version: "commercial-quota-effective-config.v1",
+    debt_enabled: true,
+    default_blocked_request_ttl_hours: 72,
+    default_checkout_ttl_minutes: 30,
+    display_name: "Blueprint Pro",
+    duplicate_conflict_visibility: "platform_admin_only",
+    enabled: true,
+    fifo_auto_approval_enabled: true,
+    initial_free_units: 2,
+    override_id: null,
+    product_key: "blueprint_pro",
+    sync_retry_limit: 5,
+    workspace_id: "workspace-1",
+  },
+  openDebtCount: 1,
+  quotaConfigs: [
+    {
+      allow_courtesy: true,
+      allow_debt_pending: true,
+      allow_manual_override_without_charge: true,
+      catalog_priority_strategy: "minimum_sufficient",
+      checkout_required_on_zero_balance: true,
+      consumption_priority: ["free", "subscription", "one_time"],
+      contract_version: "commercial-quota-product-config.v1",
+      debt_enabled: true,
+      default_blocked_request_ttl_hours: 72,
+      default_checkout_ttl_minutes: 30,
+      display_name: "Blueprint Pro",
+      duplicate_conflict_visibility: "platform_admin_only",
+      enabled: true,
+      fifo_auto_approval_enabled: true,
+      id: "quota-1",
+      initial_free_units: 2,
+      product_key: "blueprint_pro",
+      sync_retry_limit: 5,
+      updated_at: "2026-08-14T10:00:00Z",
+    },
+  ],
+  recommendation: {
+    contract_version: "commercial-package-recommendation.v1",
+    display_name: "Plan BP Pro",
+    granted_units_for_product: 10,
+    hotmart_environment: "sandbox",
+    hotmart_product_id: "123",
+    hotmart_product_ucode: "",
+    offer_code: "offer-1",
+    package_code: "pkg-bp-pro",
+    package_type: "one_time",
+    plan_code: "",
+    recommendation_priority: 10,
+    recommendation_reason: "Paquete minimo suficiente segun configuracion efectiva.",
+    requested_product_key: "blueprint_pro",
+    required_units: 1,
+  },
+  workspaceOverrides: [],
+};
+
 function createMockApi(overrides: Partial<HotmartAdminApi> = {}): HotmartAdminApi {
   return {
     createPromotion: vi.fn(),
@@ -235,8 +321,83 @@ function createMockApi(overrides: Partial<HotmartAdminApi> = {}): HotmartAdminAp
     createPaymentLink: vi.fn(),
     deletePromotion: vi.fn(),
     getClubOverview: vi.fn().mockResolvedValue(dashboard.clubOverview),
+    getCommercialBootstrap: vi.fn().mockResolvedValue(commercialBootstrap),
+    getDashboardBootstrap: vi.fn().mockResolvedValue(dashboardBootstrap),
     replayWebhook: vi.fn(),
     getDashboard: vi.fn().mockResolvedValue(dashboard),
+    listCommercialBalanceLedger: vi.fn().mockResolvedValue([
+      {
+        access_request_id: null,
+        actor_user_id: null,
+        balance_after_units: 2,
+        balance_before_units: 0,
+        bucket_balance_after_units: 2,
+        bucket_balance_before_units: 0,
+        bucket_id: null,
+        contract_version: "commercial-balance-ledger.v1",
+        created_at: "2026-08-14T10:00:00Z",
+        delta_units: 2,
+        id: "ledger-1",
+        metadata: {},
+        movement_type: "grant",
+        order_id: null,
+        payment_id: null,
+        product_key: "blueprint_pro",
+        source_kind: "free",
+        source_ref: "seed",
+        workspace_id: "workspace-1",
+      },
+    ]),
+    listCommercialDebts: vi.fn().mockResolvedValue([
+      {
+        access_request_id: null,
+        amount_cents: 10000,
+        contract_version: "commercial-debt.v1",
+        created_at: "2026-08-14T10:00:00Z",
+        currency: "USD",
+        due_at: null,
+        id: "debt-1",
+        opened_by_user_id: null,
+        order_id: null,
+        product_key: "blueprint_pro",
+        reason_code: "debt_pending",
+        reason_label: "Deuda pendiente",
+        resolved_at: null,
+        resolved_by_user_id: null,
+        settled_amount_cents: 0,
+        status: "open",
+        summary: "Aprobacion comercial con deuda pendiente.",
+        updated_at: "2026-08-14T10:00:00Z",
+        workspace_id: "workspace-1",
+      },
+    ]),
+    listCommercialLegacyPackageResolutions: vi.fn().mockResolvedValue([]),
+    listCommercialPackageCatalog: vi.fn().mockResolvedValue([
+      {
+        billing_cycle: "",
+        checkout_currency_mode: "workspace_preferred",
+        contract_version: "commercial-package-catalog.v1",
+        display_name: "Plan BP Pro",
+        enabled: true,
+        granted_units: 10,
+        granted_units_acp: 0,
+        granted_units_blueprint_pro: 10,
+        hotmart_environment: "sandbox",
+        hotmart_price_strategy: "provider_authoritative",
+        hotmart_product_id: "123",
+        hotmart_product_ucode: "",
+        id: "pkg-1",
+        offer_code: "offer-1",
+        package_code: "pkg-bp-pro",
+        package_type: "one_time",
+        plan_code: "",
+        product_key: "blueprint_pro",
+        recommendation_priority: 10,
+        renewal_policy: "",
+        updated_at: "2026-08-14T10:00:00Z",
+        validity_days: null,
+      },
+    ]),
     getPromotionMetrics: vi.fn().mockResolvedValue(dashboard.promotionMetrics),
     getReleaseReadiness: vi.fn().mockResolvedValue(dashboard.releaseReadiness),
     getStatus: vi.fn().mockResolvedValue(dashboard.status),
@@ -246,17 +407,22 @@ function createMockApi(overrides: Partial<HotmartAdminApi> = {}): HotmartAdminAp
     listClubStudents: vi.fn().mockResolvedValue(dashboard.clubStudents),
     listOperationalAlerts: vi.fn().mockResolvedValue(dashboard.operationalAlerts),
     listReconciliationIssues: vi.fn().mockResolvedValue(dashboard.reconciliationIssues),
-    listMappings: vi.fn(),
-    listPaymentLinks: vi.fn(),
-    listProducts: vi.fn(),
+    listMappings: vi.fn().mockResolvedValue(dashboard.mappings),
+    listPaymentLinks: vi.fn().mockResolvedValue(dashboard.links),
+    listProducts: vi.fn().mockResolvedValue(dashboard.products),
     listPromotions: vi.fn().mockResolvedValue(dashboard.promotions),
     listRunbook: vi.fn().mockResolvedValue(dashboard.runbook),
     listSyncCursors: vi.fn().mockResolvedValue(dashboard.syncCursors),
     listSyncRuns: vi.fn().mockResolvedValue(dashboard.syncRuns),
     refreshPaymentLink: vi.fn(),
+    resolveCommercialLegacyPackageResolution: vi.fn(),
     resolveReconciliationIssue: vi.fn(),
     runSync: vi.fn(),
     saveCredentials: vi.fn().mockResolvedValue(dashboard.status),
+    saveCommercialPackageCatalog: vi.fn(),
+    saveCommercialQuotaProduct: vi.fn(),
+    saveCommercialWorkspaceOverride: vi.fn(),
+    settleCommercialDebt: vi.fn(),
     syncClub: vi.fn(),
     testConnection: vi.fn().mockResolvedValue({
       checked_at: "2026-08-14T10:00:00Z",
@@ -355,7 +521,7 @@ describe("HotmartAdminView", () => {
     expect(await screen.findByText("Consola Hotmart")).toBeInTheDocument();
     expect(await screen.findByText("Preparacion operacional")).toBeInTheDocument();
     expect(screen.getAllByText("connected").length).toBeGreaterThan(0);
-    expect(api.getDashboard).toHaveBeenCalledWith("sandbox");
+    expect(api.getDashboardBootstrap).toHaveBeenCalledWith("sandbox");
   });
 
   it("protects the module for non-platform-admin users", async () => {
@@ -364,7 +530,7 @@ describe("HotmartAdminView", () => {
     renderView(api, "admin", false);
 
     expect(await screen.findByText("Modulo Hotmart protegido")).toBeInTheDocument();
-    expect(api.getDashboard).not.toHaveBeenCalled();
+    expect(api.getDashboardBootstrap).not.toHaveBeenCalled();
   });
 
   it("saves credential configuration without rendering secret values", async () => {
@@ -373,7 +539,7 @@ describe("HotmartAdminView", () => {
     renderView(api, "admin", true);
 
     fireEvent.click(await screen.findByRole("button", { name: "Credenciales" }));
-    fireEvent.change(screen.getByLabelText("Client Secret"), { target: { value: "secret-for-test" } });
+    fireEvent.change(await screen.findByLabelText("Client Secret"), { target: { value: "secret-for-test" } });
     fireEvent.click(screen.getByText("Guardar"));
 
     await waitFor(() => {
@@ -585,5 +751,32 @@ describe("HotmartAdminView", () => {
     expect(screen.getByText("Diferencias abiertas")).toBeInTheDocument();
     expect(screen.getByText("Runbook admin")).toBeInTheDocument();
     expect(screen.getByText("Pausar y volver a fallback")).toBeInTheDocument();
+  });
+
+  it("loads comercial slices only when the platform admin opens each subview", async () => {
+    const api = createMockApi();
+
+    renderView(api);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Comercial" }));
+
+    expect(await screen.findByText("Motor comercial por workspace")).toBeInTheDocument();
+    expect(api.getCommercialBootstrap).toHaveBeenCalledWith({ productKey: "blueprint_pro" });
+    expect(api.listCommercialBalanceLedger).not.toHaveBeenCalled();
+    expect(api.listCommercialPackageCatalog).not.toHaveBeenCalled();
+    expect(api.listCommercialDebts).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Balance" }));
+    expect(await screen.findByText("Ledger reciente")).toBeInTheDocument();
+    expect(api.listCommercialBalanceLedger).toHaveBeenCalledWith("blueprint_pro");
+
+    fireEvent.click(screen.getByRole("button", { name: "Paquetes" }));
+    expect(await screen.findByText("Catalogo de paquetes")).toBeInTheDocument();
+    expect(api.listCommercialPackageCatalog).toHaveBeenCalledWith("", true);
+    expect(api.listCommercialLegacyPackageResolutions).toHaveBeenCalledWith({ productKey: "blueprint_pro" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Deudas" }));
+    expect((await screen.findAllByText("Deudas abiertas")).length).toBeGreaterThan(0);
+    expect(api.listCommercialDebts).toHaveBeenCalledWith({ productKey: "blueprint_pro", status: "open" });
   });
 });
