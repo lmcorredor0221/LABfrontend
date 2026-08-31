@@ -401,7 +401,7 @@ function operationFromStageOperation(activeRoute: ProductExperienceRouteSnapshot
   return operationFromStageOperationRecord(operation);
 }
 
-function operationFromStageOperationRecord(operation: ProductExperienceStageOperation): ProductOperationEnvelope {
+export function operationFromStageOperationRecord(operation: ProductExperienceStageOperation): ProductOperationEnvelope {
   const status = normalizeOperationStatus(operation.status);
   const detail = operation.error_message || operation.detail || operation.technical_detail || nextStepFor(status);
   const currentStep =
@@ -526,7 +526,11 @@ export function buildProductOperationEnvelope({
   actionState?: ProductOperationActionSnapshot | null;
   activeRoute: ProductExperienceRouteSnapshot | null;
 }): ProductOperationEnvelope | null {
-  if (actionState?.operation && actionState.status !== "idle" && actionState.status !== "success") {
+  if (
+    actionState?.operation &&
+    actionState.status !== "idle" &&
+    (actionState.status !== "success" || isOperationActive(actionState.operation))
+  ) {
     return actionState.operation;
   }
 

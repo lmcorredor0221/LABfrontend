@@ -1,6 +1,11 @@
 "use client";
 
 import type { ProjectRouteStage } from "@/core/routing/routes";
+import {
+  isLeanWorkStage,
+  resolveWorkStageForExperienceStage,
+  type LeanExperienceStage,
+} from "@/features/journey/journey-model";
 import { AttentionInboxView } from "@/features/product-experience/attention/attention-components";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 import { DesignStageView } from "@/features/product-experience/design/design-stage-view";
@@ -16,7 +21,8 @@ import { MemoryStageView } from "@/features/product-experience/memory/memory-sta
 import { ProductSaasView } from "@/features/product-experience/saas/saas-product-views";
 import { EstimateStageView, PackageStageView, ValidateStageView } from "@/features/product-experience/saas/saas-stage-views";
 import {
-  getProductStageForSection,
+  getProductDisplayStageForSection,
+  getProductFetchStageForSection,
   type ProductExperienceProductSection,
 } from "@/features/product-experience/shell/experience-model";
 import { ProjectWorkspaceShell } from "@/features/product-experience/shell/project-workspace-shell";
@@ -33,7 +39,7 @@ type EnterpriseCorporateProjectFixtureProps = {
   productSection?: ProductExperienceProductSection | null;
   section?: string | null;
   sessionId: string;
-  stage: ProjectRouteStage;
+  stage: ProjectRouteStage | LeanExperienceStage;
 };
 
 function normalizeFixtureRoute(
@@ -96,7 +102,8 @@ function normalizeFixtureRoute(
   };
 }
 
-function routeForStage(stage: ProjectRouteStage): ProductExperienceRouteSnapshot {
+function routeForStage(stage: LeanExperienceStage): ProductExperienceRouteSnapshot {
+  const workStage = resolveWorkStageForExperienceStage(stage);
   if (stage === "discover") {
     return normalizeFixtureRoute(createDiscoverRouteFixture(), stage);
   }
@@ -111,10 +118,10 @@ function routeForStage(stage: ProjectRouteStage): ProductExperienceRouteSnapshot
 
   const route = createToolsRouteFixture({
     memoryArtifact: createMemoryArtifactFixture(),
-    stage: stage === "memory" ? "memory" : "tools",
+    stage: workStage === "memory" ? "memory" : "tools",
     toolsArtifact: createToolsArtifactFixture({ state: "approved" }),
   });
-  return normalizeFixtureRoute(route, stage);
+  return normalizeFixtureRoute(route, workStage);
 }
 
 export function EnterpriseCorporateProjectFixture({
@@ -122,29 +129,36 @@ export function EnterpriseCorporateProjectFixture({
   stage,
 }: EnterpriseCorporateProjectFixtureProps) {
   const activeProduct = productSection ?? "work";
-  const effectiveStage = productSection && productSection !== "work" ? getProductStageForSection(productSection) : stage;
-  const activeRoute = routeForStage(effectiveStage);
+  const effectiveFetchStage =
+    productSection && productSection !== "work"
+      ? getProductFetchStageForSection(productSection)
+      : (stage as ProjectRouteStage);
+  const effectiveDisplayStage =
+    productSection && productSection !== "work"
+      ? getProductDisplayStageForSection(productSection)
+      : (stage as LeanExperienceStage);
+  const activeRoute = routeForStage(effectiveDisplayStage);
 
   return (
     <ProjectWorkspaceShell
       activeProduct={activeProduct}
       activeRoute={activeRoute}
-      activeStage={effectiveStage}
+      activeStage={effectiveDisplayStage}
       sessionId={ENTERPRISE_CORPORATE_FIXTURE_ID}
     >
       {productSection === "attention" ? (
-        <AttentionInboxView activeRoute={activeRoute} currentStage={effectiveStage} />
+        <AttentionInboxView activeRoute={activeRoute} currentStage={effectiveFetchStage} />
       ) : productSection && productSection !== "work" ? (
         <ProductSaasView activeRoute={activeRoute} section={productSection} />
-      ) : stage === "discover" ? (
+      ) : isLeanWorkStage(stage) && stage === "discover" ? (
         <DiscoverStageView activeRoute={activeRoute} />
-      ) : stage === "define" ? (
+      ) : isLeanWorkStage(stage) && stage === "define" ? (
         <DefineStageView activeRoute={activeRoute} />
-      ) : stage === "design" ? (
+      ) : isLeanWorkStage(stage) && stage === "design" ? (
         <DesignStageView activeRoute={activeRoute} />
-      ) : stage === "tools" ? (
+      ) : isLeanWorkStage(stage) && stage === "tools" ? (
         <ToolsStageView activeRoute={activeRoute} />
-      ) : stage === "memory" ? (
+      ) : isLeanWorkStage(stage) && stage === "memory" ? (
         <MemoryStageView activeRoute={activeRoute} />
       ) : stage === "validate" ? (
         <ValidateStageView activeRoute={activeRoute} />

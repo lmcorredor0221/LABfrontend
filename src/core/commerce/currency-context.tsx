@@ -94,7 +94,7 @@ const CurrencyContext = createContext<CurrencyContextType>({
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
-  const [currency, setCurrencyState] = useState<Currency>(() => readStoredCurrency() ?? "COP");
+  const [currency, setCurrencyState] = useState<Currency>("COP");
   const [trm, setTrm] = useState<TRMData>(DEFAULT_TRM);
   const migrationInFlightRef = useRef<string | null>(null);
 

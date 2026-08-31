@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -45,12 +45,12 @@ import {
 } from "@/features/product-experience/discover/discover-model";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { getProductExperienceProductHref, getProductExperienceStageHref } from "@/features/product-experience/shell/experience-model";
+import { isOperationActive } from "@/features/product-experience/operations/operation-model";
 import type {
   ProductDiscoveryActions,
   ProductDiscoveryActionState,
 } from "@/features/product-experience/shell/use-product-experience-route";
 import type {
-  DiscoveryAnalysisInsight,
   DiscoveryAnalysisQuestion,
   DiscoveryArtifact,
 } from "@/features/sessions/session-contracts";
@@ -178,7 +178,11 @@ function getErrorMessage(error: unknown, t?: DiscoverTranslate) {
 }
 
 function isSubmitting(actionState?: ProductDiscoveryActionState, localAction?: LocalActionState) {
-  return actionState?.status === "submitting" || localAction?.status === "submitting";
+  return (
+    actionState?.status === "submitting" ||
+    isOperationActive(actionState?.operation) ||
+    localAction?.status === "submitting"
+  );
 }
 
 function DiscoverLoadingState() {
@@ -343,43 +347,6 @@ function ChecklistSummary({
   );
 }
 
-function InsightList({
-  empty,
-  items,
-  title,
-  t,
-}: {
-  empty: string;
-  items: DiscoveryAnalysisInsight[];
-  title: string;
-  t: DiscoverTranslate;
-}) {
-  return (
-    <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4">
-      <h4 className="text-[15px] font-black text-[var(--uxa-color-ink)]">{title}</h4>
-      {items.length ? (
-        <div className="mt-3 space-y-3">
-          {items.map((item, index) => (
-            <div className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3" key={getDiscoverSuggestionId(title, item.key, index)}>
-              <p className="text-[12px] leading-5 text-[var(--uxa-color-ink)]">{item.statement}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <UxaBadge tone={item.confidence >= 0.75 ? "success" : item.confidence >= 0.5 ? "warning" : "neutral"}>
-                  {t("discover.confidence", "Confianza")} {(item.confidence * 100).toFixed(0)}%
-                </UxaBadge>
-                {item.source_refs.slice(0, 3).map((ref) => (
-                  <UxaBadge key={ref} tone="neutral">{ref}</UxaBadge>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">{empty}</p>
-      )}
-    </div>
-  );
-}
-
 function OpenQuestions({
   items,
   sessionId,
@@ -533,15 +500,6 @@ function AnalysisPanel({
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-3">
-      <p className="text-[var(--uxa-font-size-section-title)] font-black">{value}</p>
-      <p className="text-[11px] font-bold text-[var(--uxa-color-ink-muted)]">{label}</p>
-    </div>
-  );
-}
-
 function ReviewDecisionPanel({
   decisions,
   onDecision,
@@ -627,7 +585,7 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       : primaryAction.kind === "approve"
         ? t("discover.btn.approve", "Approve Discover")
         : t("discover.btn.analyze", "Save and analyze");
-  const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
+  const copy = useCallback((en: string, es: string, pt: string) => byLanguage(language, { en, es, pt }), [language]);
   const localizedTimeSpentOptions = useMemo(
     () => [
       { label: copy("Select...", "Seleccionar...", "Selecionar..."), value: DISCOVERY_TIME_SPENT_OPTIONS[0].value },
@@ -636,7 +594,7 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       { label: copy("Between 1 and 2 days per week", "Entre 1 y 2 dias por semana", "Entre 1 e 2 dias por semana"), value: DISCOVERY_TIME_SPENT_OPTIONS[3].value },
       { label: copy("More than 2 days per week", "Mas de 2 dias por semana", "Mais de 2 dias por semana"), value: DISCOVERY_TIME_SPENT_OPTIONS[4].value },
     ],
-    [language],
+    [copy],
   );
   const localizedCostOptions = useMemo(
     () => [
@@ -646,7 +604,7 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       { label: copy("High impact on cost or experience", "Impacto alto en costos o experiencia", "Impacto alto em custos ou experiencia"), value: DISCOVERY_COST_OPTIONS[3].value },
       { label: copy("Critical business impact", "Impacto critico para el negocio", "Impacto critico para o negocio"), value: DISCOVERY_COST_OPTIONS[4].value },
     ],
-    [language],
+    [copy],
   );
   const sessionId = viewModel.sessionId;
   const latestArtifact = viewModel.latestArtifact;
@@ -658,6 +616,10 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       return;
     }
 
+    let nextValues = initialValues;
+    let shouldMarkDirty = false;
+    let storageKeysToRemove: string[] = [];
+
     if (sessionId && typeof window !== "undefined") {
       try {
         const stored =
@@ -666,14 +628,12 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
         if (stored) {
           const parsed = JSON.parse(stored);
           if (parsed?.initial_prompt && !initialValues.problemStatement) {
-            setFormValues({
+            nextValues = {
               ...initialValues,
               problemStatement: parsed.initial_prompt,
-            });
-            setDirty(true);
-            window.sessionStorage.removeItem(`session_eval_prefill_${sessionId}`);
-            window.sessionStorage.removeItem("pending_initiative_prefill");
-            return;
+            };
+            shouldMarkDirty = true;
+            storageKeysToRemove = [`session_eval_prefill_${sessionId}`, "pending_initiative_prefill"];
           }
         }
       } catch {
@@ -681,8 +641,19 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       }
     }
 
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- UXA7 keeps the form aligned with refreshed backend snapshots while the user has no unsaved edits.
-    setFormValues(initialValues);
+    const timeoutId = window.setTimeout(() => {
+      setFormValues(nextValues);
+      if (shouldMarkDirty) {
+        setDirty(true);
+      }
+      for (const key of storageKeysToRemove) {
+        window.sessionStorage.removeItem(key);
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [busy, dirty, initialValues, sessionId]);
 
   function updateField<K extends keyof DiscoveryFormValues>(key: K, value: DiscoveryFormValues[K]) {
@@ -1249,6 +1220,7 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
           ) : null}
           <UxaButton
             className={cn(primaryAction.kind === "continue" && "bg-[var(--uxa-color-brand)]")}
+            disabled={busy}
             isLoading={busy}
             onClick={runPrimaryAction}
             variant="primary"

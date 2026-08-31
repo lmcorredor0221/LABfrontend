@@ -25,6 +25,24 @@ import { cn } from "@/lib/utils";
 
 type FilterStatus = "all" | "pending" | "approved" | "rejected";
 
+function resolveAdminRequestsErrorMessage(err: unknown, language: string) {
+  const statusCode =
+    typeof err === "object" && err !== null && "status" in err
+      ? Number((err as { status?: unknown }).status)
+      : 0;
+  if (statusCode === 403) {
+    return language === "es"
+      ? "Esta consola requiere rol Platform Admin activo. Ser owner del workspace no habilita aprobaciones comerciales."
+      : "This console requires an active Platform Admin role. Workspace owner access does not authorize commercial approvals.";
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return language === "es"
+    ? "No se pudieron cargar las solicitudes de acceso."
+    : "Could not load access requests.";
+}
+
 export function AdminRequestsPage() {
   const { language } = useLanguage();
   const [requests, setRequests] = useState<AccessRequestResponse[]>([]);
@@ -46,13 +64,7 @@ export function AdminRequestsPage() {
       setStatus("ready");
     } catch (err: unknown) {
       setStatus("error");
-      setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : language === "es"
-          ? "No se pudieron cargar las solicitudes de acceso."
-          : "Could not load access requests.",
-      );
+      setErrorMessage(resolveAdminRequestsErrorMessage(err, language));
     }
   }, [language]);
 

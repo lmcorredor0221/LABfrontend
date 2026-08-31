@@ -1,5 +1,6 @@
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 import { parseDefinitionArtifact } from "@/features/product-experience/define/define-model";
+import { resolveDisplayCommercialTier } from "@/features/sessions/commercial-access";
 import type {
   DesignAlternative,
   DesignRecommendationArtifact,
@@ -463,7 +464,7 @@ export function buildDesignViewModel(
   const latestDesignArtifact = snapshot?.journey_latest_artifacts?.design ?? null;
   const definition = parseDefinitionArtifact(latestDefineArtifact);
   const parsedDesign = parseDesignArtifact(latestDesignArtifact);
-  const commercialTier = snapshot?.session.commercial_tier ?? "blueprint";
+  const commercialTier = resolveDisplayCommercialTier(snapshot);
   const defineApproved = isApprovedArtifact(latestDefineArtifact);
   const stale = hasStaleness(latestDefineArtifact) || hasStaleness(latestDesignArtifact);
   const design =

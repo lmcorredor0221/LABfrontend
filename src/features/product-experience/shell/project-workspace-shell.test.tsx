@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
 import { UxaButton } from "@/features/product-experience/design-system";
 import { ProjectWorkspaceShell } from "@/features/product-experience/shell/project-workspace-shell";
 import type {
@@ -45,6 +45,21 @@ vi.mock("@/core/auth/auth-context", () => ({
     },
   }),
 }));
+
+beforeEach(() => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      clear: () => storage.clear(),
+      getItem: (key: string) => storage.get(key) ?? null,
+      removeItem: (key: string) => storage.delete(key),
+      setItem: (key: string, value: string) => {
+        storage.set(key, value);
+      },
+    },
+  });
+});
 
 function resource<T>(data: T) {
   return {
@@ -200,6 +215,23 @@ function createRoute(): ProductExperienceRouteSnapshot {
         contract_version: "product-overview.v1",
         exports: [],
         generated_at: "2026-08-03T10:12:00Z",
+        journey_state_machine: {
+          contract_version: "journey-state-machine.v1",
+          current: {
+            blocking: false,
+            detail: "ACP listo para organizar preguntas, impacto y decisiones de implementacion.",
+            href: "/projects/session-uxa5/acp",
+            label: "Preparacion ACP",
+            product_key: "acp",
+            progress_percent: 63,
+            stage_key: "acp",
+            state_key: "acp_prep",
+            substate: "waiting_user",
+          },
+          session_id: "session-uxa5",
+          source_contracts: ["commercial-access.v2", "product-build-status.v1"],
+          workspace_id: "workspace-1",
+        },
         lean_progress_percent: 52,
         navigation: [],
         products: [],
@@ -231,7 +263,7 @@ function getLinkByHref(href: string) {
 }
 
 describe("ProjectWorkspaceShell UXA5", () => {
-  it("renders a single h1, a single stage rail and a single primary CTA for stage routes", () => {
+  it("renders a single h1, a single stage rail and the persistent journey CTA for stage routes", () => {
     const route = createRoute();
     const { container } = renderWithLanguage(
       <ProjectWorkspaceShell activeProduct="work" activeRoute={route} activeStage="design" sessionId="session-uxa5">
@@ -241,7 +273,8 @@ describe("ProjectWorkspaceShell UXA5", () => {
 
     expect(container.querySelectorAll("h1")).toHaveLength(1);
     expect(screen.getAllByRole("navigation", { name: "Ruta LEAN" })).toHaveLength(1);
-    expect(container.querySelectorAll(".uxa-button--primary")).toHaveLength(1);
+    expect(container.querySelectorAll(".uxa-button--primary")).toHaveLength(2);
+    expect(screen.getByRole("region", { name: "Contexto actual del proyecto" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Recursos del proyecto")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Abrir Segmento de Atencion/ })).toHaveLength(2);
     expect(getLinkByHref("/projects/session-uxa5/blueprint/pro")).toBeInTheDocument();
@@ -295,7 +328,99 @@ describe("ProjectWorkspaceShell UXA5", () => {
 
     expect(screen.getAllByText("Generando Definir con LLM.").length).toBeGreaterThan(0);
     expect(screen.getByText("Backend/LLM")).toBeInTheDocument();
-    expect(screen.getByText(/El proceso continua aunque aun no existan nuevos resultados visibles/)).toBeInTheDocument();
+    expect(screen.getAllByText(/El proceso continua aunque aun no existan nuevos resultados visibles/).length).toBeGreaterThan(0);
+  });
+
+  it("surfaces canonical journey context in the shell header", () => {
+    const route = createRoute();
+
+    renderWithLanguage(
+      <ProjectWorkspaceShell activeProduct="acp" activeRoute={route} activeStage="validate" sessionId="session-uxa5">
+        <section aria-label="Contenido ACP" />
+      </ProjectWorkspaceShell>,
+    );
+
+    const contextRegion = screen.getByRole("region", { name: "Contexto actual del proyecto" });
+    expect(within(contextRegion).getByText("ACP")).toBeInTheDocument();
+    expect(within(contextRegion).getByRole("heading", { name: "Preparacion ACP" })).toBeInTheDocument();
+    expect(within(contextRegion).getByText("Hay preguntas o decisiones pendientes esperando tu input.")).toBeInTheDocument();
+    expect(within(contextRegion).getByRole("button", { name: "Revisar Atencion" })).toBeInTheDocument();
+    expect(within(contextRegion).getByRole("button", { name: "Ver guia" })).toBeInTheDocument();
+    expect(within(contextRegion).queryByText("Guia del momento")).not.toBeInTheDocument();
+    expect(within(contextRegion).queryByText("Que sigue")).not.toBeInTheDocument();
+    expect(contextRegion).not.toHaveClass("lg:sticky");
+  });
+
+  it("opens the current guide in a drawer and returns focus when it closes", async () => {
+    const route = createRoute();
+
+    renderWithLanguage(
+      <ProjectWorkspaceShell activeProduct="acp" activeRoute={route} activeStage="validate" sessionId="session-uxa5">
+        <section aria-label="Contenido ACP" />
+      </ProjectWorkspaceShell>,
+    );
+
+    const contextRegion = screen.getByRole("region", { name: "Contexto actual del proyecto" });
+    const openGuideButton = within(contextRegion).getByRole("button", { name: "Ver guia" });
+    expect(openGuideButton).toHaveAttribute("aria-expanded", "false");
+    expect(within(contextRegion).queryByText("Guia del momento")).not.toBeInTheDocument();
+
+    fireEvent.click(openGuideButton);
+
+    const guideDialog = screen.getByRole("dialog", { name: "Guia del momento" });
+    expect(within(guideDialog).getByText("Que sigue")).toBeInTheDocument();
+    expect(within(guideDialog).getByRole("button", { name: "Cerrar guia" })).toBeInTheDocument();
+    expect(within(guideDialog).getByText("Preparacion ACP")).toBeInTheDocument();
+    expect(within(guideDialog).getByText("ACP listo para organizar preguntas, impacto y decisiones de implementacion.")).toBeInTheDocument();
+
+    fireEvent.click(within(guideDialog).getByRole("button", { name: "Cerrar guia" }));
+
+    expect(screen.queryByRole("dialog", { name: "Guia del momento" })).not.toBeInTheDocument();
+    await waitFor(() => expect(within(contextRegion).getByRole("button", { name: "Ver guia" })).toHaveFocus());
+  });
+
+  it("uses the canonical journey state as the primary CTA when attention is clear", () => {
+    const route = createRoute();
+    route.attention.data = {
+      ...route.attention.data!,
+      actionable_count: 0,
+      blocking_count: 0,
+      total_count: 0,
+    };
+    route.operation.data!.overview = {
+      ...route.operation.data!.overview!,
+      journey_state_machine: {
+        contract_version: "journey-state-machine.v1",
+        current: {
+          blocking: false,
+          detail: "La etapa actual requiere completar herramientas.",
+          href: "/projects/session-uxa5/work/tools",
+          label: "Herramientas",
+          product_key: "blueprint_basic",
+          progress_percent: 41,
+          stage_key: "tools",
+          state_key: "tools",
+          substate: "running",
+        },
+        session_id: "session-uxa5",
+        source_contracts: ["commercial-access.v2", "product-build-status.v1"],
+        workspace_id: "workspace-1",
+      },
+    };
+
+    renderWithLanguage(
+      <ProjectWorkspaceShell activeProduct="work" activeRoute={route} activeStage="tools" sessionId="session-uxa5">
+        <section aria-label="Contenido de Herramientas" />
+      </ProjectWorkspaceShell>,
+    );
+
+    const contextRegion = screen.getByRole("region", { name: "Contexto actual del proyecto" });
+    expect(within(contextRegion).getByText("Procesando")).toBeInTheDocument();
+    expect(within(contextRegion).getAllByText("La etapa actual requiere completar herramientas.").length).toBeGreaterThan(0);
+    expect(within(contextRegion).getByRole("link", { name: "Abrir Herramientas" })).toHaveAttribute(
+      "href",
+      "/projects/session-uxa5/work/tools",
+    );
   });
 
   it("renders server stage operations with real cancel and retry controls", () => {

@@ -92,6 +92,26 @@ describe("useProductExperienceRoute UXA10", () => {
     vi.clearAllMocks();
   });
 
+  it("ignores cancelled route loads during fast navigation", async () => {
+    mockStore.loadRoute.mockRejectedValueOnce(
+      new Error("The request to /api/v1/sessions/session-uxa10 was cancelled."),
+    );
+
+    const { result } = renderHook(() =>
+      useProductExperienceRoute({
+        currentStage: "memory",
+        sessionId: "session-uxa10",
+      }),
+    );
+
+    await waitFor(() => expect(mockStore.loadRoute).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current.loadError).toBeNull();
+  });
+
   it("deduplicates concurrent stage mutations and exposes an observable operation", async () => {
     const request = deferred<ProductExperienceStageOperation>();
     mockStore.startDefineRequirements.mockReturnValue(request.promise);
@@ -123,7 +143,10 @@ describe("useProductExperienceRoute UXA10", () => {
       await Promise.all([first, second]);
     });
 
-    expect(result.current.stageAction.status).toBe("success");
+    expect(result.current.stageAction.status).toBe("submitting");
+    expect(result.current.stageAction.operation?.id).toBe("operation-define");
+    expect(result.current.stageAction.operation?.source).toBe("server");
+    expect(result.current.stageAction.operation?.status).toBe("queued");
     expect(mockStore.loadRoute).toHaveBeenCalledWith(
       { currentStage: "define", sessionId: "session-uxa10" },
       { force: true },
@@ -195,7 +218,10 @@ describe("useProductExperienceRoute UXA10", () => {
 
     expect(mockStore.startAnalyzeDiscovery).toHaveBeenCalledWith(payload);
     expect(mockStore.analyzeDiscovery).not.toHaveBeenCalled();
-    expect(result.current.discoverAction.status).toBe("success");
+    expect(result.current.discoverAction.status).toBe("submitting");
+    expect(result.current.discoverAction.operation?.id).toBe("operation-discover");
+    expect(result.current.discoverAction.operation?.source).toBe("server");
+    expect(result.current.discoverAction.operation?.status).toBe("queued");
     expect(mockStore.loadRoute).toHaveBeenCalledWith(
       { currentStage: "discover", sessionId: "session-uxa10" },
       { force: true },
@@ -220,7 +246,10 @@ describe("useProductExperienceRoute UXA10", () => {
 
     expect(mockStore.startProposeDesign).toHaveBeenCalledWith({ instructions: "Diseno gobernado." });
     expect(mockStore.proposeDesign).not.toHaveBeenCalled();
-    expect(result.current.stageAction.status).toBe("success");
+    expect(result.current.stageAction.status).toBe("submitting");
+    expect(result.current.stageAction.operation?.id).toBe("operation-1");
+    expect(result.current.stageAction.operation?.source).toBe("server");
+    expect(result.current.stageAction.operation?.status).toBe("queued");
     expect(mockStore.loadRoute).toHaveBeenCalledWith(
       { currentStage: "design", sessionId: "session-uxa10" },
       { force: true },

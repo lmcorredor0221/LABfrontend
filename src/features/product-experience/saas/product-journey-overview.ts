@@ -4,6 +4,7 @@ import type {
   ProductBuildLifecycle,
   ProductBuildProductKey,
 } from "@/features/product-experience/saas/product-build-status";
+import type { CommercialTier } from "@/features/sessions/types";
 
 export type ProductJourneyCurrentStage = {
   stage_key: string;
@@ -60,6 +61,54 @@ export type ProductJourneyProductSummary = {
   primary_action: ProductJourneyRecommendedAction | null;
 };
 
+export type JourneyStateKey =
+  | "discover"
+  | "define"
+  | "design"
+  | "tools"
+  | "memory"
+  | "estimate"
+  | "blueprint_free_ready"
+  | "blueprint_pro_access_requested"
+  | "blueprint_pro_access_pending"
+  | "blueprint_pro_active"
+  | "acp_access_requested"
+  | "acp_access_pending"
+  | "acp_prep"
+  | "validate"
+  | "package"
+  | "completed";
+
+export type JourneyStateSubstate =
+  | "idle"
+  | "running"
+  | "waiting_user"
+  | "waiting_dependency"
+  | "retrying"
+  | "completed"
+  | "failed"
+  | "blocked";
+
+export type JourneyStateMachineStage = {
+  state_key: JourneyStateKey;
+  substate: JourneyStateSubstate;
+  label: string;
+  detail: string;
+  product_key: ProductBuildProductKey;
+  stage_key: string;
+  href: string;
+  progress_percent: number;
+  blocking: boolean;
+};
+
+export type JourneyStateMachine = {
+  contract_version: "journey-state-machine.v1";
+  workspace_id: string;
+  session_id: string;
+  current: JourneyStateMachineStage;
+  source_contracts: string[];
+};
+
 export type ProductJourneyOverview = {
   contract_version: "product-journey-overview.v2";
   workspace_id: string;
@@ -74,12 +123,107 @@ export type ProductJourneyOverview = {
   recommended_next_action: ProductJourneyRecommendedAction | null;
   products: ProductJourneyProductSummary[];
   deliverable_summary: ProductJourneyDeliverableSummary;
+  journey_state_machine?: JourneyStateMachine | null;
   generated_at: string;
   source_contracts: string[];
 };
 
+const JOURNEY_STATE_KEYS: JourneyStateKey[] = [
+  "discover",
+  "define",
+  "design",
+  "tools",
+  "memory",
+  "estimate",
+  "blueprint_free_ready",
+  "blueprint_pro_access_requested",
+  "blueprint_pro_access_pending",
+  "blueprint_pro_active",
+  "acp_access_requested",
+  "acp_access_pending",
+  "acp_prep",
+  "validate",
+  "package",
+  "completed",
+];
+
+const JOURNEY_SUBSTATES: JourneyStateSubstate[] = [
+  "idle",
+  "running",
+  "waiting_user",
+  "waiting_dependency",
+  "retrying",
+  "completed",
+  "failed",
+  "blocked",
+];
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isJourneyStateKey(value: unknown): value is JourneyStateKey {
+  return typeof value === "string" && JOURNEY_STATE_KEYS.includes(value as JourneyStateKey);
+}
+
+function isJourneyStateSubstate(value: unknown): value is JourneyStateSubstate {
+  return typeof value === "string" && JOURNEY_SUBSTATES.includes(value as JourneyStateSubstate);
+}
+
+function isJourneyStateMachineStage(value: unknown): value is JourneyStateMachineStage {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    isJourneyStateKey(value.state_key) &&
+    isJourneyStateSubstate(value.substate) &&
+    typeof value.label === "string" &&
+    typeof value.detail === "string" &&
+    typeof value.product_key === "string" &&
+    typeof value.stage_key === "string" &&
+    typeof value.href === "string" &&
+    typeof value.progress_percent === "number" &&
+    typeof value.blocking === "boolean"
+  );
+}
+
+export function readJourneyStateMachine(value: unknown): JourneyStateMachine | null {
+  if (!isRecord(value) || value.contract_version !== "journey-state-machine.v1") {
+    return null;
+  }
+
+  if (
+    typeof value.workspace_id !== "string" ||
+    typeof value.session_id !== "string" ||
+    !Array.isArray(value.source_contracts) ||
+    !isJourneyStateMachineStage(value.current)
+  ) {
+    return null;
+  }
+
+  return value as JourneyStateMachine;
+}
+
+export function getJourneyStateMachineCurrent(value: unknown): JourneyStateMachineStage | null {
+  return readJourneyStateMachine(value)?.current ?? null;
+}
+
+export function getJourneyStateMachineTier(value: unknown): CommercialTier | null {
+  const current = getJourneyStateMachineCurrent(value);
+  if (!current) {
+    return null;
+  }
+
+  if (current.product_key === "acp") {
+    return "acp";
+  }
+
+  if (current.product_key === "blueprint_pro") {
+    return "blueprint_pro";
+  }
+
+  return "blueprint";
 }
 
 export function normalizeProductJourneyOverview(payload: unknown): ProductJourneyOverview {
@@ -101,6 +245,10 @@ export function normalizeProductJourneyOverview(payload: unknown): ProductJourne
 
   if (payload.recommended_next_action !== null && !isRecord(payload.recommended_next_action)) {
     throw new Error("Product journey overview recommended_next_action must be null or an object.");
+  }
+
+  if (payload.journey_state_machine !== undefined && payload.journey_state_machine !== null && !isRecord(payload.journey_state_machine)) {
+    throw new Error("Product journey overview journey_state_machine must be null or an object.");
   }
 
   return payload as ProductJourneyOverview;

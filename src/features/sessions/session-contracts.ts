@@ -242,18 +242,25 @@ export type DesignFailureMode = {
 
 export type DesignBlueprintProjection = {
   architecture: string;
+  cost_complexity_implications?: string[];
   guardrails: string[];
+  memory_implications?: string[];
+  memory_strategy?: string;
   narrative: string;
   reasoning_pattern: string;
   safety_checks: SafetyCheck[];
+  tool_implications?: string[];
 };
 
 export type DesignAlternative = {
+  agent_archetype?: string;
   alternative_key: string;
   approval_points: string[];
   architecture: string;
   assumptions: string[];
   blueprint_projection: DesignBlueprintProjection;
+  business_fit?: string;
+  business_metrics?: string[];
   concurrency_strategy: string;
   coordination_model: string;
   decision_policy: string;
@@ -265,14 +272,24 @@ export type DesignAlternative = {
   handoffs: DesignHandoff[];
   label: string;
   maintainability: string;
+  memory_implications?: string[];
   operational_complexity: string;
+  operational_model?: string;
+  pattern_family?: string;
+  recommendation_role?: string;
   reasoning_pattern: string;
   relative_cost: string;
+  risk_tradeoffs?: string[];
   roles: DesignRole[];
   security_notes: string[];
   summary: string;
+  tool_implications?: string[];
   topology: string;
   tradeoffs: string[];
+  value_hypothesis?: string;
+  why_not_more_complex?: string;
+  why_not_simpler?: string;
+  why_recommended?: string;
 };
 
 export type DesignFitAlternativeScore = {
@@ -306,6 +323,31 @@ export type DesignRecommendationConfidence = {
   rationale: string;
 };
 
+export type QualityGateResult = {
+  blocking: boolean;
+  capability: string;
+  contract_version?: string;
+  evidence_confidence: number;
+  flow_readiness: boolean;
+  issues: string[];
+  language_status: "not_checked" | "ok" | "mismatch";
+  pending_resolution: number;
+  quality_confidence: number;
+  quality_gate_version?: string;
+  reason_summary: string;
+  repair_policy:
+    | "none"
+    | "react_repair"
+    | "document_and_delegate"
+    | "attention_required"
+    | "schema_retry"
+    | "language_repair";
+  schema_status: "not_checked" | "valid" | "invalid";
+  should_repair: boolean;
+  stage: string;
+  warnings: string[];
+};
+
 export type DesignRecommendationArtifact = {
   alternatives: DesignAlternative[];
   confidence: DesignRecommendationConfidence;
@@ -316,6 +358,7 @@ export type DesignRecommendationArtifact = {
   guided_questions?: GuidedQuestion[];
   missing_information: string[];
   open_questions: string[];
+  quality_gate?: QualityGateResult | null;
   recommended_alternative_key: string;
   remediation_summary: string;
   requirements_coverage: DesignRequirementCoverageEntry[];
@@ -772,12 +815,76 @@ export type ToolFamilyCandidate = {
   supported_capabilities: string[];
 };
 
+export type ToolCapabilityResolution = {
+  available: boolean;
+  capability_key: string;
+  candidate_pattern_id: string;
+  catalog_match: string;
+  necessity: "required" | "optional" | "deferred";
+  project_tool_key: string;
+  promotion_policy: "auto" | "human_review" | "implementation_pending";
+  reason: string;
+  required_for_pattern: boolean;
+  side_effect_level: "none" | "low" | "medium" | "high";
+  source_evidence: string[];
+};
+
+export type CandidateToolPattern = {
+  candidate_pattern_id: string;
+  capability_key: string;
+  contract_seed?: BlueprintTool | null;
+  dedupe_signature: string;
+  family_key: string;
+  label: string;
+  promotion_policy: "auto" | "human_review" | "implementation_pending";
+  reason: string;
+  side_effect_level: "none" | "low" | "medium" | "high";
+  source_refs: string[];
+  status: "candidate" | "ready_for_project" | "human_review" | "implementation_pending" | "rejected";
+};
+
+export type ToolPatternLearningCandidate = {
+  candidate_pattern_id: string;
+  capability_key: string;
+  contract_quality: "complete" | "partial" | "missing";
+  dedupe_signature: string;
+  evidence_refs: string[];
+  family_key: string;
+  global_promotion_allowed: boolean;
+  label: string;
+  promotion_status:
+    | "ready_for_global_review"
+    | "needs_human_review"
+    | "implementation_pending"
+    | "rejected_duplicate"
+    | "insufficient_contract";
+  reason: string;
+  replacement_global_pattern_id: string;
+  risk_flags: string[];
+  source_level: "project_tool" | "candidate_tool_pattern";
+  source_refs: string[];
+};
+
+export type ToolPatternLearningReport = {
+  candidate_count: number;
+  candidates: ToolPatternLearningCandidate[];
+  catalog_refs: string[];
+  global_write_allowed: boolean;
+  ready_for_global_review_count: number;
+  schema_version: string;
+  source_blueprint_version?: number | null;
+  source_session_id?: string | null;
+  summary: string;
+};
+
 export type ToolRecommendationPreflight = {
   agent_goal: string;
   approval_boundaries: string[];
   candidate_tool_families: ToolFamilyCandidate[];
   case_classification: string;
   core_workflows: string[];
+  design_memory_implications: string[];
+  design_tool_implications: string[];
   forbidden_capabilities: string[];
   hard_constraints: string[];
   interaction_modes: string[];
@@ -790,6 +897,8 @@ export type ToolRecommendationPreflight = {
 
 export type ToolRecommendationArtifact = {
   approved_tools_digest?: ApprovedToolsDigest | null;
+  candidate_tool_patterns: CandidateToolPattern[];
+  capability_resolutions: ToolCapabilityResolution[];
   confidence: ToolRecommendationConfidence;
   context_digest: ToolRecommendationContextDigest;
   current_blueprint_version?: number | null;
@@ -798,9 +907,11 @@ export type ToolRecommendationArtifact = {
   evaluation: ToolRecommendationEvaluation;
   generation_instructions?: string;
   is_stale: boolean;
+  learning_report?: ToolPatternLearningReport;
   needs_information: ToolRecommendationGap[];
   optional_tools: ToolRecommendationEntry[];
   preflight: ToolRecommendationPreflight;
+  quality_gate?: QualityGateResult | null;
   recommended_tools: ToolRecommendationEntry[];
   rejected_tools: ToolRecommendationEntry[];
   requirements_coverage: ToolRequirementCoverageEntry[];
@@ -922,11 +1033,38 @@ export type MemoryDryCompileStatus = {
   summary: string;
 };
 
+export type MemoryDependencyGap = {
+  batch_key: string;
+  candidate_pattern_id: string;
+  capability_key: string;
+  gap_key: string;
+  reason: string;
+  remediation_policy: "auto" | "human_review" | "implementation_pending";
+  required: boolean;
+  source_refs: string[];
+  source_stage: string;
+  status: "open" | "resolved" | "deferred" | "not_resolvable";
+  target_stage: string;
+};
+
+export type MemoryArchitectureResolution = {
+  checkpoint_strategy: string;
+  context_budget: string;
+  dependency_gaps: string[];
+  evidence_refs: string[];
+  memory_mode: "stateless" | "short_term" | "episodic" | "semantic_rag" | "operational" | "implementation" | "hybrid";
+  required_for_pattern: boolean;
+  retention_policy: string;
+  source_strategy: string;
+};
+
 export type MemoryRecommendationArtifact = {
+  architecture_resolution: MemoryArchitectureResolution;
   confidence: MemoryRecommendationConfidence;
   context_budget_plan: MemoryContextBudgetEntry[];
   critic_findings: MemoryRecommendationFinding[];
   current_blueprint_version?: number | null;
+  dependency_gaps: MemoryDependencyGap[];
   dry_compile_status: MemoryDryCompileStatus;
   evidence_refs: string[];
   generation_instructions?: string;
@@ -939,6 +1077,7 @@ export type MemoryRecommendationArtifact = {
   open_questions: string[];
   proposed_knowledge_profile: KnowledgeProfile;
   proposed_memory_profile: MemoryProfile;
+  quality_gate?: QualityGateResult | null;
   review_state: ReviewState;
   retention_and_deletion: MemoryRetentionDeletionRule[];
   schema_version: string;
@@ -1625,6 +1764,7 @@ export type ProductOverviewResponse = {
   contract_version: "product-overview.v1";
   exports: ProductOverviewItem[];
   generated_at: string;
+  journey_state_machine?: Record<string, unknown> | null;
   lean_progress_percent: number;
   navigation: ProductOverviewItem[];
   products: ProductOverviewItem[];
@@ -1846,6 +1986,18 @@ export type EstimationErrorMetricEntry = {
 export type ACPFileStatus = "complete" | "incomplete" | "needs_review";
 export type ACPValidationSeverity = "info" | "warning" | "error";
 export type ConstructionQuestionStatus = "open" | "answered" | "deferred" | "resolved";
+export type ConstructionQuestionImpactKind =
+  | "no_material_impact"
+  | "localized_impact"
+  | "structural_impact"
+  | "delegated_to_implementation";
+export type ConstructionQuestionReprocessDecision =
+  | "document_only"
+  | "localized_reconciliation"
+  | "structural_reconciliation"
+  | "localized_reprocess"
+  | "structural_reprocess"
+  | "delegated_to_implementation";
 export type ConstructionGapSeverity = "info" | "warning" | "blocking";
 export type ConstructionGapStatus = "open" | "answered" | "waived" | "resolved";
 export type ConstructionReadinessStatus = "not_started" | "needs_questions" | "blocked" | "ready_to_build";
@@ -1904,6 +2056,17 @@ export type ConstructionQuestionEntry = {
   options?: ConstructionQuestionOption[];
 };
 
+export type ConstructionQuestionImpactAnalysis = {
+  affected_phase_keys: string[];
+  affected_stage_keys: string[];
+  impact_kind: ConstructionQuestionImpactKind;
+  impact_summary: string;
+  material_impact: boolean;
+  recommended_action: string;
+  reconciliation_decision?: ConstructionQuestionReprocessDecision;
+  reprocess_decision: ConstructionQuestionReprocessDecision;
+};
+
 export type ConstructionQuestionViewEntry = {
   answer_text: string;
   answered_at?: string | null;
@@ -1921,6 +2084,7 @@ export type ConstructionQuestionViewEntry = {
   expected_answer_format: string;
   status: ConstructionQuestionStatus;
   target_owner: string;
+  impact_analysis?: ConstructionQuestionImpactAnalysis | null;
   purpose?: string;
   options?: ConstructionQuestionOption[];
 };

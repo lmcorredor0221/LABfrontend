@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/core/auth/auth-context";
 import { resolveProductExperienceCutoverDecision } from "@/core/config/feature-flags";
 import type { ProjectRouteStage } from "@/core/routing/routes";
+import { isLeanWorkStage, type LeanExperienceStage } from "@/features/journey/journey-model";
 import { AttentionInboxView } from "@/features/product-experience/attention/attention-components";
 import { DiagramCenterPage } from "@/features/diagram-center";
 import { DesignStageView } from "@/features/product-experience/design/design-stage-view";
@@ -21,7 +22,8 @@ import {
 import { ProjectWorkspaceShell } from "@/features/product-experience/shell/project-workspace-shell";
 import { ToolsStageView } from "@/features/product-experience/tools/tools-stage-view";
 import {
-  getProductStageForSection,
+  getProductDisplayStageForSection,
+  getProductFetchStageForSection,
   type ProductExperienceProductSection,
 } from "@/features/product-experience/shell/experience-model";
 import { useProductExperienceRoute } from "@/features/product-experience/shell/use-product-experience-route";
@@ -30,7 +32,7 @@ type ProjectExperienceBoundaryProps = {
   productSection?: ProductExperienceProductSection | null;
   section?: string | null;
   sessionId: string;
-  stage: ProjectRouteStage;
+  stage: ProjectRouteStage | LeanExperienceStage;
 };
 
 function ProductExperienceEnabledGate({
@@ -39,7 +41,14 @@ function ProductExperienceEnabledGate({
   stage,
 }: ProjectExperienceBoundaryProps) {
   const { selectWorkspace, user } = useAuth();
-  const effectiveStage = productSection && productSection !== "work" ? getProductStageForSection(productSection) : stage;
+  const effectiveFetchStage =
+    productSection && productSection !== "work"
+      ? getProductFetchStageForSection(productSection)
+      : (stage as ProjectRouteStage);
+  const effectiveDisplayStage =
+    productSection && productSection !== "work"
+      ? getProductDisplayStageForSection(productSection)
+      : (stage as LeanExperienceStage);
   const {
     attentionAction,
     discoverAction,
@@ -52,7 +61,7 @@ function ProductExperienceEnabledGate({
     stageActions,
     state,
   } = useProductExperienceRoute({
-    currentStage: effectiveStage,
+    currentStage: effectiveFetchStage,
     sessionId,
   });
   const activeRoute = state.active?.route.sessionId === sessionId ? state.active : null;
@@ -166,13 +175,13 @@ function ProductExperienceEnabledGate({
   }
 
   const activeProduct = productSection ?? "work";
-  const operationAction = effectiveStage === "discover" ? discoverAction : stageAction;
+  const operationAction = effectiveFetchStage === "discover" ? discoverAction : stageAction;
 
   return (
     <ProjectWorkspaceShell
       activeProduct={activeProduct}
       activeRoute={activeRoute}
-      activeStage={effectiveStage}
+      activeStage={effectiveDisplayStage}
       attentionAction={attentionAction}
       onCancelOperation={(operationId) => void operationControls.cancelOperation(operationId)}
       onResolveAttentionItem={resolveAttentionItem}
@@ -183,51 +192,51 @@ function ProductExperienceEnabledGate({
     >
       <ProductExperienceCutoverTelemetry
         decision={cutoverDecision}
-        routeKey={`${activeProduct}:${effectiveStage}`}
+        routeKey={`${activeProduct}:${effectiveDisplayStage}`}
         sessionId={sessionId}
       />
       {productSection === "attention" ? (
         <AttentionInboxView
           actionState={attentionAction}
           activeRoute={activeRoute}
-          currentStage={effectiveStage}
+          currentStage={effectiveFetchStage}
           onResolveItem={resolveAttentionItem}
         />
       ) : productSection === "diagrams" ? (
         <DiagramCenterPage projectId={sessionId} />
       ) : productSection && productSection !== "work" ? (
         <ProductSaasView activeRoute={activeRoute} section={productSection} />
-      ) : stage === "discover" ? (
+      ) : isLeanWorkStage(stage) && stage === "discover" ? (
         <DiscoverStageView
           actionState={discoverAction}
           actions={discoverActions}
           activeRoute={activeRoute}
         />
-      ) : stage === "define" ? (
+      ) : isLeanWorkStage(stage) && stage === "define" ? (
         <DefineStageView
           actionState={stageAction}
           actions={stageActions}
           activeRoute={activeRoute}
         />
-      ) : stage === "design" ? (
+      ) : isLeanWorkStage(stage) && stage === "design" ? (
         <DesignStageView
           actionState={stageAction}
           actions={stageActions}
           activeRoute={activeRoute}
         />
-      ) : stage === "tools" ? (
+      ) : isLeanWorkStage(stage) && stage === "tools" ? (
         <ToolsStageView
           actionState={stageAction}
           actions={stageActions}
           activeRoute={activeRoute}
         />
-      ) : stage === "memory" ? (
+      ) : isLeanWorkStage(stage) && stage === "memory" ? (
         <MemoryStageView
           actionState={stageAction}
           actions={stageActions}
           activeRoute={activeRoute}
         />
-      ) : stage === "estimate" ? (
+      ) : isLeanWorkStage(stage) && stage === "estimate" ? (
         <EstimateStageView
           actionState={stageAction}
           actions={stageActions}

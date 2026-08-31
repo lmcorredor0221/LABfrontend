@@ -8,8 +8,10 @@ import {
   hasValidationEvidence,
   type LeanJourneyStage,
 } from "@/features/journey/journey-model";
+import { hasAcpEntitlement, hasBlueprintProEntitlement } from "@/features/sessions/commercial-access";
 import type { ArtifactStatus, SessionSnapshot, SessionStage, SessionSummary } from "@/features/sessions/types";
 import type {
+  JourneyStateMachine,
   ProductJourneyOverview,
   ProductJourneyRecommendedAction,
 } from "@/features/product-experience/saas/product-journey-overview";
@@ -78,18 +80,6 @@ function isCanonicalProjectStage(value: string): value is LeanJourneyStage {
   ].includes(value);
 }
 
-function hasAcpEntitlement(snapshot: SessionSnapshot | null) {
-  const access = snapshot?.commercial_access;
-
-  return Boolean(
-    access?.can_build_acp ||
-      access?.can_download_acp ||
-      access?.can_export_acp_zip ||
-      access?.tier === "acp" ||
-      snapshot?.session.commercial_tier === "acp",
-  );
-}
-
 function shouldOpenWorkStage(
   session: Pick<SessionSummary, "current_stage">,
   snapshot: SessionSnapshot | null = null,
@@ -110,11 +100,7 @@ function getProductLandingSection(snapshot: SessionSnapshot | null): ProjectProd
     return "acp";
   }
 
-  if (
-    snapshot?.commercial_access?.tier === "blueprint_pro" ||
-    snapshot?.commercial_access?.can_download_blueprint ||
-    snapshot?.commercial_access?.can_export_blueprint_document
-  ) {
+  if (hasBlueprintProEntitlement(snapshot)) {
     return "blueprint_pro";
   }
 
@@ -268,6 +254,24 @@ function actionHrefOrProductRoute(sessionId: string, action: ProductJourneyRecom
   return getProjectProductRoute(sessionId, getProductLandingSectionFromKey(action.product_key));
 }
 
+function getProjectRouteFromJourneyStateMachine(
+  sessionId: string,
+  journeyStateMachine: JourneyStateMachine | null | undefined,
+) {
+  const href = journeyStateMachine?.current.href;
+  if (!href) {
+    return null;
+  }
+
+  return href.startsWith(`/projects/${sessionId}/`) ? href : null;
+}
+
+function isContinuationAction(
+  action: ProductJourneyRecommendedAction | null | undefined,
+): action is ProductJourneyRecommendedAction {
+  return action?.action_key === "continue_current_stage" && action.href.startsWith("/projects/");
+}
+
 export function getProjectRouteFromJourneyOverview(
   sessionId: string,
   overview: ProductJourneyOverview | null | undefined,
@@ -279,6 +283,15 @@ export function getProjectRouteFromJourneyOverview(
   const action = overview.recommended_next_action;
   if (action?.action_key === "open_attention" || action?.action_key === "view_progress") {
     return actionHrefOrProductRoute(sessionId, action);
+  }
+
+  if (isContinuationAction(action)) {
+    return action.href;
+  }
+
+  const stateMachineRoute = getProjectRouteFromJourneyStateMachine(sessionId, overview.journey_state_machine);
+  if (stateMachineRoute) {
+    return stateMachineRoute;
   }
 
   const stageKey = overview.current_stage.stage_key;

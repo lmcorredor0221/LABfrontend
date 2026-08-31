@@ -45,6 +45,7 @@ def run_value_ladder_journey() -> dict[str, object]:
         reg_payload = {
             "email": user_email,
             "password": user_password,
+            "confirm_password": user_password,
             "full_name": f"Founder {unique_suffix}",
             "workspace_name": workspace_name,
             "accept_terms": True,
@@ -77,10 +78,11 @@ def run_value_ladder_journey() -> dict[str, object]:
             "workspace_id": workspace_id,
         }
         proj_res = client.post("/api/v1/sessions", json=create_payload, headers=headers)
-        if proj_res.status_code != 200:
+        if proj_res.status_code not in (200, 201):
             results["errors"].append(f"Project creation failed: {proj_res.text}")
             return results
         session_id = proj_res.json().get("id")
+        results["session_id"] = session_id
         results["steps_completed"].append("project_created")
 
         # Step 4: Advance Journey Discover -> Estimate & Generate Basic Blueprint
@@ -97,10 +99,17 @@ def run_value_ladder_journey() -> dict[str, object]:
                 pass
 
         build_res = client.post(
-            f"/api/v1/sessions/{session_id}/product-build",
-            json={"product_key": "blueprint_basic", "action": "start"},
+            f"/api/v1/sessions/{session_id}/product-builds/blueprint_basic/actions",
+            json={
+                "action": "start",
+                "allow_llm": False,
+                "idempotency_key": f"e2e-blueprint-basic-{unique_suffix}",
+            },
             headers=headers,
         )
+        if build_res.status_code not in (200, 201, 202):
+            results["errors"].append(f"Blueprint Basic build failed: {build_res.text}")
+            return results
         results["steps_completed"].append("blueprint_basic_built")
 
         # Step 5: Deliverables Hub and Overview Check
@@ -111,38 +120,51 @@ def run_value_ladder_journey() -> dict[str, object]:
         )
         if overview_res.status_code == 200:
             results["steps_completed"].append("overview_queried")
+        else:
+            results["errors"].append(f"Product Journey Overview failed: {overview_res.text}")
+            return results
 
         # Step 6: Blueprint Pro contextual upgrade & unlock
         print("[*] Step 6: Upgrading to Blueprint Pro...")
-        upgrade_res = client.post(
+        upgrade_res = client.patch(
             f"/api/v1/sessions/{session_id}/commercial-tier",
             json={"tier": "blueprint_pro"},
             headers=headers,
         )
+        if upgrade_res.status_code != 200:
+            results["errors"].append(f"Blueprint Pro tier update failed: {upgrade_res.text}")
+            return results
         results["steps_completed"].append("blueprint_pro_unlocked")
 
         # Step 7: ACP Unlock & Workflow Validation
         print("[*] Step 7: Unlocking ACP and generating conformance...")
-        acp_tier_res = client.post(
+        acp_tier_res = client.patch(
             f"/api/v1/sessions/{session_id}/commercial-tier",
             json={"tier": "acp"},
             headers=headers,
         )
+        if acp_tier_res.status_code != 200:
+            results["errors"].append(f"ACP tier update failed: {acp_tier_res.text}")
+            return results
 
         acp_gen_res = client.post(
             f"/api/v1/sessions/{session_id}/acp/generate",
             headers=headers,
         )
+        if acp_gen_res.status_code != 200:
+            results["errors"].append(f"ACP generation failed: {acp_gen_res.text}")
+            return results
         results["steps_completed"].append("acp_generated")
 
         # Step 8: Create Export Job & Conformance
         print("[*] Step 8: Creating Export Job for ACP portable ZIP...")
         export_payload = {
             "artifact_kind": "acp_portable_zip",
-            "format": "zip",
+            "profile": "portable",
+            "idempotency_key": f"e2e-acp-portable-{unique_suffix}",
         }
         export_res = client.post(
-            f"/api/v1/sessions/{session_id}/export-jobs",
+            f"/api/v1/sessions/{session_id}/exports/jobs",
             json=export_payload,
             headers=headers,
         )
@@ -150,6 +172,23 @@ def run_value_ladder_journey() -> dict[str, object]:
             job_data = export_res.json()
             results["steps_completed"].append("export_job_created")
             results["export_job_id"] = job_data.get("id")
+            download_res = client.get(
+                f"/api/v1/sessions/{session_id}/exports/jobs/{job_data.get('id')}/download",
+                headers=headers,
+            )
+            if download_res.status_code != 200:
+                results["errors"].append(f"ACP download failed: {download_res.text}")
+                return results
+            if download_res.headers.get("content-type", "").split(";")[0] != "application/zip":
+                results["errors"].append(
+                    f"ACP download returned unexpected content type: {download_res.headers.get('content-type', '')}"
+                )
+                return results
+            results["steps_completed"].append("acp_zip_downloaded")
+            results["download_size_bytes"] = len(download_res.content)
+        else:
+            results["errors"].append(f"ACP export job failed: {export_res.text}")
+            return results
 
         # Step 9: Verify Funnel & Telemetry
         print("[*] Step 9: Verifying Commercial Observability Report...")
@@ -161,6 +200,9 @@ def run_value_ladder_journey() -> dict[str, object]:
             results["steps_completed"].append("funnel_verified")
             audit_data = audit_res.json()
             results["funnel_steps_count"] = len(audit_data.get("funnel", []))
+        else:
+            results["errors"].append(f"Commercial audit failed: {audit_res.text}")
+            return results
 
         results["success"] = True
         print("[+] End-to-end journey completed successfully!")

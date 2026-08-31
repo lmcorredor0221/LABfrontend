@@ -10,6 +10,7 @@ import {
   createDiscoveryFixture,
 } from "@/features/product-experience/discover/discover-test-fixtures";
 import type { ProductDiscoveryActions } from "@/features/product-experience/shell/use-product-experience-route";
+import { operationFromStageOperationRecord } from "@/features/product-experience/operations/operation-model";
 import type { DiscoveryEnvelope } from "@/features/sessions/session-contracts";
 
 const mockRouterPush = vi.hoisted(() => vi.fn());
@@ -105,6 +106,43 @@ describe("DiscoverStageView UXA7", () => {
     expect(actions.analyzeDiscovery).toHaveBeenCalledWith(expect.objectContaining({
       problem_statement: expect.stringContaining("soporte recibe solicitudes repetitivas"),
     }));
+  });
+
+  it("disables save and analyze while the persistent analysis starts", async () => {
+    const pending = new Promise<ProductExperienceStageOperation>(() => undefined);
+    const actions = createActions();
+    actions.analyzeDiscovery = vi.fn(() => pending);
+    renderWithLanguage(
+      <DiscoverStageView
+        actionState={{ status: "idle" }}
+        actions={actions}
+        activeRoute={createDiscoverRouteFixture({ artifact: null })}
+      />,
+    );
+
+    const submitButton = screen.getByRole("button", { name: "Guardar y analizar" });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => expect(submitButton).toBeDisabled());
+    fireEvent.click(submitButton);
+    expect(actions.analyzeDiscovery).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps save and analyze disabled while the backend operation remains active", () => {
+    const actions = createActions();
+    renderWithLanguage(
+      <DiscoverStageView
+        actionState={{
+          message: "Discover se esta procesando en backend.",
+          operation: operationFromStageOperationRecord(createStageOperation()),
+          status: "success",
+        }}
+        actions={actions}
+        activeRoute={createDiscoverRouteFixture({ artifact: null })}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Guardar y analizar" })).toBeDisabled();
   });
 
   it("approves generated analysis and navigates to Define", async () => {

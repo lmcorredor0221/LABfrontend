@@ -80,6 +80,14 @@ function getToolTypeLabel(language: SupportedLanguage, value?: string | null) {
   }
 }
 
+function normalizeQualityPercent(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return 0;
+  }
+  const score = value <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 function getCoverageStatusLabel(language: SupportedLanguage, value: string) {
   switch (value) {
     case "covered":
@@ -735,6 +743,9 @@ function ToolsDeliverable({
   const rejected = recommendation.rejected_tools;
   const contractCount = [...mandatory, ...optional].filter((tool) => tool.contract_seed).length;
   const confidence = Math.round(recommendation.confidence.overall * 100);
+  const qualityGate = recommendation.quality_gate ?? null;
+  const qualityPercent = qualityGate ? normalizeQualityPercent(qualityGate.quality_confidence) : confidence;
+  const evidencePercent = qualityGate ? normalizeQualityPercent(qualityGate.evidence_confidence) : null;
   const coverageItems = recommendation.requirements_coverage.length + recommendation.design_role_coverage.length;
 
   return (
@@ -763,10 +774,18 @@ function ToolsDeliverable({
           value: contractCount,
         },
         {
-          helper: recommendation.confidence.band,
-          label: byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
-          tone: confidence >= 70 ? "success" : "warning",
-          value: `${confidence}%`,
+          helper: qualityGate
+            ? byLanguage(language, {
+              en: `Evidence ${evidencePercent}%. Pending items ${qualityGate.pending_resolution}.`,
+              es: `Evidencia ${evidencePercent}%. Pendientes ${qualityGate.pending_resolution}.`,
+              pt: `Evidencia ${evidencePercent}%. Pendencias ${qualityGate.pending_resolution}.`,
+            })
+            : recommendation.confidence.band,
+          label: qualityGate
+            ? byLanguage(language, { en: "Quality", es: "Calidad", pt: "Qualidade" })
+            : byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
+          tone: qualityPercent >= 85 ? "success" : "warning",
+          value: `${qualityPercent}%`,
         },
       ]}
       nextUse={byLanguage(language, {

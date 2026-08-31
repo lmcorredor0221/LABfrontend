@@ -1,4 +1,5 @@
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
+import { resolveDisplayCommercialTier } from "@/features/sessions/commercial-access";
 import type {
   CanvasArtifact,
   DefinitionArtifact,
@@ -293,7 +294,7 @@ export function buildDefineViewModel(
     discoveryApproved && !stale && latestDefineArtifact?.state !== "rejected"
       ? rawDefinition
       : null;
-  const commercialTier = snapshot?.session.commercial_tier ?? "blueprint";
+  const commercialTier = resolveDisplayCommercialTier(snapshot);
   const actionableOpenQuestions = getActionableDefineOpenQuestions(definition, commercialTier);
   const traceableOpenQuestions = asArray(definition?.open_questions);
   const validation = deriveDefinitionValidation(definition);

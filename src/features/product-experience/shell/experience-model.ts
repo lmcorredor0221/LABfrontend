@@ -4,17 +4,22 @@ import {
   type ProjectRouteStage,
 } from "@/core/routing/routes";
 import type { TranslationKey } from "@/core/i18n/locales/es";
-import { getJourneyIndex } from "@/features/journey/journey-model";
+import {
+  getJourneyIndex,
+  resolveWorkStageForExperienceStage,
+  type LeanExperienceStage,
+  type LeanWorkStage,
+} from "@/features/journey/journey-model";
 
 export type ProductExperienceProductSection = ProjectProductRouteSection | "work";
 
 export type ProductExperienceStageDefinition = {
   exitCriteria: string;
-  key: ProjectRouteStage;
+  key: LeanExperienceStage;
   nextAction: string;
   objective: string;
   output: string;
-  product: "Blueprint" | "ACP";
+  product: "Blueprint" | "Blueprint Pro" | "ACP";
   subtitle: string;
   title: string;
 };
@@ -89,6 +94,76 @@ export const PRODUCT_EXPERIENCE_STAGES: ProductExperienceStageDefinition[] = [
     title: "Estimar",
   },
   {
+    exitCriteria: "Resultado base listo para explorar antes de solicitar capacidades premium.",
+    key: "blueprint_free_ready",
+    nextAction: "Revisar resultado y decidir si quieres solicitar Blueprint Pro",
+    objective: "Presentar el resultado del Blueprint Free como momento de cierre del journey LEAN base.",
+    output: "Blueprint Free listo para visualizar.",
+    product: "Blueprint",
+    subtitle: "Resultado base listo",
+    title: "Blueprint",
+  },
+  {
+    exitCriteria: "La solicitud de Blueprint Pro ya fue registrada para revision comercial o administrativa.",
+    key: "blueprint_pro_access_requested",
+    nextAction: "Esperar aprobacion o dar seguimiento a la solicitud",
+    objective: "Hacer visible que Blueprint Pro aun no esta activo y que la solicitud fue creada.",
+    output: "Solicitud de Blueprint Pro creada.",
+    product: "Blueprint Pro",
+    subtitle: "Solicitud registrada",
+    title: "Solicitud Blueprint Pro",
+  },
+  {
+    exitCriteria: "El acceso premium termina de activarse y sincronizar permisos efectivos.",
+    key: "blueprint_pro_access_pending",
+    nextAction: "Esperar activacion comercial efectiva",
+    objective: "Narrar que la aprobacion existe, pero el acceso aun se esta propagando.",
+    output: "Activacion comercial de Blueprint Pro en curso.",
+    product: "Blueprint Pro",
+    subtitle: "Espera activacion",
+    title: "Activacion Blueprint Pro",
+  },
+  {
+    exitCriteria: "Entregables profesionales listos para enriquecer, reconciliar de forma selectiva y descargar.",
+    key: "blueprint_pro_active",
+    nextAction: "Resolver preguntas, enriquecer y descargar el Blueprint Pro",
+    objective: "Trabajar el enriquecimiento premium con trazabilidad, impacto y exportables reales.",
+    output: "Workspace de Blueprint Pro activo.",
+    product: "Blueprint Pro",
+    subtitle: "Enriquecimiento y descarga",
+    title: "Blueprint Pro",
+  },
+  {
+    exitCriteria: "La solicitud de ACP ya fue registrada para revision comercial o administrativa.",
+    key: "acp_access_requested",
+    nextAction: "Esperar aprobacion o seguimiento de ACP",
+    objective: "Mostrar que ACP aun no puede iniciar hasta que la solicitud sea aprobada.",
+    output: "Solicitud de ACP creada.",
+    product: "ACP",
+    subtitle: "Solicitud registrada",
+    title: "Solicitud ACP",
+  },
+  {
+    exitCriteria: "El acceso ACP termina de activarse y sincronizar permisos efectivos.",
+    key: "acp_access_pending",
+    nextAction: "Esperar activacion comercial efectiva",
+    objective: "Narrar la fase intermedia entre aprobacion y acceso operativo del ACP.",
+    output: "Activacion comercial de ACP en curso.",
+    product: "ACP",
+    subtitle: "Espera activacion",
+    title: "Activacion ACP",
+  },
+  {
+    exitCriteria: "Preguntas, gaps, impacto y decisiones ACP organizadas antes de validar o empaquetar.",
+    key: "acp_prep",
+    nextAction: "Resolver preguntas, delegar decisiones e identificar impacto",
+    objective: "Concentrar la preparacion del ACP sin regresar visualmente al workflow base.",
+    output: "Workspace de preparacion ACP.",
+    product: "ACP",
+    subtitle: "Preparacion y pendientes",
+    title: "Preparacion ACP",
+  },
+  {
     exitCriteria: "Escenarios, pruebas, gaps y preguntas del ACP clasificados.",
     key: "validate",
     nextAction: "Validar Blueprint para ACP",
@@ -108,22 +183,93 @@ export const PRODUCT_EXPERIENCE_STAGES: ProductExperienceStageDefinition[] = [
     subtitle: "Paquete portable",
     title: "Package",
   },
+  {
+    exitCriteria: "Paquete premium final listo para descargar con trazabilidad y exportables coherentes.",
+    key: "completed",
+    nextAction: "Descargar el paquete final",
+    objective: "Cerrar el journey premium con un estado final claro y descargable.",
+    output: "Paquete premium completado.",
+    product: "ACP",
+    subtitle: "Entrega final lista",
+    title: "Completado",
+  },
 ];
 
-export function getProductExperienceStage(stage: ProjectRouteStage, t?: (key: TranslationKey, fallback?: string) => string) {
+function translationKeyForStage(
+  stage: LeanExperienceStage,
+  field: "title" | "subtitle",
+): TranslationKey | null {
+  if (
+    stage === "discover" ||
+    stage === "define" ||
+    stage === "design" ||
+    stage === "tools" ||
+    stage === "memory" ||
+    stage === "estimate" ||
+    stage === "validate" ||
+    stage === "package"
+  ) {
+    return `stage.${stage}.${field}` as TranslationKey;
+  }
+
+  return null;
+}
+
+export function getProductExperienceStage(stage: LeanExperienceStage, t?: (key: TranslationKey, fallback?: string) => string) {
   const definition = PRODUCT_EXPERIENCE_STAGES.find((item) => item.key === stage) ?? PRODUCT_EXPERIENCE_STAGES[0];
   if (t) {
+    const subtitleKey = translationKeyForStage(definition.key, "subtitle");
+    const titleKey = translationKeyForStage(definition.key, "title");
     return {
       ...definition,
-      subtitle: t(`stage.${stage}.subtitle`, definition.subtitle),
-      title: t(`stage.${stage}.title`, definition.title),
+      subtitle: subtitleKey ? t(subtitleKey, definition.subtitle) : definition.subtitle,
+      title: titleKey ? t(titleKey, definition.title) : definition.title,
     };
   }
   return definition;
 }
 
-export function getProductExperienceStageHref(sessionId: string, stage: ProjectRouteStage) {
+export function getProductExperienceStageHref(sessionId: string, stage: LeanWorkStage) {
   return `/projects/${sessionId}/work/${stage}`;
+}
+
+export function getProductExperienceStateHref(sessionId: string, stage: LeanExperienceStage) {
+  if (
+    stage === "discover" ||
+    stage === "define" ||
+    stage === "design" ||
+    stage === "tools" ||
+    stage === "memory" ||
+    stage === "estimate"
+  ) {
+    return getProductExperienceStageHref(sessionId, stage);
+  }
+
+  if (stage === "blueprint_free_ready") {
+    return getProjectProductRoute(sessionId, "blueprint");
+  }
+
+  if (stage === "blueprint_pro_access_requested" || stage === "blueprint_pro_access_pending") {
+    return getProjectProductRoute(sessionId, "blueprint_pro_overview");
+  }
+
+  if (stage === "blueprint_pro_active") {
+    return getProjectProductRoute(sessionId, "blueprint_pro");
+  }
+
+  if (stage === "acp_access_requested" || stage === "acp_access_pending") {
+    return getProjectProductRoute(sessionId, "acp_overview");
+  }
+
+  if (stage === "acp_prep") {
+    return getProjectProductRoute(sessionId, "acp");
+  }
+
+  if (stage === "validate") {
+    return `${getProjectProductRoute(sessionId, "acp")}?acp_tab=validate`;
+  }
+
+  return `${getProjectProductRoute(sessionId, "acp")}?acp_tab=package`;
 }
 
 export function getProductExperienceProductHref(sessionId: string, section: ProductExperienceProductSection) {
@@ -195,24 +341,49 @@ export function getProductExperienceProductNav(sessionId: string, t?: (key: Tran
   ];
 }
 
-export function getStageState(candidate: ProjectRouteStage, activeStage: ProjectRouteStage) {
+export function getStageState(candidate: LeanWorkStage, activeStage: LeanExperienceStage) {
   const candidateIndex = getJourneyIndex(candidate);
-  const activeIndex = getJourneyIndex(activeStage);
+  const activeWorkStage = resolveWorkStageForExperienceStage(activeStage);
+  const activeIndex = getJourneyIndex(activeWorkStage);
 
-  if (candidate === activeStage) {
+  if (candidate === activeWorkStage) {
     return "active" as const;
   }
 
   return candidateIndex < activeIndex ? ("done" as const) : ("pending" as const);
 }
 
-export function getProductStageForSection(section: ProductExperienceProductSection | null | undefined): ProjectRouteStage {
+export function getProductFetchStageForSection(section: ProductExperienceProductSection | null | undefined): ProjectRouteStage {
   if (section === "acp" || section === "acp_overview") {
     return "validate";
   }
 
   if (section === "artifacts" || section === "attention" || section === "activity") {
     return "estimate";
+  }
+
+  return "estimate";
+}
+
+export function getProductDisplayStageForSection(section: ProductExperienceProductSection | null | undefined): LeanExperienceStage {
+  if (section === "blueprint" || section === "blueprint_overview") {
+    return "blueprint_free_ready";
+  }
+
+  if (section === "blueprint_pro_overview") {
+    return "blueprint_pro_access_requested";
+  }
+
+  if (section === "blueprint_pro") {
+    return "blueprint_pro_active";
+  }
+
+  if (section === "acp_overview") {
+    return "acp_access_requested";
+  }
+
+  if (section === "acp") {
+    return "acp_prep";
   }
 
   return "estimate";

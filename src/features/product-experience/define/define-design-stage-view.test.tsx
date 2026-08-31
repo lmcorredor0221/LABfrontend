@@ -5,6 +5,7 @@ import type { ProductExperienceStageOperation } from "@/features/product-experie
 import { DefineStageView } from "@/features/product-experience/define/define-stage-view";
 import { DesignStageView } from "@/features/product-experience/design/design-stage-view";
 import {
+  createDefinitionArtifactPayload,
   createDefineArtifactFixture,
   createDefineRouteFixture,
   createDesignArtifactFixture,
@@ -166,6 +167,44 @@ describe("DefineStageView and DesignStageView UXA8", () => {
       "/projects/session-uxa8/work/define?uxa_section=nfr",
       { scroll: false },
     );
+  });
+
+  it("renders duplicate traceability ids without duplicate React keys", () => {
+    const actions = createActions();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const definition = createDefinitionArtifactPayload();
+    definition.traceability = [
+      definition.traceability[0],
+      {
+        ...definition.traceability[0],
+        requirement_key: "FR-02",
+        rationale: "Otra cobertura puede compartir el identificador heredado.",
+      },
+    ];
+
+    try {
+      renderWithLanguage(
+        <DefineStageView
+          actionState={{ status: "idle" }}
+          actions={actions}
+          activeRoute={createDefineRouteFixture({
+            defineArtifact: createDefineArtifactFixture({
+              proposal_payload: definition as unknown as Record<string, unknown>,
+            }),
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("tab", { name: /Evidencia y trazabilidad/i }));
+      expect(screen.getByText("FR-02")).toBeInTheDocument();
+      expect(
+        consoleError.mock.calls.some((call) =>
+          call.some((item) => String(item).includes("Encountered two children with the same key")),
+        ),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("generates Design from approved Define", async () => {

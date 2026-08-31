@@ -53,6 +53,14 @@ type LocalActionState = {
   status: "idle" | "submitting" | "success" | "error";
 };
 
+function normalizeQualityPercent(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return 0;
+  }
+  const score = value <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 function getStatusCopy(language: SupportedLanguage): Record<MemoryStageStatus, { description: string; label: string; tone: UxaTone }> {
   return {
     approved: {
@@ -320,6 +328,9 @@ function MemoryDeliverable({
 }) {
   const { language } = useLanguage();
   const confidence = Math.round(memory.confidence.overall * 100);
+  const qualityGate = memory.quality_gate ?? null;
+  const qualityPercent = qualityGate ? normalizeQualityPercent(qualityGate.quality_confidence) : confidence;
+  const evidencePercent = qualityGate ? normalizeQualityPercent(qualityGate.evidence_confidence) : null;
   const requiredDependencies = memory.tool_dependencies.filter((dependency) => dependency.required);
 
   return (
@@ -346,10 +357,18 @@ function MemoryDeliverable({
             : byLanguage(language, { en: "Not required", es: "No requerido", pt: "Nao obrigatorio" }),
         },
         {
-          helper: memory.confidence.band,
-          label: byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
-          tone: confidence >= 70 ? "success" : "warning",
-          value: `${confidence}%`,
+          helper: qualityGate
+            ? byLanguage(language, {
+              en: `Evidence ${evidencePercent}%. Pending items ${qualityGate.pending_resolution}.`,
+              es: `Evidencia ${evidencePercent}%. Pendientes ${qualityGate.pending_resolution}.`,
+              pt: `Evidencia ${evidencePercent}%. Pendencias ${qualityGate.pending_resolution}.`,
+            })
+            : memory.confidence.band,
+          label: qualityGate
+            ? byLanguage(language, { en: "Quality", es: "Calidad", pt: "Qualidade" })
+            : byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
+          tone: qualityPercent >= 85 ? "success" : "warning",
+          value: `${qualityPercent}%`,
         },
         {
           helper: byLanguage(language, { en: "Required tool dependencies.", es: "Dependencias de herramientas requeridas.", pt: "Dependencias de ferramentas obrigatorias." }),

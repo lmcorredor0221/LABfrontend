@@ -208,6 +208,23 @@ describe("SaasHomePage", () => {
         total_count: 8,
       },
       generated_at: "2026-08-05T11:00:00Z",
+      journey_state_machine: {
+        contract_version: "journey-state-machine.v1",
+        current: {
+          blocking: false,
+          detail: "Blueprint Pro esta habilitado para enriquecimiento, generacion y descarga.",
+          href: "/projects/session-1/blueprint/pro",
+          label: "Blueprint Pro",
+          product_key: "blueprint_pro",
+          progress_percent: 41,
+          stage_key: "blueprint_pro",
+          state_key: "blueprint_pro_active",
+          substate: "running",
+        },
+        session_id: session.id,
+        source_contracts: ["commercial-access.v2", "product-build-status.v1"],
+        workspace_id: "workspace-1",
+      },
       products: [
         {
           access_state: "allowed",
@@ -290,9 +307,11 @@ describe("SaasHomePage", () => {
     expect(screen.getByRole("button", { name: "Continuar proyecto" })).toBeInTheDocument();
     expect(screen.getAllByText("Asistente de soporte TI")).toHaveLength(2);
     await waitFor(() => expect(mocks.getProductJourneyOverview).toHaveBeenCalledWith("session-1"));
-    expect(await screen.findByText(/Herramientas pendientes/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/Blueprint Pro|Blueprint Profesional/i)).length).toBeGreaterThan(0);
     expect(screen.getByText("41%")).toBeInTheDocument();
     expect((await screen.findAllByText(/\$\s*155\.425/)).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Blueprint Pro esta habilitado para enriquecimiento, generacion y descarga/i)).toBeInTheDocument();
+    expect(screen.getByText("Continuar herramientas")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Continuar proyecto" }));
     await waitFor(() => expect(mocks.selectSession).toHaveBeenCalledWith("session-1", { loadSnapshot: false, persist: true }));

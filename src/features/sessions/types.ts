@@ -273,6 +273,7 @@ export type ProductOverviewResponse = {
   contract_version: string;
   exports: ProductOverviewItem[];
   generated_at: string;
+  journey_state_machine?: Record<string, unknown> | null;
   lean_progress_percent: number;
   navigation: ProductOverviewItem[];
   products: ProductOverviewItem[];
@@ -382,6 +383,7 @@ export type ACPWorkspaceResponse = {
   access: CommercialAccessSnapshotV2;
   contract_version: string;
   generated_at: string;
+  journey_state_machine: Record<string, unknown>;
   next_action: string;
   phase_definitions: ACPPhaseDefinitionResponse[];
   phases: ACPPhaseRunResponse[];
@@ -526,6 +528,7 @@ export type LauncherReportResponse = {
 export type ActivityTimelineEntry = {
   created_at: string;
   currency: string;
+  detail?: string;
   key: string;
   metadata: Record<string, unknown>;
   product_key: string;

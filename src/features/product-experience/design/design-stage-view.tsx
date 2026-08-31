@@ -166,6 +166,10 @@ function EmptyDesign({ canGenerate }: { canGenerate: boolean }) {
   );
 }
 
+function compactDesignList(items?: string[] | null, limit = 3): string[] {
+  return (items ?? []).map((item) => item.trim()).filter(Boolean).slice(0, limit);
+}
+
 function AlternativeCard({
   alternative,
   recommended,
@@ -178,6 +182,19 @@ function AlternativeCard({
   onSelect(key: string): void;
 }) {
   const { language } = useLanguage();
+  const designChips = compactDesignList([
+    alternative.agent_archetype ?? "",
+    alternative.pattern_family ?? "",
+    alternative.recommendation_role ?? "",
+  ]);
+  const toolImplications = compactDesignList([
+    ...(alternative.tool_implications ?? []),
+    ...(alternative.blueprint_projection.tool_implications ?? []),
+  ], 2);
+  const memoryImplications = compactDesignList([
+    ...(alternative.memory_implications ?? []),
+    ...(alternative.blueprint_projection.memory_implications ?? []),
+  ], 2);
   return (
     <article
       className={cn(
@@ -196,13 +213,52 @@ function AlternativeCard({
         </div>
       </div>
       <p className="mt-3 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{alternative.summary}</p>
+      {designChips.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {designChips.map((item, index) => (
+            <UxaBadge key={`design-chip-${index}-${item}`} tone="neutral">{item}</UxaBadge>
+          ))}
+        </div>
+      ) : null}
+      {alternative.business_fit || alternative.why_recommended ? (
+        <div className="mt-3 grid gap-2 text-[12px] md:grid-cols-2">
+          {alternative.business_fit ? (
+            <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3">
+              <span className="font-black">{byLanguage(language, { en: "Business fit", es: "Ajuste negocio", pt: "Aderencia negocio" })}:</span>{" "}
+              {alternative.business_fit}
+            </p>
+          ) : null}
+          {alternative.why_recommended ? (
+            <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3">
+              <span className="font-black">{byLanguage(language, { en: "Why", es: "Por que", pt: "Por que" })}:</span>{" "}
+              {alternative.why_recommended}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-2 text-[12px] md:grid-cols-3">
         <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3"><span className="font-black">{byLanguage(language, { en: "Cost", es: "Costo", pt: "Custo" })}:</span> {alternative.relative_cost}</p>
         <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3"><span className="font-black">{byLanguage(language, { en: "Complexity", es: "Complejidad", pt: "Complexidade" })}:</span> {alternative.operational_complexity}</p>
         <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3"><span className="font-black">{byLanguage(language, { en: "Pattern", es: "Patron", pt: "Padrao" })}:</span> {alternative.reasoning_pattern}</p>
       </div>
+      {toolImplications.length || memoryImplications.length ? (
+        <div className="mt-3 grid gap-2 text-[11px] md:grid-cols-2">
+          {toolImplications.length ? (
+            <p className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] p-3">
+              <span className="font-black uppercase tracking-[0.12em]">{byLanguage(language, { en: "Tools", es: "Herramientas", pt: "Ferramentas" })}</span>
+              <span className="mt-1 block text-[var(--uxa-color-ink-soft)]">{toolImplications.join(" · ")}</span>
+            </p>
+          ) : null}
+          {memoryImplications.length ? (
+            <p className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] p-3">
+              <span className="font-black uppercase tracking-[0.12em]">{byLanguage(language, { en: "Memory", es: "Memoria", pt: "Memoria" })}</span>
+              <span className="mt-1 block text-[var(--uxa-color-ink-soft)]">{memoryImplications.join(" · ")}</span>
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       <ul className="mt-4 space-y-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-        {alternative.fit_rationale.map((item) => <li key={item}>{item}</li>)}
+        {alternative.fit_rationale.map((item, index) => <li key={`fit-rationale-${index}-${item}`}>{item}</li>)}
       </ul>
       <UxaButton className="mt-4" onClick={() => onSelect(alternative.alternative_key)} variant={selected ? "primary" : "secondary"}>
         {selected
@@ -347,6 +403,21 @@ function ArchitectureDetails({ alternative }: { alternative: DesignAlternative |
       </UxaSurface>
     );
   }
+  const toolImplications = compactDesignList([
+    ...(alternative.tool_implications ?? []),
+    ...(alternative.blueprint_projection.tool_implications ?? []),
+  ], 6);
+  const memoryImplications = compactDesignList([
+    ...(alternative.memory_implications ?? []),
+    ...(alternative.blueprint_projection.memory_implications ?? []),
+  ], 6);
+  const riskTradeoffs = compactDesignList(alternative.risk_tradeoffs, 6);
+  const businessMetrics = compactDesignList(alternative.business_metrics, 6);
+  const businessThesis = compactDesignList([
+    alternative.business_fit ?? "",
+    alternative.value_hypothesis ?? "",
+    alternative.operational_model ?? "",
+  ], 3);
 
   return (
     <div className="space-y-3">
@@ -355,6 +426,36 @@ function ArchitectureDetails({ alternative }: { alternative: DesignAlternative |
         <h4 className="mt-2 text-[22px] font-black">{alternative.label}</h4>
         <p className="mt-3 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{alternative.architecture}</p>
       </UxaSurface>
+      {businessThesis.length ? (
+        <details className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4" open>
+          <summary className="cursor-pointer text-[14px] font-black">{byLanguage(language, { en: "Business thesis", es: "Tesis de negocio", pt: "Tese de negocio" })}</summary>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            {businessThesis.map((item, index) => (
+              <p className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]" key={`business-thesis-${index}-${item}`}>{item}</p>
+            ))}
+          </div>
+        </details>
+      ) : null}
+      {(toolImplications.length || memoryImplications.length || riskTradeoffs.length || businessMetrics.length) ? (
+        <details className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4">
+          <summary className="cursor-pointer text-[14px] font-black">{byLanguage(language, { en: "Impact on Tools and Memory", es: "Impacto en Herramientas y Memoria", pt: "Impacto em Ferramentas e Memoria" })}</summary>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {[
+              { key: "tools", title: byLanguage(language, { en: "Tools", es: "Herramientas", pt: "Ferramentas" }), items: toolImplications },
+              { key: "memory", title: byLanguage(language, { en: "Memory", es: "Memoria", pt: "Memoria" }), items: memoryImplications },
+              { key: "risks", title: byLanguage(language, { en: "Risks", es: "Riesgos", pt: "Riscos" }), items: riskTradeoffs },
+              { key: "metrics", title: byLanguage(language, { en: "Metrics", es: "Metricas", pt: "Metricas" }), items: businessMetrics },
+            ].filter((section) => section.items.length).map((section) => (
+              <article className="rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-4" key={section.key}>
+                <h5 className="text-[12px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">{section.title}</h5>
+                <ul className="mt-2 space-y-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                  {section.items.map((item, index) => <li key={`${section.key}-${index}-${item}`}>{item}</li>)}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </details>
+      ) : null}
       <details className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4" open>
         <summary className="cursor-pointer text-[14px] font-black">{byLanguage(language, { en: "Roles and limits", es: "Roles y limites", pt: "Papeis e limites" })}</summary>
         <div className="mt-3 grid gap-3 md:grid-cols-2">
@@ -410,6 +511,15 @@ function DesignDeliverable({
   const coveragePercent = normalizePercentScore(coverage.filter((entry) => entry.coverage_status === "covered").length / Math.max(coverage.length, 1));
   const fitPercent = normalizePercentScore(selectedAlternative?.fit_score ?? 0);
   const confidencePercent = normalizePercentScore(design.confidence.overall);
+  const qualityGate = design.quality_gate ?? null;
+  const qualityPercent = qualityGate ? normalizePercentScore(qualityGate.quality_confidence) : confidencePercent;
+  const evidencePercent = qualityGate ? normalizePercentScore(qualityGate.evidence_confidence) : null;
+  const designImpacts = selectedAlternative ? compactDesignList([
+    ...(selectedAlternative.tool_implications ?? []),
+    ...(selectedAlternative.blueprint_projection.tool_implications ?? []),
+    ...(selectedAlternative.memory_implications ?? []),
+    ...(selectedAlternative.blueprint_projection.memory_implications ?? []),
+  ], 6) : [];
 
   return (
     <LeanGeneratedDeliverable
@@ -433,10 +543,18 @@ function DesignDeliverable({
           value: `${coveragePercent}%`,
         },
         {
-          helper: design.confidence.band,
-          label: byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
-          tone: confidencePercent >= 70 ? "success" : "warning",
-          value: `${confidencePercent}%`,
+          helper: qualityGate
+            ? byLanguage(language, {
+              en: `Evidence ${evidencePercent}%. Pending items ${qualityGate.pending_resolution}.`,
+              es: `Evidencia ${evidencePercent}%. Pendientes ${qualityGate.pending_resolution}.`,
+              pt: `Evidencia ${evidencePercent}%. Pendencias ${qualityGate.pending_resolution}.`,
+            })
+            : design.confidence.band,
+          label: qualityGate
+            ? byLanguage(language, { en: "Quality", es: "Calidad", pt: "Qualidade" })
+            : byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
+          tone: qualityPercent >= 85 ? "success" : "warning",
+          value: `${qualityPercent}%`,
         },
       ]}
       nextUse={byLanguage(language, {
@@ -446,15 +564,35 @@ function DesignDeliverable({
       })}
       sections={[
         {
-          items: selectedAlternative ? [selectedAlternative.summary, selectedAlternative.architecture] : [design.summary],
+          items: selectedAlternative
+            ? compactDesignList([
+              selectedAlternative.summary,
+              selectedAlternative.business_fit ?? "",
+              selectedAlternative.value_hypothesis ?? "",
+              selectedAlternative.architecture,
+            ], 4)
+            : [design.summary],
           title: byLanguage(language, { en: "Architecture decision", es: "Decision arquitectonica", pt: "Decisao arquitetonica" }),
         },
         {
-          items: selectedAlternative?.fit_rationale ?? [],
+          items: selectedAlternative
+            ? compactDesignList([
+              selectedAlternative.why_recommended ?? "",
+              selectedAlternative.why_not_simpler ?? "",
+              selectedAlternative.why_not_more_complex ?? "",
+              ...selectedAlternative.fit_rationale,
+            ], 6)
+            : [],
           title: byLanguage(language, { en: "Why this option", es: "Por que esta opcion", pt: "Por que esta opcao" }),
         },
         {
-          items: selectedAlternative ? [...selectedAlternative.tradeoffs, ...selectedAlternative.security_notes] : design.missing_information,
+          items: selectedAlternative
+            ? compactDesignList([
+              ...designImpacts,
+              ...(selectedAlternative.risk_tradeoffs ?? []),
+              ...selectedAlternative.security_notes,
+            ], 8)
+            : design.missing_information,
           title: byLanguage(language, { en: "Tradeoffs and safeguards", es: "Tradeoffs y salvaguardas", pt: "Tradeoffs e salvaguardas" }),
         },
       ]}

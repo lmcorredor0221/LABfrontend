@@ -39,6 +39,8 @@ export function createToolRecommendationPayload(
 ): ToolRecommendationArtifact {
   return {
     approved_tools_digest: null,
+    candidate_tool_patterns: [],
+    capability_resolutions: [],
     confidence: {
       band: "high",
       overall: 0.87,
@@ -134,6 +136,8 @@ export function createToolRecommendationPayload(
       candidate_tool_families: [],
       case_classification: "support_automation",
       core_workflows: ["classify", "retrieve", "draft"],
+      design_memory_implications: ["checkpoint_resume"],
+      design_tool_implications: ["knowledge_retrieval"],
       forbidden_capabilities: ["payments"],
       hard_constraints: ["cite_sources"],
       interaction_modes: ["human_assisted"],
@@ -269,6 +273,16 @@ export function createMemoryRecommendationPayload(
   overrides: Partial<MemoryRecommendationArtifact> = {},
 ): MemoryRecommendationArtifact {
   return {
+    architecture_resolution: {
+      checkpoint_strategy: "Retomar desde el ultimo checkpoint consistente por ticket.",
+      context_budget: "summary_plus_refs con top_k gobernado.",
+      dependency_gaps: [],
+      evidence_refs: ["approved_tools_digest"],
+      memory_mode: "semantic_rag",
+      required_for_pattern: true,
+      retention_policy: "90 dias con borrado logico.",
+      source_strategy: "knowledge_rag",
+    },
     confidence: {
       band: "high",
       overall: 0.84,
@@ -286,6 +300,7 @@ export function createMemoryRecommendationPayload(
       },
     ],
     critic_findings: [],
+    dependency_gaps: [],
     dry_compile_status: {
       blocking_issues: [],
       generated_contracts: ["memory_profile", "knowledge_profile"],

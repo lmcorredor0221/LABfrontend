@@ -354,6 +354,100 @@ describe("session project routes", () => {
     expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/blueprint/pro");
   });
 
+  it("uses the canonical state machine route for a pending Blueprint Pro approval", () => {
+    const session = createSession();
+    const snapshot = createSnapshot();
+    const overview = createJourneyOverview({
+      journey_state_machine: {
+        contract_version: "journey-state-machine.v1",
+        current: {
+          blocking: false,
+          detail: "La solicitud de Blueprint Pro ya fue creada y espera aprobacion.",
+          href: "/projects/session-s3/blueprint/pro/overview",
+          label: "Solicitud Blueprint Pro",
+          product_key: "blueprint_pro",
+          progress_percent: 0,
+          stage_key: "blueprint_pro",
+          state_key: "blueprint_pro_access_requested",
+          substate: "waiting_dependency",
+        },
+        session_id: "session-s3",
+        source_contracts: ["commercial-access.v2", "product-build-status.v1"],
+        workspace_id: "workspace-1",
+      },
+    });
+
+    expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/blueprint/pro/overview");
+  });
+
+  it("uses the canonical state machine route for ACP validation", () => {
+    const session = createSession();
+    const snapshot = createSnapshot();
+    const overview = createJourneyOverview({
+      journey_state_machine: {
+        contract_version: "journey-state-machine.v1",
+        current: {
+          blocking: false,
+          detail: "El ACP se encuentra en validacion funcional, tecnica y de gobernanza.",
+          href: "/projects/session-s3/acp?acp_tab=validate",
+          label: "Validar",
+          product_key: "acp",
+          progress_percent: 62,
+          stage_key: "validate",
+          state_key: "validate",
+          substate: "running",
+        },
+        session_id: "session-s3",
+        source_contracts: ["commercial-access.v2", "product-build-status.v1"],
+        workspace_id: "workspace-1",
+      },
+    });
+
+    expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/acp?acp_tab=validate");
+  });
+
+  it("prioritizes the explicit continuation action over the premium landing route", () => {
+    const session = createSession();
+    const snapshot = createSnapshot();
+    const overview = createJourneyOverview({
+      current_stage: {
+        label: "Herramientas",
+        lifecycle: "running",
+        product_key: "blueprint_basic",
+        progress_percent: 41,
+        stage_key: "tools",
+      },
+      journey_state_machine: {
+        contract_version: "journey-state-machine.v1",
+        current: {
+          blocking: false,
+          detail: "Blueprint Pro esta habilitado para enriquecimiento, generacion y descarga.",
+          href: "/projects/session-s3/blueprint/pro",
+          label: "Blueprint Pro",
+          product_key: "blueprint_pro",
+          progress_percent: 41,
+          stage_key: "blueprint_pro",
+          state_key: "blueprint_pro_active",
+          substate: "running",
+        },
+        session_id: "session-s3",
+        source_contracts: ["commercial-access.v2", "product-build-status.v1"],
+        workspace_id: "workspace-1",
+      },
+      recommended_next_action: {
+        action_key: "continue_current_stage",
+        href: "/projects/session-s3/work/tools",
+        label: "Continuar herramientas",
+        primary: true,
+        product_key: "blueprint_basic",
+        reason: "La etapa actual requiere completar herramientas.",
+        state: "recommended",
+      },
+    });
+
+    expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/work/tools");
+  });
+
   it("falls back to the recommended stage when the stored stage is no longer accessible", () => {
     const session = createSession({
       current_stage: "normalize_discovery",

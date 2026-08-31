@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeProductJourneyOverview } from "./product-journey-overview";
+import {
+  getJourneyStateMachineCurrent,
+  getJourneyStateMachineTier,
+  normalizeProductJourneyOverview,
+  readJourneyStateMachine,
+} from "./product-journey-overview";
 
 const productJourneyOverviewPayload = {
   contract_version: "product-journey-overview.v2",
@@ -64,6 +69,23 @@ const productJourneyOverviewPayload = {
     attention_count: 0,
     error_count: 0,
   },
+  journey_state_machine: {
+    contract_version: "journey-state-machine.v1",
+    workspace_id: "workspace-1",
+    session_id: "session-1",
+    current: {
+      state_key: "blueprint_free_ready",
+      substate: "completed",
+      label: "Blueprint Free listo",
+      detail: "Blueprint Free disponible para revisar antes de solicitar Blueprint Pro.",
+      product_key: "blueprint_basic",
+      stage_key: "estimate",
+      href: "/projects/session-1/blueprint",
+      progress_percent: 100,
+      blocking: false,
+    },
+    source_contracts: ["commercial-access.v2", "product-build-status.v1"],
+  },
   generated_at: "2026-08-16T12:00:00Z",
   source_contracts: ["product-build-status.v1"],
 };
@@ -75,6 +97,15 @@ describe("product-journey-overview contract", () => {
     expect(overview.contract_version).toBe("product-journey-overview.v2");
     expect(overview.recommended_next_action?.product_key).toBe("blueprint_basic");
     expect(overview.products[0]?.progress_percent).toBe(0);
+    expect(overview.journey_state_machine?.current.state_key).toBe("blueprint_free_ready");
+  });
+
+  it("reads canonical state machine helpers from the payload", () => {
+    expect(readJourneyStateMachine(productJourneyOverviewPayload.journey_state_machine)?.contract_version).toBe(
+      "journey-state-machine.v1",
+    );
+    expect(getJourneyStateMachineCurrent(productJourneyOverviewPayload.journey_state_machine)?.stage_key).toBe("estimate");
+    expect(getJourneyStateMachineTier(productJourneyOverviewPayload.journey_state_machine)).toBe("blueprint");
   });
 
   it("rejects product-overview.v1 payloads", () => {
@@ -93,5 +124,14 @@ describe("product-journey-overview contract", () => {
         recommended_next_action: [],
       }),
     ).toThrow("recommended_next_action must be null or an object.");
+  });
+
+  it("requires journey_state_machine to be null or an object when present", () => {
+    expect(() =>
+      normalizeProductJourneyOverview({
+        ...productJourneyOverviewPayload,
+        journey_state_machine: [],
+      }),
+    ).toThrow("journey_state_machine must be null or an object.");
   });
 });

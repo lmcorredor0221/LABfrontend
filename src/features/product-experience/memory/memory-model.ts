@@ -1,4 +1,5 @@
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
+import { resolveDisplayCommercialTier } from "@/features/sessions/commercial-access";
 import type { CommercialTier } from "@/features/sessions/types";
 import type {
   ApprovedToolsDigest,
@@ -252,7 +253,7 @@ export function buildMemoryViewModel(
   const snapshot = snapshotResource?.data ?? null;
   const latestToolsArtifact = snapshot?.journey_latest_artifacts?.tools ?? null;
   const latestMemoryArtifact = snapshot?.journey_latest_artifacts?.memory ?? null;
-  const commercialTier = snapshot?.session.commercial_tier ?? "blueprint";
+  const commercialTier = resolveDisplayCommercialTier(snapshot);
   const rawMemory = options.draftMemory ?? parseMemoryArtifact(latestMemoryArtifact);
   const rawApprovedDigest =
     snapshot?.latest_tool_recommendation?.approved_tools_digest ??

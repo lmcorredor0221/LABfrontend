@@ -47,6 +47,20 @@ export type PremiumEnrichmentItem = {
   affected_deliverable_keys: string[];
   ordered_regeneration_keys: string[];
   unaffected_deliverable_count: number;
+  material_impact?: boolean;
+  reconciliation_decision?: "document_only" | "localized_reconciliation" | "structural_reconciliation";
+  reconciliation_status?:
+    | "not_required"
+    | "pending_user_confirmation"
+    | "queued"
+    | "running"
+    | "completed"
+    | "completed_with_errors"
+    | "failed"
+    | "cancelled";
+  reconciliation_queue_total?: number;
+  reconciliation_queue_completed?: number;
+  reconciliation_pending_keys?: string[];
 };
 
 export type PremiumEnrichmentWorkspace = {
@@ -67,7 +81,7 @@ export type PremiumEnrichmentWorkspace = {
 
 export type PremiumUncertaintyResolutionRequest = {
   answer?: string;
-  execution_mode?: "analyze_only" | "apply_reprocess";
+  execution_mode?: "analyze_only" | "apply_reconciliation" | "apply_reprocess";
   selected_option_key?: string;
   regenerate?: boolean;
   max_deliverables?: number;
@@ -77,14 +91,29 @@ export type PremiumSelectiveReprocessResult = {
   contract_version: "premium-selective-reprocess-result.v1";
   resolved_entry: UncertaintyBacklogEntry;
   changed_dependency_keys: string[];
+  affected_deliverable_keys?: string[];
   stale_deliverable_keys: string[];
   ordered_regeneration_keys: string[];
+  reconciled_deliverable_keys?: string[];
   regenerated_deliverable_keys: string[];
   preserved_deliverable_keys: string[];
   material_impact: boolean;
+  reconciliation_decision?: "document_only" | "localized_reconciliation" | "structural_reconciliation";
+  reconciliation_status?:
+    | "not_required"
+    | "pending_user_confirmation"
+    | "queued"
+    | "running"
+    | "completed"
+    | "completed_with_errors"
+    | "failed"
+    | "cancelled";
+  execution_mode?: "analyze_only" | "apply_reconciliation";
+  legacy_execution_mode?: string;
   reprocess_decision: "document_only" | "localized_reprocess" | "structural_reprocess";
   recommended_action: string;
   impact_summary: string;
+  reconciliation_job_ids?: string[];
   generation_job_ids: string[];
   generation_status_by_deliverable: Record<string, string>;
   superseded_uncertainty_count: number;

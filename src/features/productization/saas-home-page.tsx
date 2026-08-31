@@ -29,7 +29,12 @@ import type { Currency } from "@/core/commerce/trm-service";
 import { getProjectProductRoute } from "@/core/routing/routes";
 import { getSessionProjectRoute, getSessionStageLabel, getSessionStatusLabel } from "@/features/sessions/session-routes";
 import { useSessions } from "@/features/sessions/session-context";
-import type { ProductJourneyOverview } from "@/features/product-experience/saas/product-journey-overview";
+import {
+  getJourneyStateMachineTier,
+  type ProductJourneyOverview,
+} from "@/features/product-experience/saas/product-journey-overview";
+import { getJourneyStateMachineDisplay } from "@/features/product-experience/saas/journey-state-machine-ui";
+import { resolveDisplayCommercialTier } from "@/features/sessions/commercial-access";
 import type { CommercialTier, ProductCatalogResponse } from "@/features/sessions/types";
 import { cn } from "@/lib/utils";
 import { ErrorState, LoadingState } from "@/shared/states/runtime-states";
@@ -254,6 +259,11 @@ function getActiveTierFromJourneyOverview(overview: ProductJourneyOverview | nul
     return null;
   }
 
+  const currentTier = getJourneyStateMachineTier(overview.journey_state_machine ?? null);
+  if (currentTier === "acp" || currentTier === "blueprint_pro") {
+    return currentTier;
+  }
+
   if (overview.products.some((product) => product.product_key === "acp" && product.is_purchased)) {
     return "acp";
   }
@@ -319,12 +329,16 @@ function FirstValueCard() {
 }
 
 function ActiveProjectCard({
+  detail,
+  nextStepLabel,
   planLabel,
   progress,
   stage,
   status,
   title,
 }: {
+  detail?: string;
+  nextStepLabel?: string;
   planLabel: string;
   progress: number;
   stage: string;
@@ -342,6 +356,7 @@ function ActiveProjectCard({
           </p>
           <p className="mt-2 truncate text-[18px] font-semibold text-[var(--text-primary)]">{title}</p>
           <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{stage} · {status}</p>
+          {detail ? <p className="mt-2 text-[12px] leading-5 text-[var(--text-secondary)]">{detail}</p> : null}
         </div>
         <Badge tone="blue">{planLabel}</Badge>
       </div>
@@ -352,7 +367,7 @@ function ActiveProjectCard({
       <ProgressBar className="mt-2 h-1.5" value={progress} />
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
         <span className="text-[12px] text-[var(--text-secondary)]">
-          {byLanguage(language, {
+          {nextStepLabel ?? byLanguage(language, {
             en: "Next: continue the current stage",
             es: "Siguiente: continuar la etapa actual",
             pt: "Proximo: continuar a etapa atual",
@@ -535,7 +550,10 @@ export function SaasHomePage() {
   const selectedSession = items.find((item) => item.id === activeSessionId) ?? items[0] ?? null;
   const selectedSnapshot = activeSnapshot?.session.id === selectedSession?.id ? activeSnapshot : null;
   const hasProject = Boolean(selectedSession);
-  const activeTier = getActiveTierFromJourneyOverview(journeyOverview) ?? selectedSnapshot?.commercial_access?.tier ?? selectedSession?.commercial_tier ?? "blueprint";
+  const journeyDisplay = getJourneyStateMachineDisplay(language, journeyOverview?.journey_state_machine ?? null);
+  const activeTier =
+    getActiveTierFromJourneyOverview(journeyOverview) ??
+    resolveDisplayCommercialTier(selectedSnapshot ?? null);
   const planDefinitions = useMemo(
     () => buildPlanDefinitions(catalog, currency, trm.trm_cop, activeTier, language),
     [activeTier, catalog, currency, language, trm.trm_cop],
@@ -930,10 +948,12 @@ export function SaasHomePage() {
 
               {selectedSession ? (
                 <ActiveProjectCard
+                  detail={journeyDisplay?.detail ?? journeyOverview?.recommended_next_action?.reason ?? ""}
+                  nextStepLabel={journeyOverview?.recommended_next_action?.label}
                   planLabel={activePlan.name}
                   progress={progress}
-                  stage={journeyOverview?.current_stage.label ?? getSessionStageLabel(selectedSession.current_stage, language)}
-                  status={journeyOverview?.recommended_next_action?.label ?? getSessionStatusLabel(selectedSession.status, language)}
+                  stage={journeyDisplay?.label ?? journeyOverview?.current_stage.label ?? getSessionStageLabel(selectedSession.current_stage, language)}
+                  status={journeyDisplay?.substateLabel ?? journeyOverview?.recommended_next_action?.label ?? getSessionStatusLabel(selectedSession.status, language)}
                   title={journeyOverview?.project_title ?? selectedSession.title}
                 />
               ) : (

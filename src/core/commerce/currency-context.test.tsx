@@ -1,21 +1,29 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { CurrencyProvider, useCurrency } from "@/core/commerce/currency-context";
 
 const mocks = vi.hoisted(() => ({
   authState: {
-    current: {
-      isHydrated: true,
-      status: "authenticated",
-      user: {
-        id: "user-1",
-        preferred_currency: "COP",
-      },
+    current: {} as {
+      isHydrated: boolean;
+      status: string;
+      user: { id: string; preferred_currency: string } | null;
     },
   },
   patch: vi.fn(),
 }));
+
+mocks.authState.current = {
+  isHydrated: true,
+  status: "authenticated",
+  user: {
+    id: "user-1",
+    preferred_currency: "COP",
+  },
+};
 
 vi.mock("@/core/auth/auth-context", () => ({
   useAuth: () => mocks.authState.current,
@@ -101,6 +109,63 @@ describe("CurrencyProvider", () => {
     });
     expect(window.localStorage.getItem("lean_app_currency_user_id")).toBe("user-1");
     expect(window.localStorage.getItem("lean_app_currency_backend_migrated:user-1")).toBe("1");
+  });
+
+  it("hydrates without mismatch when browser storage prefers a different currency", async () => {
+    window.localStorage.setItem("lean_app_currency", "USD");
+    mocks.authState.current = {
+      isHydrated: true,
+      status: "anonymous",
+      user: null,
+    };
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const originalWindow = globalThis.window;
+
+    try {
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: undefined,
+      });
+      const markup = renderToString(
+        <CurrencyProvider>
+          <Probe />
+        </CurrencyProvider>,
+      );
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: originalWindow,
+      });
+
+      container.innerHTML = markup;
+
+      await act(async () => {
+        hydrateRoot(
+          container,
+          <CurrencyProvider>
+            <Probe />
+          </CurrencyProvider>,
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("currency")).toHaveTextContent("USD");
+      });
+
+      const hydrationMessages = consoleError.mock.calls
+        .flatMap((call) => call.map((entry) => String(entry)))
+        .join("\n");
+      expect(hydrationMessages).not.toContain("Hydration failed because the server rendered text didn't match the client");
+    } finally {
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: originalWindow,
+      });
+      consoleError.mockRestore();
+      container.remove();
+    }
   });
 
   it("rolls back the UI when saving the new currency preference fails", async () => {

@@ -13,8 +13,10 @@ import {
   createMutationOperationEnvelope,
   failMutationOperationEnvelope,
   isOperationActive,
+  operationFromStageOperationRecord,
   type ProductOperationEnvelope,
 } from "@/features/product-experience/operations/operation-model";
+import { isAbortLikeError } from "@/features/product-experience/core/server-state/resource-state";
 import type {
   AttentionActionRequestV2,
   AttentionActionResultV2,
@@ -147,6 +149,42 @@ function toStageActionName(action: string): ProductStageActionName | undefined {
   return allowed.includes(action as ProductStageActionName) ? (action as ProductStageActionName) : undefined;
 }
 
+function statusForBackendOperation(operation: ProductOperationEnvelope): "submitting" | "success" | "error" {
+  if (isOperationActive(operation)) {
+    return "submitting";
+  }
+  if (operation.status === "failed" || operation.status === "cancelled") {
+    return "error";
+  }
+  return "success";
+}
+
+function reconcileBackendOperation<
+  TAction extends ProductDiscoveryActionState | ProductStageActionState,
+>(current: TAction, serverOperation: ProductOperationEnvelope, stage: string): TAction {
+  if (!current.operation || current.operation.id !== serverOperation.id || serverOperation.stage !== stage) {
+    return current;
+  }
+
+  const nextStatus = statusForBackendOperation(serverOperation);
+  const nextMessage = serverOperation.detail || current.message;
+  if (
+    current.status === nextStatus &&
+    current.message === nextMessage &&
+    current.operation.status === serverOperation.status &&
+    current.operation.lastUpdatedAt === serverOperation.lastUpdatedAt
+  ) {
+    return current;
+  }
+
+  return {
+    ...current,
+    message: nextMessage,
+    operation: serverOperation,
+    status: nextStatus,
+  };
+}
+
 export function useProductExperienceRoute(route: ProductRouteState, enabled = true) {
   const [attentionAction, setAttentionAction] = useState<ProductAttentionActionState>({ status: "idle" });
   const [discoveryAction, setDiscoveryAction] = useState<ProductDiscoveryActionState>({ status: "idle" });
@@ -168,13 +206,27 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
     [route.currentStage, route.sessionId],
   );
 
+  const refreshRoute = useCallback(
+    async (options: { force?: boolean } = {}) => {
+      try {
+        await productExperienceStore.loadRoute(stableRoute, options);
+      } catch (error) {
+        if (isAbortLikeError(error)) {
+          return;
+        }
+        throw error;
+      }
+    },
+    [stableRoute],
+  );
+
   useEffect(() => {
     if (!enabled) {
       return;
     }
 
     let disposed = false;
-    void productExperienceStore.loadRoute(stableRoute).catch((error: unknown) => {
+    void refreshRoute().catch((error: unknown) => {
       if (!disposed) {
         setLoadError(error instanceof Error ? error : new Error("No se pudo cargar la experiencia de producto."));
       }
@@ -183,10 +235,14 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
     return () => {
       disposed = true;
     };
-  }, [enabled, stableRoute]);
+  }, [enabled, refreshRoute]);
 
   const activeRoute = state.active?.route.sessionId === stableRoute.sessionId ? state.active : null;
   const currentActionState = stableRoute.currentStage === "discover" ? discoveryAction : stageAction;
+  const serverOperation = useMemo(
+    () => buildProductOperationEnvelope({ actionState: null, activeRoute }),
+    [activeRoute],
+  );
   const activeOperation = buildProductOperationEnvelope({
     actionState: currentActionState,
     activeRoute,
@@ -198,23 +254,32 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
     attentionAction.status === "submitting";
 
   useEffect(() => {
+    if (serverOperation?.source !== "server") {
+      return;
+    }
+
+    setDiscoveryAction((current) => reconcileBackendOperation(current, serverOperation, "discover"));
+    setStageAction((current) => reconcileBackendOperation(current, serverOperation, serverOperation.stage));
+  }, [serverOperation]);
+
+  useEffect(() => {
     if (!enabled || !isOperationProcessing) {
       return;
     }
 
     const intervalId = setInterval(() => {
-      void productExperienceStore.loadRoute(stableRoute, { force: true });
+      void refreshRoute({ force: true });
     }, 5000);
 
     return () => {
       clearInterval(intervalId);
     };
-  }, [enabled, isOperationProcessing, stableRoute]);
+  }, [enabled, isOperationProcessing, refreshRoute]);
 
   const reload = useCallback(() => {
     setLoadError(null);
-    return productExperienceStore.loadRoute(stableRoute, { force: true });
-  }, [stableRoute]);
+    return refreshRoute({ force: true });
+  }, [refreshRoute]);
 
   const resolveAttentionItem = useCallback(
     async (itemKey: string, payload: AttentionActionRequestV2): Promise<AttentionActionResultV2> => {
@@ -247,7 +312,7 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
               : failMutationOperationEnvelope(operation, new Error(result.message)),
             status: success ? "success" : "error",
           });
-          await productExperienceStore.loadRoute(stableRoute, { force: true });
+          await refreshRoute({ force: true });
           return result;
         } catch (error) {
           const message = error instanceof Error ? error.message : "No se pudo resolver el item de atencion.";
@@ -265,7 +330,7 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
       attentionMutationRef.current = promise;
       return promise;
     },
-    [stableRoute],
+    [refreshRoute, stableRoute],
   );
 
   const runDiscoverMutation = useCallback(
@@ -300,7 +365,7 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
             operation: completeMutationOperationEnvelope(operation, "Discover sincronizado con backend."),
             status: "success",
           });
-          await productExperienceStore.loadRoute(stableRoute, { force: true });
+          await refreshRoute({ force: true });
           return result;
         } catch (error) {
           const nextMessage = error instanceof Error ? error.message : "No se pudo completar la accion de Discover.";
@@ -318,7 +383,7 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
       discoveryMutationRef.current = promise;
       return promise;
     },
-    [stableRoute],
+    [refreshRoute, stableRoute],
   );
 
   const runDiscoverOperationMutation = useCallback(
@@ -347,12 +412,14 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
       const promise = (async () => {
         try {
           const result = await mutation();
+          const backendOperation = operationFromStageOperationRecord(result);
           setDiscoveryAction({
             action,
             message: result.detail || "Operacion de Discover iniciada en backend.",
-            status: "success",
+            operation: backendOperation,
+            status: statusForBackendOperation(backendOperation),
           });
-          await productExperienceStore.loadRoute(stableRoute, { force: true });
+          await refreshRoute({ force: true });
           return result;
         } catch (error) {
           const nextMessage = error instanceof Error ? error.message : "No se pudo iniciar la operacion de Discover.";
@@ -370,7 +437,7 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
       discoveryMutationRef.current = promise;
       return promise;
     },
-    [stableRoute],
+    [refreshRoute, stableRoute],
   );
 
   const discoverActions = useMemo<ProductDiscoveryActions>(
@@ -436,7 +503,7 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
             operation: completeMutationOperationEnvelope(operation, "Etapa sincronizada con backend."),
             status: "success",
           });
-          await productExperienceStore.loadRoute(stableRoute, { force: true });
+          await refreshRoute({ force: true });
           return result;
         } catch (error) {
           const nextMessage = error instanceof Error ? error.message : "No se pudo completar la accion de la etapa.";
@@ -454,7 +521,7 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
       stageMutationRef.current = promise;
       return promise;
     },
-    [stableRoute],
+    [refreshRoute, stableRoute],
   );
 
   const runStageOperationMutation = useCallback(
@@ -483,12 +550,14 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
       const promise = (async () => {
         try {
           const result = await mutation();
+          const backendOperation = operationFromStageOperationRecord(result);
           setStageAction({
             action,
             message: result.detail || "Operacion iniciada en backend.",
-            status: "success",
+            operation: backendOperation,
+            status: statusForBackendOperation(backendOperation),
           });
-          await productExperienceStore.loadRoute(stableRoute, { force: true });
+          await refreshRoute({ force: true });
           return result;
         } catch (error) {
           const nextMessage = error instanceof Error ? error.message : "No se pudo iniciar la operacion de la etapa.";
@@ -506,35 +575,39 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
       stageMutationRef.current = promise;
       return promise;
     },
-    [stableRoute],
+    [refreshRoute, stableRoute],
   );
 
   const retryOperation = useCallback(
     async (operationId: string): Promise<ProductExperienceStageOperation> => {
       const result = await productExperienceStore.retryStageOperation(operationId);
+      const backendOperation = operationFromStageOperationRecord(result);
       setStageAction({
         action: toStageActionName(result.action),
         message: result.detail || "Operacion reintentada.",
-        status: "success",
+        operation: backendOperation,
+        status: statusForBackendOperation(backendOperation),
       });
-      await productExperienceStore.loadRoute(stableRoute, { force: true });
+      await refreshRoute({ force: true });
       return result;
     },
-    [stableRoute],
+    [refreshRoute],
   );
 
   const cancelOperation = useCallback(
     async (operationId: string): Promise<ProductExperienceStageOperation> => {
       const result = await productExperienceStore.cancelStageOperation(operationId);
+      const backendOperation = operationFromStageOperationRecord(result);
       setStageAction({
         action: toStageActionName(result.action),
         message: result.detail || "Cancelacion solicitada.",
-        status: "success",
+        operation: backendOperation,
+        status: statusForBackendOperation(backendOperation),
       });
-      await productExperienceStore.loadRoute(stableRoute, { force: true });
+      await refreshRoute({ force: true });
       return result;
     },
-    [stableRoute],
+    [refreshRoute],
   );
 
   const stageActions = useMemo<ProductStageActions>(

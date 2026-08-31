@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
 import { LanguageProvider } from "@/core/i18n/language-context";
@@ -6,6 +6,7 @@ import { deliverableCatalogApi } from "@/features/deliverables/infrastructure/de
 import { getConstructionScenarios } from "@/features/product-experience/saas/saas-product-model";
 import {
   acpDirectApi,
+  type AcpDirectRouteResolution,
 } from "@/features/product-experience/saas/acp-direct-api";
 import {
   premiumEnrichmentApi,
@@ -34,6 +35,7 @@ const mockSessionsApi = vi.hoisted(() => ({
   createAccessRequest: vi.fn(),
   createCheckoutSession: vi.fn(),
   createExportJob: vi.fn(),
+  downloadExportJob: vi.fn(),
   getAcpQuestions: vi.fn(),
   getAcpWorkspace: vi.fn(),
   retryExportJob: vi.fn(),
@@ -762,17 +764,23 @@ function createPremiumResolutionResult(
     comparison_summary:
       "Se resolvio 'Precisar restricciones regulatorias'. La respuesta no cambia materialmente los entregables existentes.",
     contract_version: "premium-selective-reprocess-result.v1",
+    affected_deliverable_keys: ["blueprint_doc"],
+    execution_mode: "analyze_only",
     generation_job_ids: [],
     generation_status_by_deliverable: {},
     impact_summary: "La respuesta no cambia materialmente los entregables existentes.",
     material_impact: false,
     ordered_regeneration_keys: ["blueprint_doc"],
     preserved_deliverable_keys: ["diagram.c4_context", "diagram.security_guardrails"],
+    reconciled_deliverable_keys: [],
+    reconciliation_decision: "document_only",
+    reconciliation_job_ids: [],
+    reconciliation_status: "not_required",
     queue_completed: 0,
     queue_processed_keys: [],
-    queue_status: "not_requested",
+    queue_status: "not_required",
     queue_total: 0,
-    recommended_action: "Documentar la aclaracion sin reprocesar el Blueprint Pro.",
+    recommended_action: "Documentar la aclaracion sin reconciliar el Blueprint Pro.",
     regenerated_deliverable_keys: [],
     reprocess_decision: "document_only",
     resolved_entry: {
@@ -780,7 +788,7 @@ function createPremiumResolutionResult(
       assumed_answer: answerText,
       status: "resolved",
     },
-    stale_deliverable_keys: ["blueprint_doc"],
+    stale_deliverable_keys: [],
     superseded_uncertainty_count: 0,
     ...overrides,
   };
@@ -1008,7 +1016,7 @@ function createAcpQuestions() {
   ];
 }
 
-function createAcpResolution() {
+function createAcpResolution(): AcpDirectRouteResolution {
   return {
     can_export_package: false,
     can_start_package: false,
@@ -1060,6 +1068,7 @@ beforeEach(() => {
   mockSessionsApi.createAccessRequest.mockReset();
   mockSessionsApi.createCheckoutSession.mockReset();
   mockSessionsApi.createExportJob.mockReset();
+  mockSessionsApi.downloadExportJob.mockReset();
   mockSessionsApi.getAcpQuestions.mockReset();
   mockSessionsApi.getAcpWorkspace.mockReset();
   mockSessionsApi.retryExportJob.mockReset();
@@ -1074,6 +1083,10 @@ describe("UXA11 SaaS stage views", () => {
     expect(screen.getByRole("heading", { name: "LAB encontro una oportunidad concreta de ahorro" })).toBeInTheDocument();
     expect(screen.getAllByText("ACP agentico").length).toBeGreaterThan(0);
     expect(screen.getByText("Comparacion base")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Abrir Blueprint" })).toHaveAttribute(
+      "href",
+      "/projects/session-uxa11/blueprint",
+    );
     expect(screen.queryByRole("heading", { name: "Estimar valor, costo y ROI" })).not.toBeInTheDocument();
   });
 
@@ -1195,6 +1208,95 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("heading", { name: "De una propuesta clara a un Blueprint defendible" })).toBeInTheDocument();
   });
 
+  it("keeps Blueprint Pro in the access gate until the premium entitlement is active", () => {
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_pro" />);
+
+    expect(screen.getByRole("heading", { name: /Activa Blueprint Pro antes de abrir el workspace profesional/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /El enriquecimiento Pro inicia solo después de activar Blueprint Pro/i })).toBeInTheDocument();
+    expect(vi.mocked(premiumEnrichmentApi.getWorkspace)).not.toHaveBeenCalled();
+    expect(screen.queryByText("Cargando backlog priorizado de enriquecimiento...")).not.toBeInTheDocument();
+  });
+
+  it("downloads Blueprint Pro through the authenticated API instead of navigating directly", async () => {
+    const createObjectUrl = vi.fn(() => "blob:blueprint-pro");
+    const revokeObjectUrl = vi.fn();
+    const anchorClick = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl,
+    });
+
+    try {
+      mockSessionsApi.createExportJob.mockResolvedValueOnce({
+        artifact_kind: "blueprint_professional",
+        checksum_sha256: "sha-256",
+        completed_at: "2026-08-27T13:10:00Z",
+        content_type: "application/zip",
+        created_at: "2026-08-27T13:09:00Z",
+        download_url: "/api/v1/sessions/session-uxa11/exports/jobs/job-blueprint/download",
+        error_message: "",
+        expires_at: "2026-08-27T13:25:00Z",
+        file_name: "blueprint-pro.zip",
+        id: "job-blueprint",
+        metadata: {},
+        product_key: "blueprint_pro",
+        profile: "professional",
+        session_id: "session-uxa11",
+        size_bytes: 2048,
+        status: "ready",
+        updated_at: "2026-08-27T13:10:00Z",
+        workspace_id: "workspace-1",
+      });
+      mockSessionsApi.downloadExportJob.mockResolvedValueOnce(new Blob(["blueprint-pro"], { type: "application/zip" }));
+
+      renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Descargar Blueprint Pro" }));
+
+      await waitFor(() =>
+        expect(mockSessionsApi.downloadExportJob).toHaveBeenCalledWith("session-uxa11", "job-blueprint"),
+      );
+      expect(createObjectUrl).toHaveBeenCalledTimes(1);
+      expect(anchorClick).toHaveBeenCalledTimes(1);
+      expect(revokeObjectUrl).toHaveBeenCalledWith("blob:blueprint-pro");
+    } finally {
+      anchorClick.mockRestore();
+      Object.defineProperty(URL, "createObjectURL", {
+        configurable: true,
+        value: originalCreateObjectUrl,
+      });
+      Object.defineProperty(URL, "revokeObjectURL", {
+        configurable: true,
+        value: originalRevokeObjectUrl,
+      });
+    }
+  });
+
+  it("hides the Blueprint Pro download CTA when export permission is missing", () => {
+    const route = createRoute("blueprint_pro");
+    route.snapshot.data!.commercial_access = {
+      ...route.snapshot.data!.commercial_access!,
+      can_download_blueprint: false,
+      can_export_blueprint_core: false,
+      can_export_blueprint_document: false,
+      can_export_json: false,
+      can_export_markdown: false,
+    };
+
+    renderWithLanguage(<ProductSaasView activeRoute={route} section="blueprint_pro" />);
+
+    expect(screen.queryByRole("button", { name: "Descargar Blueprint Pro" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Permiso de descarga requerido" })).toBeDisabled();
+    expect(screen.getByRole("heading", { name: /El workspace profesional esta activo, pero la exportacion sigue protegida/i })).toBeInTheDocument();
+  });
+
   it("renders the direct suggestion accelerator when premium enrichment returns a suggested answer", async () => {
     vi.mocked(premiumEnrichmentApi.getWorkspace).mockResolvedValueOnce(createPremiumWorkspace());
 
@@ -1202,9 +1304,14 @@ describe("UXA11 SaaS product views", () => {
 
     expect(await screen.findByRole("button", { name: /Usar sugerencia y analizar/i })).toBeInTheDocument();
     expect(screen.getByText("Cliente regulado por norma financiera local y controles de auditoria trimestral.")).toBeInTheDocument();
+    expect(screen.getByText("Politica de decisiones")).toBeInTheDocument();
+    expect(screen.getByText(/Responder guarda y analiza impacto/i)).toBeInTheDocument();
+    expect(screen.getByText("Inferida por LAB")).toBeInTheDocument();
+    expect(screen.getByText("Solo documentar")).toBeInTheDocument();
+    expect(screen.getByText("Ver impacto")).toBeInTheDocument();
   });
 
-  it("analyzes premium answers before triggering any reprocessing", async () => {
+  it("analyzes premium answers before triggering any reconciliation", async () => {
     vi.mocked(premiumEnrichmentApi.getWorkspace)
       .mockResolvedValueOnce(createPremiumWorkspace())
       .mockResolvedValueOnce(createResolvedPremiumWorkspace());
@@ -1224,12 +1331,12 @@ describe("UXA11 SaaS product views", () => {
         }),
       ),
     );
-    expect(await screen.findByText("Decisión documentada sin reproceso")).toBeInTheDocument();
-    expect(screen.getByText("Sin reproceso")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Actualizar entregables afectados/i })).not.toBeInTheDocument();
+    expect(await screen.findByText("Decisión documentada sin reconciliación")).toBeInTheDocument();
+    expect(screen.getByText("Solo documentar")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Reconciliar entregables afectados/i })).not.toBeInTheDocument();
   });
 
-  it("requires an explicit follow-up action to reprocess affected premium deliverables", async () => {
+  it("requires an explicit follow-up action to reconcile affected premium deliverables", async () => {
     vi.mocked(premiumEnrichmentApi.getWorkspace)
       .mockResolvedValueOnce(createPremiumWorkspace())
       .mockResolvedValueOnce(createResolvedPremiumWorkspace())
@@ -1241,15 +1348,17 @@ describe("UXA11 SaaS product views", () => {
             "Se resolvio 'Precisar restricciones regulatorias'. La respuesta afecta entregables del Blueprint Pro.",
           impact_summary: "La respuesta afecta entregables del Blueprint Pro.",
           material_impact: true,
-          queue_status: "not_requested",
-          recommended_action: "Actualiza solo los entregables impactados para mantener consistencia.",
-          reprocess_decision: "localized_reprocess",
+          queue_status: "pending_user_confirmation",
+          reconciliation_decision: "localized_reconciliation",
+          reconciliation_status: "pending_user_confirmation",
+          recommended_action: "Reconcilia solo los entregables impactados para mantener consistencia.",
         }),
       )
       .mockResolvedValueOnce(
         createPremiumResolutionResult({
           comparison_summary:
-            "Se resolvio 'Precisar restricciones regulatorias'. 1 entregable(s) fueron reprocesados en cola FIFO y 2 conservaron su version.",
+            "Se resolvio 'Precisar restricciones regulatorias'. 1 entregable(s) fueron reconciliados en cola FIFO y 2 conservaron su version.",
+          execution_mode: "apply_reconciliation",
           generation_job_ids: ["job-1"],
           impact_summary: "La respuesta afecta entregables del Blueprint Pro.",
           material_impact: true,
@@ -1257,9 +1366,12 @@ describe("UXA11 SaaS product views", () => {
           queue_processed_keys: ["blueprint_doc"],
           queue_status: "completed",
           queue_total: 1,
-          recommended_action: "Actualiza solo los entregables impactados para mantener consistencia.",
+          reconciled_deliverable_keys: ["blueprint_doc"],
+          reconciliation_decision: "localized_reconciliation",
+          reconciliation_job_ids: ["job-1"],
+          reconciliation_status: "completed",
+          recommended_action: "Reconcilia solo los entregables impactados para mantener consistencia.",
           regenerated_deliverable_keys: ["blueprint_doc"],
-          reprocess_decision: "localized_reprocess",
         }),
       );
 
@@ -1267,8 +1379,8 @@ describe("UXA11 SaaS product views", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Usar sugerencia y analizar/i }));
 
-    const applyButton = await screen.findByRole("button", { name: "Actualizar entregables afectados" });
-    expect(screen.getByText("Impacto localizado")).toBeInTheDocument();
+    const applyButton = await screen.findByRole("button", { name: "Reconciliar entregables afectados" });
+    expect(screen.getByText("Reconciliación localizada")).toBeInTheDocument();
 
     fireEvent.click(applyButton);
 
@@ -1278,13 +1390,13 @@ describe("UXA11 SaaS product views", () => {
         "session-uxa11",
         "uncertainty-1",
         expect.objectContaining({
-          execution_mode: "apply_reprocess",
+          execution_mode: "apply_reconciliation",
           regenerate: true,
         }),
       ),
     );
-    expect(await screen.findByText("Reprocesamiento selectivo completado")).toBeInTheDocument();
-    expect(screen.getByText("1 regenerados")).toBeInTheDocument();
+    expect(await screen.findByText("Reconciliación de entregables completada")).toBeInTheDocument();
+    expect(screen.getByText("1 reconciliados")).toBeInTheDocument();
   });
 
   it("requests governed Blueprint Pro artifacts with cumulative package stage", async () => {
@@ -1326,15 +1438,110 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("link", { name: "Continuar con ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp");
   });
 
-  it("avoids showing a false empty ACP state while preparation is still loading", async () => {
-    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+  it("shows the ACP approval gate instead of loading the preparation workspace before entitlement", () => {
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="acp" />);
 
-    await waitFor(() =>
-      expect(screen.getByText("Cargando el workspace de preparación ACP...")).toBeInTheDocument(),
+    expect(screen.getByRole("heading", { name: "ACP inicia después de la aprobación, no antes" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Solicitar ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp");
+    expect(vi.mocked(acpDirectApi.getResolution)).not.toHaveBeenCalled();
+    expect(mockSessionsApi.getAcpWorkspace).not.toHaveBeenCalled();
+    expect(mockSessionsApi.getAcpQuestions).not.toHaveBeenCalled();
+    expect(screen.queryByText("Cargando el workspace de preparación ACP...")).not.toBeInTheDocument();
+  });
+
+  it("hides legacy ACP build tracker noise while ACP is still locked", () => {
+    mockUseProductBuildStatus.mockReturnValueOnce(
+      createProductBuildStatusMock({
+        data: {
+          actions: [],
+          attention: {
+            blocking_count: 1,
+            items: [],
+            technical_error_count: 0,
+            total: 1,
+            warning_count: 0,
+          },
+          contract_version: "product-build-status.v1",
+          current_activity: {
+            activity_key: "deliverable:diagram.human_intervention_flow",
+            detail: "deliverable:diagram.human_intervention_flow",
+            label: "Procesando artefactos pendientes",
+            started_at: "2026-08-27T20:16:16Z",
+            status: "queued",
+            step_key: "deliverable:diagram.human_intervention_flow",
+            updated_at: "2026-08-27T20:16:16Z",
+          },
+          deliverables: [
+            {
+              deliverable_key: "diagram.human_intervention_flow",
+              deliverable_type: "diagram",
+              href: "/projects/session-uxa11/acp",
+              job_id: "job-acp-1",
+              product_surface: "acp",
+              required: true,
+              stage_key: "validate",
+              state: "locked",
+              title: "Intervencion humana y aprobaciones",
+              updated_at: "2026-08-27T20:16:16Z",
+            },
+          ],
+          entitlement: {
+            access_state: "locked",
+            checkout_href: "/projects/session-uxa11/acp",
+            is_purchased: false,
+            purchase_required: true,
+            tier: "blueprint_pro",
+            upgrade_label: "Solicitar ACP",
+          },
+          generated_at: "2026-08-27T20:16:23Z",
+          last_error: null,
+          lifecycle: "not_purchased",
+          processing_queue: {
+            active: false,
+            completed_at: "2026-08-27T20:16:23Z",
+            completed_count: 12,
+            completed_items: [],
+            current_deliverable_key: "",
+            failed_count: 1,
+            failed_items: [],
+            mode: "process_pending",
+            pending_count: 3,
+            processing_count: 0,
+            queue_id: "queue-acp-legacy",
+            retried_count: 0,
+            started_at: "2026-08-27T20:15:26Z",
+            status: "completed_with_errors",
+            summary: "Cola legacy ACP generada antes del gate comercial.",
+            total_count: 16,
+            updated_at: "2026-08-27T20:16:23Z",
+          },
+          product_key: "acp",
+          product_label: "ACP",
+          product_mode: "acp_implementation",
+          progress: {
+            blocked_units: 2,
+            calculation: "manual",
+            completed_units: 12,
+            label: "Estado legacy no autorizado.",
+            percent: 55,
+            total_units: 16,
+          },
+          session_id: "session-uxa11",
+          source_contracts: ["product-build-status.v1"],
+          stages: [],
+          workspace_id: "workspace-1",
+        },
+        isEmpty: false,
+        status: "success",
+        updatedAt: Date.now(),
+      }),
     );
-    expect(screen.queryByText("0/7")).not.toBeInTheDocument();
-    expect(screen.queryByText("0/6")).not.toBeInTheDocument();
-    expect(screen.queryByText("No hay preguntas ACP abiertas en el snapshot actual del workspace.")).not.toBeInTheDocument();
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="acp" />);
+
+    expect(screen.getByRole("heading", { name: "ACP inicia después de la aprobación, no antes" })).toBeInTheDocument();
+    expect(screen.queryByText("Generación de Entregables")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cola legacy ACP generada antes del gate comercial.")).not.toBeInTheDocument();
   });
 
   it("keeps ACP preparation inside ACP tabs even when canonical LEAN prerequisites are missing", async () => {
@@ -1345,10 +1552,17 @@ describe("UXA11 SaaS product views", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
 
     expect(await screen.findByRole("heading", { name: "Espacio concentrado del ACP sin reiniciar el Blueprint" })).toBeInTheDocument();
+    const internalNav = screen.getByRole("navigation", { name: "Navegacion interna ACP" });
+    expect(within(internalNav).getByRole("link", { name: /Preparacion/i })).toHaveAttribute("href", "#acp-preparation-overview");
+    expect(within(internalNav).getByRole("link", { name: /Pendientes/i })).toHaveAttribute("href", "#acp-pending-questions");
+    expect(within(internalNav).getByRole("link", { name: /Impacto/i })).toHaveAttribute("href", "#acp-impact-summary");
+    expect(within(internalNav).getByRole("link", { name: "Validar ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp?acp_tab=validate");
+    expect(within(internalNav).getByRole("link", { name: "Package ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp?acp_tab=package");
     const preparationLinks = screen.getAllByRole("link", { name: "Abrir preparación ACP" });
     expect(preparationLinks[0]).toHaveAttribute("href", "/projects/session-uxa11/acp?acp_tab=validate");
     expect(screen.getByText("Fases del ACP")).toBeInTheDocument();
     expect(screen.getByText("Grupos de preguntas abiertas")).toBeInTheDocument();
+    expect(screen.getByText("Impacto y acumulacion")).toBeInTheDocument();
   });
 
   it("keeps ACP focused on preparation while the ZIP is still blocked", async () => {
@@ -1361,6 +1575,49 @@ describe("UXA11 SaaS product views", () => {
     const preparationLinks = await screen.findAllByRole("link", { name: "Abrir preparación ACP" });
     expect(preparationLinks[0]).toHaveAttribute("href", "/projects/session-uxa11/acp?acp_tab=validate");
     expect(screen.queryByRole("button", { name: "Descargar ACP ZIP" })).not.toBeInTheDocument();
+  });
+
+  it("surfaces answer outcomes and delegated decisions inside ACP impact panel", async () => {
+    vi.mocked(acpDirectApi.getResolution).mockResolvedValueOnce(createAcpResolution());
+    mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspace());
+    mockSessionsApi.getAcpQuestions.mockResolvedValueOnce([
+      {
+        ...createAcpQuestions()[0],
+        answer_text: "Delegado a implementacion. Resolver durante la construccion con trazabilidad ACP.",
+        impact_analysis: {
+          affected_phase_keys: ["implementation_questions", "package_build", "conformance_export"],
+          affected_stage_keys: ["acp", "package"],
+          impact_kind: "delegated_to_implementation",
+          impact_summary: "La decision viaja al paquete ACP sin recalculo inmediato.",
+          material_impact: false,
+          recommended_action: "Resolver durante implementacion.",
+          reprocess_decision: "delegated_to_implementation",
+        },
+        resolved_at: "2026-08-27T10:00:00Z",
+        status: "deferred" as const,
+      },
+      {
+        ...createAcpQuestions()[1],
+        answer_text: "name=Confluence; type=wiki; owner=ops",
+        impact_analysis: {
+          affected_phase_keys: ["implementation_questions", "package_build"],
+          affected_stage_keys: ["acp", "package"],
+          impact_kind: "localized_impact",
+          impact_summary: "La respuesta impacta artefactos localizados.",
+          material_impact: true,
+          recommended_action: "Reconciliar Validate o Package al actualizar entregables.",
+          reprocess_decision: "localized_reconciliation",
+        },
+        status: "answered" as const,
+      },
+    ]);
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    expect(await screen.findByText("Resultado de respuestas")).toBeInTheDocument();
+    expect(screen.getByText(/1 respuesta\(s\) ya quedaron trazables/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 por reconciliar/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 decision\(es\) viajaran dentro del paquete ACP/i)).toBeInTheDocument();
   });
 
   it("shows the ACP ZIP download only when the workspace is exportable", async () => {

@@ -30,13 +30,13 @@ export const es = {
   "enrichment.dismiss": "Descartar",
   "enrichment.useSuggestion": "Usar sugerencia",
   "enrichment.modalTitle": "Enriquecer con input del cliente",
-  "enrichment.modalSubtitle": "Ingresa contexto, requerimientos o aclaraciones para enriquecer este entregable y disparar el reprocesamiento en cola FIFO.",
+  "enrichment.modalSubtitle": "Ingresa contexto, requerimientos o aclaraciones para enriquecer este entregable y preparar una reconciliacion en cola FIFO.",
   "enrichment.modalPlaceholder": "Escribe aquí la respuesta, requerimiento o contexto personalizado...",
-  "enrichment.modalSubmit": "Guardar y Reprocesar (FIFO)",
+  "enrichment.modalSubmit": "Guardar y preparar reconciliacion",
   "enrichment.modalCancel": "Cancelar",
-  "enrichment.fifoProgress": "Cola de reprocesamiento FIFO",
+  "enrichment.fifoProgress": "Cola de reconciliacion FIFO",
   "enrichment.fifoProcessing": "Procesando entregables en orden FIFO...",
-  "enrichment.fifoCompleted": "Reprocesamiento FIFO completado exitosamente.",
+  "enrichment.fifoCompleted": "Reconciliacion FIFO completada exitosamente.",
 
   // Language Selector Labels
   "lang.es": "Español",

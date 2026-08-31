@@ -33,6 +33,7 @@ import {
   EstimateRoiHifiMockup,
   type EstimateRoiHifiScenario,
 } from "@/features/product-experience/saas/estimate-roi-hifi-view";
+import { hasBlueprintProEntitlement } from "@/features/sessions/commercial-access";
 import type {
   ProductStageActions,
   ProductStageActionState,
@@ -425,6 +426,12 @@ export function EstimateStageView({ actionState, activeRoute, actions }: StageVi
   const generateLabel = !report
     ? summary.nextLabel
     : copy("Regenerate estimate", "Regenerar estimacion", "Regenerar estimativa");
+  const sessionId = activeRoute?.route.sessionId ?? "";
+  const hasBlueprintProAccess = hasBlueprintProEntitlement(activeRoute?.snapshot.data ?? null);
+  const secondaryHref = hasBlueprintProAccess ? `/projects/${sessionId}/blueprint/pro` : `/projects/${sessionId}/blueprint`;
+  const secondaryLabel = hasBlueprintProAccess
+    ? copy("Open Blueprint Pro", "Abrir Blueprint Pro", "Abrir Blueprint Pro")
+    : copy("Open Blueprint", "Abrir Blueprint", "Abrir Blueprint");
 
   async function handleGenerate() {
     if (!actions || processing) {
@@ -500,8 +507,8 @@ export function EstimateStageView({ actionState, activeRoute, actions }: StageVi
         />
       )}
       <UxaStickyActionBar label={copy("Estimate actions", "Acciones de Estimar", "Acoes de Estimar")}>
-        <a className="uxa-button uxa-button--secondary" href={`/projects/${activeRoute?.route.sessionId ?? ""}/acp?acp_tab=validate`}>
-          <span>{copy("Prepare ACP", "Preparar ACP", "Preparar ACP")}</span>
+        <a className="uxa-button uxa-button--secondary" href={secondaryHref}>
+          <span>{secondaryLabel}</span>
         </a>
         {shouldGenerate ? (
           <UxaButton disabled={!actions || processing} isLoading={processing} onClick={() => void handleGenerate()} variant="primary">

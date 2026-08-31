@@ -887,7 +887,7 @@ const hotmartRows: ConfigTableRow[] = [
     detail: "Sincroniza compradores, membresías, estado de acceso y eventos de comunidad hacia la plataforma.",
     expandedActions: [
       { label: "Ver mapeos", tone: "blue" },
-      { label: "Reprocesar eventos", tone: "orange" },
+      { label: "Reintentar eventos", tone: "orange" },
       { label: "Pausar sync", tone: "red" },
     ],
     fields: [
@@ -1060,7 +1060,7 @@ const runtimeAuditRows: ConfigTableRow[] = [
     detail: "Evento de sincronización Hotmart con conteo de registros, errores parciales y cursor de reconciliación.",
     expandedActions: [
       { label: "Ver payload resumido", tone: "blue" },
-      { label: "Reprocesar lote", tone: "orange" },
+      { label: "Reintentar lote", tone: "orange" },
     ],
     fields: [
       { label: "Evento", value: "hotmart.sync.completed" },
@@ -1952,7 +1952,7 @@ function ConfigurationSection() {
           </p>
           <div className="mt-5 space-y-3">
             <StatRow label="Visible" value="Probar, abrir, editar básico" tone="blue" />
-            <StatRow label="Acordeón" value="Rotar, revocar, mapear, reprocesar" tone="orange" />
+            <StatRow label="Acordeón" value="Rotar, revocar, mapear, reintentar" tone="orange" />
             <StatRow label="Formulario" value="Workspace y runtime activo" tone="green" />
             <StatRow label="Tabla" value="Providers, secretos, precios, flags" tone="violet" />
             <StatRow label="Permiso alto" value="Registry/precios/secretos" tone="red" />
@@ -2121,7 +2121,7 @@ function LegacyConfigurationSection() {
           </p>
           <div className="mt-5 space-y-3">
             <StatRow label="Visible" value="Probar, abrir, editar básico" tone="blue" />
-            <StatRow label="Acordeón" value="Rotar, revocar, mapear, reprocesar" tone="orange" />
+            <StatRow label="Acordeón" value="Rotar, revocar, mapear, reintentar" tone="orange" />
             <StatRow label="Formulario" value="Workspace y runtime activo" tone="green" />
             <StatRow label="Tabla" value="Providers, secretos, precios, flags" tone="violet" />
             <StatRow label="Permiso alto" value="Registry/precios/secretos" tone="red" />

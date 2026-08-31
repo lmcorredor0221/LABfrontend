@@ -66,7 +66,7 @@ const SCENARIOS: Scenario[] = [
   {
     automation: 32,
     cta: "Mejorar Blueprint",
-    description: "Blueprint enriquecido: resuelve decisiones relevantes y reprocesa solo los entregables afectados por dependencias.",
+    description: "Blueprint enriquecido: resuelve decisiones relevantes y reconcilia solo los entregables afectados por dependencias.",
     duration: 1.6,
     human: 68,
     key: "blueprint_premium",
@@ -155,7 +155,7 @@ const OFFER_COPY: Record<(typeof OFFER_KEYS)[number], {
     price: "$49 USD",
     subtitle: "Documento profesional",
     title: "Blueprint Pro",
-    value: "Descarga el Blueprint profesional y enriquece decisiones relevantes con reproceso selectivo.",
+    value: "Descarga el Blueprint profesional y enriquece decisiones relevantes con reconciliacion selectiva de entregables.",
   },
   acp_agentic: {
     cta: "Desbloquear por $149 USD",

@@ -32,13 +32,13 @@ export const pt: Record<TranslationKey, string> = {
   "enrichment.dismiss": "Descartar",
   "enrichment.useSuggestion": "Usar sugestao",
   "enrichment.modalTitle": "Enriquecer com input do cliente",
-  "enrichment.modalSubtitle": "Insira contexto, requisitos ou esclarecimentos para enriquecer esta entrega e disparar o reprocessamento em fila FIFO.",
+  "enrichment.modalSubtitle": "Insira contexto, requisitos ou esclarecimentos para enriquecer esta entrega e preparar a reconciliacao em fila FIFO.",
   "enrichment.modalPlaceholder": "Escreva aqui a resposta personalizada, requisito ou contexto...",
-  "enrichment.modalSubmit": "Salvar e Reprocessar (FIFO)",
+  "enrichment.modalSubmit": "Salvar e preparar reconciliacao",
   "enrichment.modalCancel": "Cancelar",
-  "enrichment.fifoProgress": "Fila de reprocessamento FIFO",
+  "enrichment.fifoProgress": "Fila de reconciliacao FIFO",
   "enrichment.fifoProcessing": "Processando entregas em ordem FIFO...",
-  "enrichment.fifoCompleted": "Reprocessamento FIFO concluido com sucesso.",
+  "enrichment.fifoCompleted": "Reconciliacao FIFO concluida com sucesso.",
 
   // Language Selector Labels
   "lang.es": "Espanhol",

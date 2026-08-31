@@ -73,6 +73,20 @@ describe("AdminRequestsPage", () => {
     expect(screen.getByText("Rechazadas")).toBeInTheDocument();
   });
 
+  it("shows an actionable Platform Admin diagnostic when access is forbidden", async () => {
+    vi.mocked(sessionsApi.listAccessRequests).mockRejectedValueOnce({
+      status: 403,
+      message: "Solo un platform admin puede ejecutar esta accion.",
+    });
+
+    render(<AdminRequestsPage />);
+
+    expect(
+      await screen.findByText(/requiere rol Platform Admin activo/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Ser owner del workspace no habilita aprobaciones comerciales/i)).toBeInTheDocument();
+  });
+
   it("allows approving a pending request", async () => {
     vi.mocked(sessionsApi.resolveAccessRequest).mockResolvedValue({
       ...mockRequests[0],

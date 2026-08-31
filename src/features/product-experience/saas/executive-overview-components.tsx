@@ -517,7 +517,7 @@ function buildMilestones(status?: ProductBuildStatus | null): ExecutiveMilestone
   const stageMap = new Map((status?.stages ?? []).map((stage) => [stage.stage_key, stage]));
 
   return DEFAULT_MILESTONES.map((milestone) => {
-    const liveStage = stageMap.get(milestone.key as any);
+    const liveStage = stageMap.get(milestone.key);
     const progress = normalizePercent(liveStage?.progress.percent ?? 100);
     const stateLabel = liveStage?.progress.label ?? "Completado";
     const tone = lifecycleTone(liveStage?.lifecycle ?? "completed");
@@ -998,6 +998,7 @@ export function DeliverableGenerationLiveTracker({
   onRetryFailed?: (() => void | Promise<unknown>) | undefined;
   processingDisabled?: boolean;
 }) {
+  const maxProcessingAttempts = 2;
   const processingQueue = status?.processing_queue ?? null;
   const deliverableCounts = (status?.deliverables ?? []).reduce(
     (accumulator, item) => {
@@ -1036,11 +1037,14 @@ export function DeliverableGenerationLiveTracker({
   const percent = processingQueue?.total_count
     ? normalizePercent(((processingQueue.total_count - processingQueue.pending_count - processingQueue.processing_count) / Math.max(1, processingQueue.total_count)) * 100)
     : normalizePercent(status?.progress.percent);
-  const canProcess = Boolean(onProcessPending && !processingDisabled && !queueActive && queueMetrics.total > 0);
-  const canRetryFailed = Boolean(onRetryFailed && !processingDisabled && !queueActive && queueMetrics.failed > 0);
-  const primaryLabel = queueMetrics.pending > 0 ? "Procesar pendientes" : "Reprocesar";
   const completedItems = processingQueue?.completed_items ?? [];
   const failedItems = processingQueue?.failed_items ?? [];
+  const canProcess = Boolean(onProcessPending && !processingDisabled && !queueActive && queueMetrics.total > 0);
+  const retryableFailedCount = processingQueue
+    ? failedItems.filter((item) => item.attempt_count < maxProcessingAttempts && !item.retried).length
+    : queueMetrics.failed;
+  const canRetryFailed = Boolean(onRetryFailed && !processingDisabled && !queueActive && retryableFailedCount > 0);
+  const primaryLabel = queueMetrics.pending > 0 ? "Procesar pendientes" : "Actualizar";
 
   const generationPhases = [
     { label: "Consolidando contexto y objetivos de negocio Lean", status: "completed" },
@@ -1099,7 +1103,7 @@ export function DeliverableGenerationLiveTracker({
         <div className="flex flex-wrap items-center justify-end gap-2">
           {canRetryFailed ? (
             <button className="uxa-button uxa-button--secondary" onClick={() => void onRetryFailed?.()} type="button">
-              Reprocesar fallidos
+              Reintentar fallidos
             </button>
           ) : null}
           {canProcess ? (

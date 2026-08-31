@@ -1,4 +1,5 @@
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
+import { resolveDisplayCommercialTier } from "@/features/sessions/commercial-access";
 import type {
   ApprovedToolsDigest,
   JourneyStageArtifactEntry,
@@ -112,7 +113,7 @@ function unique(values: string[]) {
 
 function resolveCommercialTier(activeRoute: ProductExperienceRouteSnapshot | null): CommercialTier {
   const snapshot = activeRoute?.snapshot.data ?? null;
-  const tier = snapshot?.commercial_access?.tier ?? snapshot?.session.commercial_tier;
+  const tier = resolveDisplayCommercialTier(snapshot);
   return tier === "blueprint_pro" || tier === "acp" ? tier : "blueprint";
 }
 

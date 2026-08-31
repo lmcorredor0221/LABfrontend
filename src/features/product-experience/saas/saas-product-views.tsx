@@ -61,6 +61,7 @@ import {
   buildExecutiveOverviewModel,
 } from "@/features/product-experience/saas/executive-overview-components";
 import { useProductBuildStatus } from "@/features/product-experience/saas/use-product-build-status";
+import type { ProductBuildStatus } from "@/features/product-experience/saas/product-build-status";
 import {
   premiumEnrichmentApi,
   type PremiumEnrichmentItem,
@@ -77,6 +78,37 @@ import { sessionsApi } from "@/features/sessions/session-api";
 import type { ConstructionQuestionViewEntry } from "@/features/sessions/session-contracts";
 import type { ACPWorkspaceResponse, CommercialTier, ExportJobResponse } from "@/features/sessions/types";
 import { cn } from "@/lib/utils";
+
+function triggerAuthenticatedDownload(blob: Blob, fileName: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+async function downloadReadyExportJob({
+  sessionId,
+  job,
+}: {
+  sessionId: string;
+  job: ExportJobResponse;
+}) {
+  if (job.status !== "ready") {
+    return;
+  }
+
+  const blob = await sessionsApi.downloadExportJob(sessionId, job.id);
+  triggerAuthenticatedDownload(blob, job.file_name || `${job.artifact_kind}.bin`);
+}
 
 async function executeProductCheckout({
   sessionId,
@@ -139,16 +171,14 @@ async function executeBlueprintProDownload({
     artifact_kind: "blueprint_professional",
     profile: "professional",
   });
-  if (job.status === "ready" && job.download_url) {
-    if (typeof window !== "undefined") {
-      window.location.assign(job.download_url);
-    }
+  if (job.status === "ready") {
+    await downloadReadyExportJob({ job, sessionId });
     return job;
   }
   if (job.status === "expired") {
     const retried = await sessionsApi.retryExportJob(sessionId, job.id);
-    if (retried.download_url && typeof window !== "undefined") {
-      window.location.assign(retried.download_url);
+    if (retried.status === "ready") {
+      await downloadReadyExportJob({ job: retried, sessionId });
     }
     return retried;
   }
@@ -164,16 +194,14 @@ async function executeAcpZipDownload({
     artifact_kind: "acp_portable_zip",
     profile: "acp-portable",
   });
-  if (job.status === "ready" && job.download_url) {
-    if (typeof window !== "undefined") {
-      window.location.assign(job.download_url);
-    }
+  if (job.status === "ready") {
+    await downloadReadyExportJob({ job, sessionId });
     return job;
   }
   if (job.status === "expired") {
     const retried = await sessionsApi.retryExportJob(sessionId, job.id);
-    if (retried.download_url && typeof window !== "undefined") {
-      window.location.assign(retried.download_url);
+    if (retried.status === "ready") {
+      await downloadReadyExportJob({ job: retried, sessionId });
     }
     return retried;
   }
@@ -507,6 +535,176 @@ function getToneBadgeLabel(language: "es" | "en" | "pt", tone: "success" | "warn
 
 function formatToken(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+type DecisionBadgeTone = "success" | "warning" | "danger" | "info" | "neutral";
+
+type DecisionBadge = {
+  label: string;
+  tone: DecisionBadgeTone;
+};
+
+function normalizeReconciliationDecision(value?: string | null) {
+  if (value === "localized_reprocess") return "localized_reconciliation";
+  if (value === "structural_reprocess") return "structural_reconciliation";
+  return value || "document_only";
+}
+
+function getPremiumDispositionBadge(
+  language: SupportedLanguage,
+  item: PremiumEnrichmentItem,
+): DecisionBadge {
+  if (item.entry.status === "deferred" || item.entry.disposition === "defer") {
+    return {
+      label: byLanguage(language, { en: "Delegated to ACP", es: "Delegada a ACP", pt: "Delegada ao ACP" }),
+      tone: "warning",
+    };
+  }
+  if (item.entry.disposition === "block") {
+    return {
+      label: byLanguage(language, { en: "Blocking", es: "Bloqueante", pt: "Bloqueante" }),
+      tone: "danger",
+    };
+  }
+  if (item.entry.status === "resolved") {
+    return {
+      label: byLanguage(language, { en: "Answered", es: "Respondida", pt: "Respondida" }),
+      tone: "success",
+    };
+  }
+  if (item.entry.disposition === "infer") {
+    return {
+      label: byLanguage(language, { en: "Inferred by LAB", es: "Inferida por LAB", pt: "Inferida pelo LAB" }),
+      tone: "info",
+    };
+  }
+  return {
+    label: byLanguage(language, { en: "Decision pending", es: "Pendiente de decision", pt: "Decisao pendente" }),
+    tone: "neutral",
+  };
+}
+
+function getPremiumReconciliationBadge(
+  language: SupportedLanguage,
+  item: PremiumEnrichmentItem,
+): DecisionBadge {
+  const decision = normalizeReconciliationDecision(item.reconciliation_decision);
+  if (item.reconciliation_status === "pending_user_confirmation") {
+    return {
+      label: byLanguage(language, {
+        en: "Reconciliation needs confirmation",
+        es: "Reconciliacion requiere confirmacion",
+        pt: "Reconciliacao requer confirmacao",
+      }),
+      tone: "warning",
+    };
+  }
+  if (decision === "structural_reconciliation") {
+    return {
+      label: byLanguage(language, {
+        en: "Structural impact",
+        es: "Impacto estructural",
+        pt: "Impacto estrutural",
+      }),
+      tone: "warning",
+    };
+  }
+  if (decision === "localized_reconciliation" || item.material_impact) {
+    return {
+      label: byLanguage(language, {
+        en: "Localized impact",
+        es: "Impacto localizado",
+        pt: "Impacto localizado",
+      }),
+      tone: "info",
+    };
+  }
+  return {
+    label: byLanguage(language, {
+      en: "Document only",
+      es: "Solo documentar",
+      pt: "Somente documentar",
+    }),
+    tone: "neutral",
+  };
+}
+
+function getAcpQuestionStateBadge(
+  language: SupportedLanguage,
+  question: ConstructionQuestionViewEntry,
+): DecisionBadge {
+  if (question.status === "deferred") {
+    return {
+      label: byLanguage(language, {
+        en: "Delegated to implementation",
+        es: "Delegada a implementacion",
+        pt: "Delegada a implementacao",
+      }),
+      tone: "warning",
+    };
+  }
+  if (question.blocking && question.status !== "resolved") {
+    return {
+      label: byLanguage(language, { en: "Blocking", es: "Bloqueante", pt: "Bloqueante" }),
+      tone: "danger",
+    };
+  }
+  if (question.status === "answered") {
+    return {
+      label: question.impact_analysis?.material_impact
+        ? byLanguage(language, {
+            en: "Answer saved; reconcile later",
+            es: "Respuesta guardada; reconciliar luego",
+            pt: "Resposta salva; reconciliar depois",
+          })
+        : byLanguage(language, {
+            en: "Answer documented",
+            es: "Respuesta documentada",
+            pt: "Resposta documentada",
+          }),
+      tone: question.impact_analysis?.material_impact ? "info" : "success",
+    };
+  }
+  if (question.status === "resolved") {
+    return {
+      label: byLanguage(language, { en: "Resolved", es: "Resuelta", pt: "Resolvida" }),
+      tone: "success",
+    };
+  }
+  return {
+    label: byLanguage(language, { en: "Decision pending", es: "Pendiente de decision", pt: "Decisao pendente" }),
+    tone: "neutral",
+  };
+}
+
+function getReconciliationLabel(language: SupportedLanguage, value?: string | null) {
+  const decision = normalizeReconciliationDecision(value);
+  if (decision === "structural_reconciliation") {
+    return byLanguage(language, {
+      en: "Structural reconciliation",
+      es: "Reconciliación estructural",
+      pt: "Reconciliação estrutural",
+    });
+  }
+  if (decision === "localized_reconciliation") {
+    return byLanguage(language, {
+      en: "Localized reconciliation",
+      es: "Reconciliación localizada",
+      pt: "Reconciliação localizada",
+    });
+  }
+  if (decision === "delegated_to_implementation") {
+    return byLanguage(language, {
+      en: "Delegated to implementation",
+      es: "Delegada a implementacion",
+      pt: "Delegada a implementacao",
+    });
+  }
+  return byLanguage(language, {
+    en: "Document only",
+    es: "Solo documentar",
+    pt: "Somente documentar",
+  });
 }
 
 function SectionHeader({
@@ -1000,6 +1198,7 @@ function CommercialBlueprintResult({
     polling: true,
     staleWhileRevalidating: true,
   });
+  const shouldShowBuildTracker = canRenderBuildTracker(productBuild.data);
   const diagramCatalogFilter = useMemo(
     () => (item: DiagramCatalogItem) => isTierIncluded(item.required_tier, tierScope),
     [tierScope],
@@ -1398,7 +1597,7 @@ function CommercialBlueprintResult({
               })}
             </p>
           </UxaSurface>
-        ) : productBuild.data ? (
+        ) : shouldShowBuildTracker ? (
           <DeliverableGenerationLiveTracker
             productKey={productBuildKey}
             productLabel={productTierLabel(language, tierScope)}
@@ -1649,6 +1848,10 @@ function CommercialBlueprintResult({
   );
 }
 
+function canRenderBuildTracker(status: ProductBuildStatus | null | undefined) {
+  return Boolean(status) && status?.entitlement?.purchase_required !== true;
+}
+
 function ProductExecutiveOverviewTab({
   productKey,
   projectTitle,
@@ -1678,6 +1881,7 @@ function ProductExecutiveOverviewTab({
     overview.milestones.find((milestone) => milestone.key === selectedMilestoneKey) ??
     overview.milestones.find((milestone) => milestone.progress < 80) ??
     overview.milestones[0];
+  const shouldShowBuildTracker = canRenderBuildTracker(productBuild.data);
 
   return (
     <ExecutiveOverviewShell model={overview} status={productBuild.data}>
@@ -1704,14 +1908,16 @@ function ProductExecutiveOverviewTab({
           <ExecutiveProductKeyDeliverables productKey={productKey} sessionId={sessionId} />
         </div>
         <div className="space-y-5">
-          <DeliverableGenerationLiveTracker
-            productKey={productKey}
-            productLabel={overview.productLabel}
-            status={productBuild.data}
-            onProcessPending={() => productBuild.executeCommand("process_pending")}
-            onRetryFailed={() => productBuild.executeCommand("retry_failed")}
-            processingDisabled={productBuild.isFetching}
-          />
+          {shouldShowBuildTracker ? (
+            <DeliverableGenerationLiveTracker
+              productKey={productKey}
+              productLabel={overview.productLabel}
+              status={productBuild.data}
+              onProcessPending={() => productBuild.executeCommand("process_pending")}
+              onRetryFailed={() => productBuild.executeCommand("retry_failed")}
+              processingDisabled={productBuild.isFetching}
+            />
+          ) : null}
           <DeliverableProgressSummary groups={overview.deliverableGroups} />
           <ProductNextAction model={overview} />
         </div>
@@ -1753,6 +1959,7 @@ function ProductExecutiveOverviewPage({
       }),
     [config.productKey, productBuild.data, sessionId, viewModel.title],
   );
+  const shouldShowBuildTracker = canRenderBuildTracker(productBuild.data);
 
   return (
     <div className="space-y-5">
@@ -1776,14 +1983,16 @@ function ProductExecutiveOverviewPage({
             />
           </div>
           <div className="space-y-5">
-            <DeliverableGenerationLiveTracker
-              productKey={config.productKey}
-              productLabel={overview.productLabel}
-              status={productBuild.data}
-              onProcessPending={() => productBuild.executeCommand("process_pending")}
-              onRetryFailed={() => productBuild.executeCommand("retry_failed")}
-              processingDisabled={productBuild.isFetching}
-            />
+            {shouldShowBuildTracker ? (
+              <DeliverableGenerationLiveTracker
+                productKey={config.productKey}
+                productLabel={overview.productLabel}
+                status={productBuild.data}
+                onProcessPending={() => productBuild.executeCommand("process_pending")}
+                onRetryFailed={() => productBuild.executeCommand("retry_failed")}
+                processingDisabled={productBuild.isFetching}
+              />
+            ) : null}
             <DeliverableProgressSummary groups={overview.deliverableGroups} />
             <ProductNextAction model={overview} />
           </div>
@@ -1941,10 +2150,11 @@ function EnrichmentInputModal({
   const [inputVal, setInputVal] = useState("");
 
   useEffect(() => {
-    if (item) {
-      setInputVal(item.entry.suggested_answer || "");
-    }
-  }, [item]);
+    const timeoutId = globalThis.setTimeout(() => {
+      setInputVal(item?.entry.suggested_answer || "");
+    }, 0);
+    return () => globalThis.clearTimeout(timeoutId);
+  }, [item?.entry.id, item?.entry.suggested_answer]);
 
   if (!item) return null;
 
@@ -1970,9 +2180,9 @@ function EnrichmentInputModal({
               </h3>
               <p className="text-[11px] text-[var(--uxa-color-ink-muted)]">
                 {byLanguage(language, {
-                  en: "Personalized context is analyzed first. Reprocessing runs only when the impact justifies it.",
-                  es: "El contexto personalizado se analiza primero. El reprocesamiento solo corre cuando el impacto lo justifica.",
-                  pt: "O contexto personalizado e analisado primeiro. O reprocessamento so acontece quando o impacto o justifica.",
+                  en: "Personalized context is analyzed first. Deliverables are reconciled only when you explicitly run the queue.",
+                  es: "El contexto personalizado se analiza primero. Los entregables solo se reconcilian cuando ejecutas la cola explícitamente.",
+                  pt: "O contexto personalizado e analisado primeiro. Os entregaveis so sao reconciliados quando voce executa a fila explicitamente.",
                 })}
               </p>
             </div>
@@ -2081,72 +2291,107 @@ function PremiumEnrichmentPanel({
   const [resolvingId, setResolvingId] = useState("");
   const [modalItem, setModalItem] = useState<PremiumEnrichmentItem | null>(null);
   const [activeTab, setActiveTab] = useState<"prioritized" | "deferred" | "resolved">("prioritized");
-  const resultHasExecutedReprocess = Boolean(
-    result && (((result.generation_job_ids ?? []).length > 0) || ((result.queue_completed ?? 0) > 0)),
+  const resultReconciliationDecision = normalizeReconciliationDecision(
+    result?.reconciliation_decision ?? result?.reprocess_decision,
   );
-  const resultNeedsExplicitReprocess = Boolean(result && result.material_impact && !resultHasExecutedReprocess);
+  const resultReconciliationStatus = result?.reconciliation_status ?? result?.queue_status ?? "not_required";
+  const resultHasExecutedReconciliation = Boolean(
+    result &&
+      (["running", "completed", "completed_with_errors", "failed", "cancelled"].includes(resultReconciliationStatus) ||
+        ((result.reconciliation_job_ids ?? result.generation_job_ids ?? []).length > 0) ||
+        ((result.queue_completed ?? 0) > 0)),
+  );
+  const resultNeedsExplicitReconciliation = Boolean(
+    result && result.material_impact && resultReconciliationStatus === "pending_user_confirmation",
+  );
   const resultDecisionTone =
-    result?.reprocess_decision === "structural_reprocess"
+    resultReconciliationDecision === "structural_reconciliation"
       ? ("warning" as const)
-      : result?.reprocess_decision === "localized_reprocess"
+      : resultReconciliationDecision === "localized_reconciliation"
       ? ("success" as const)
       : ("neutral" as const);
-  const resultDecisionLabel = result
-    ? result.reprocess_decision === "structural_reprocess"
-      ? byLanguage(language, {
-          en: "Structural impact",
-          es: "Impacto estructural",
-          pt: "Impacto estrutural",
-        })
-      : result.reprocess_decision === "localized_reprocess"
-      ? byLanguage(language, {
-          en: "Localized impact",
-          es: "Impacto localizado",
-          pt: "Impacto localizado",
-        })
-      : byLanguage(language, {
-          en: "No reprocessing",
-          es: "Sin reproceso",
-          pt: "Sem reprocessamento",
-        })
-    : "";
+  const resultDecisionLabel = result ? getReconciliationLabel(language, resultReconciliationDecision) : "";
   const resultBannerTitle = result
-    ? resultHasExecutedReprocess
+    ? resultHasExecutedReconciliation
       ? byLanguage(language, {
-          en: "Selective reprocessing completed",
-          es: "Reprocesamiento selectivo completado",
-          pt: "Reprocessamento seletivo concluido",
+          en: "Deliverable reconciliation completed",
+          es: "Reconciliación de entregables completada",
+          pt: "Reconciliação de entregáveis concluída",
         })
       : result.material_impact
       ? byLanguage(language, {
-          en: "Impact analysis completed",
-          es: "Análisis de impacto completado",
-          pt: "Analise de impacto concluida",
+          en: "Impact plan ready",
+          es: "Plan de impacto listo",
+          pt: "Plano de impacto pronto",
         })
       : byLanguage(language, {
-          en: "Decision documented without reprocessing",
-          es: "Decisión documentada sin reproceso",
-          pt: "Decisao documentada sem reprocessamento",
+          en: "Decision documented without reconciliation",
+          es: "Decisión documentada sin reconciliación",
+          pt: "Decisão documentada sem reconciliação",
         })
     : "";
   const resultActionLabel = result
-    ? result.reprocess_decision === "structural_reprocess"
+    ? resultReconciliationDecision === "structural_reconciliation"
       ? byLanguage(language, {
-          en: "Reprocess dependent stages",
-          es: "Reprocesar etapas dependientes",
-          pt: "Reprocessar etapas dependentes",
+          en: "Reconcile impacted deliverables",
+          es: "Reconciliar entregables impactados",
+          pt: "Reconciliar entregáveis impactados",
         })
       : byLanguage(language, {
-          en: "Update affected deliverables",
-          es: "Actualizar entregables afectados",
-          pt: "Atualizar entregaveis afetados",
+          en: "Reconcile affected deliverables",
+          es: "Reconciliar entregables afectados",
+          pt: "Reconciliar entregáveis afetados",
         })
     : "";
   const resultItem = result ? workspace?.items.find((item) => item.entry.id === result.resolved_entry.id) ?? null : null;
+  const decisionCounters = useMemo(() => {
+    return (workspace?.items ?? []).reduce(
+      (accumulator, item) => {
+        if (item.entry.status === "deferred" || item.entry.disposition === "defer") {
+          accumulator.delegated += 1;
+        } else if (item.entry.disposition === "block") {
+          accumulator.blocking += 1;
+        } else if (item.entry.status === "resolved") {
+          accumulator.answered += 1;
+        } else if (item.entry.disposition === "infer") {
+          accumulator.inferred += 1;
+        } else {
+          accumulator.pending += 1;
+        }
+        if (item.reconciliation_status === "pending_user_confirmation") {
+          accumulator.reconciliationPending += 1;
+        }
+        return accumulator;
+      },
+      {
+        answered: 0,
+        blocking: 0,
+        delegated: 0,
+        inferred: 0,
+        pending: 0,
+        reconciliationPending: 0,
+      },
+    );
+  }, [workspace?.items]);
 
   useEffect(() => {
     if (!sessionId) {
       return;
+    }
+    if (!unlocked) {
+      let alive = true;
+      deferStateUpdate(() => {
+        if (!alive) {
+          return;
+        }
+        setWorkspace(null);
+        setResult(null);
+        setStatus("ready");
+        setError("");
+      });
+      return () => {
+        alive = false;
+      };
     }
     let alive = true;
     deferStateUpdate(() => {
@@ -2181,13 +2426,41 @@ function PremiumEnrichmentPanel({
     return () => {
       alive = false;
     };
-  }, [language, sessionId]);
+  }, [language, sessionId, unlocked]);
+
+  if (!unlocked) {
+    return (
+      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+        <UxaBadge tone="warning">
+          {byLanguage(language, {
+            en: "Step 2 locked",
+            es: "Paso 2 bloqueado",
+            pt: "Passo 2 bloqueado",
+          })}
+        </UxaBadge>
+        <h2 className="mt-3 text-[20px] font-black">
+          {byLanguage(language, {
+            en: "Premium enrichment starts only after Blueprint Pro activation",
+            es: "El enriquecimiento Pro inicia solo después de activar Blueprint Pro",
+            pt: "O enriquecimento Pro so comeca depois de ativar o Blueprint Pro",
+          })}
+        </h2>
+        <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+          {byLanguage(language, {
+            en: "This workspace will load prioritized questions, impact analysis, and explicit deliverable reconciliation only after the professional entitlement is granted. Until then, Lean keeps the free Blueprint visible and explains the next commercial step.",
+            es: "Este workspace cargara preguntas priorizadas, analisis de impacto y reconciliacion explicita de entregables solo cuando el entitlement profesional este activo. Mientras tanto, Lean mantiene visible el Blueprint Free y explica el siguiente paso comercial.",
+            pt: "Este workspace carregara perguntas priorizadas, analise de impacto e reconciliacao explicita de entregaveis somente quando o entitlement profissional estiver ativo. Enquanto isso, o Lean mantem o Blueprint Free visivel e explica o proximo passo comercial.",
+          })}
+        </p>
+      </UxaSurface>
+    );
+  }
 
   async function resolveItem(
     item: PremiumEnrichmentItem,
     selectedOptionKey = "",
     customAnswer = "",
-    executionMode: "analyze_only" | "apply_reprocess" = "analyze_only",
+    executionMode: "analyze_only" | "apply_reconciliation" = "analyze_only",
   ) {
     if (!sessionId || !unlocked) {
       return;
@@ -2201,7 +2474,7 @@ function PremiumEnrichmentPanel({
           item.entry.answer_options.find((option) => option.recommended)?.label ||
           "");
     const maxDeliverables =
-      executionMode === "apply_reprocess" ? Math.max(1, Math.min(item.ordered_regeneration_keys.length || 1, 12)) : 5;
+      executionMode === "apply_reconciliation" ? Math.max(1, Math.min(item.ordered_regeneration_keys.length || 1, 12)) : 5;
     setStatus("resolving");
     setResolvingId(item.entry.id);
     setError("");
@@ -2210,7 +2483,7 @@ function PremiumEnrichmentPanel({
         answer: suggestedAnswer,
         execution_mode: executionMode,
         selected_option_key: selectedOptionKey,
-        regenerate: executionMode === "apply_reprocess",
+        regenerate: executionMode === "apply_reconciliation",
         max_deliverables: maxDeliverables,
       });
       const refreshed = await premiumEnrichmentApi.getWorkspace(sessionId, 6);
@@ -2222,16 +2495,16 @@ function PremiumEnrichmentPanel({
       setError(
         byLanguage(language, {
           en:
-            executionMode === "apply_reprocess"
-              ? "The selective reprocessing could not be completed. Check backend availability and retry."
+            executionMode === "apply_reconciliation"
+              ? "The deliverable reconciliation could not be completed. Check backend availability and retry."
               : "The answer could not be registered or analyzed. Check entitlement, permissions, or backend availability.",
           es:
-            executionMode === "apply_reprocess"
-              ? "No se pudo completar el reprocesamiento selectivo. Revisa el backend y vuelve a intentarlo."
+            executionMode === "apply_reconciliation"
+              ? "No se pudo completar la reconciliación de entregables. Revisa el backend y vuelve a intentarlo."
               : "No se pudo registrar o analizar la respuesta. Revisa entitlement, permisos o disponibilidad del backend.",
           pt:
-            executionMode === "apply_reprocess"
-              ? "Nao foi possivel concluir o reprocessamento seletivo. Revise o backend e tente novamente."
+            executionMode === "apply_reconciliation"
+              ? "Nao foi possivel concluir a reconciliacao de entregaveis. Revise o backend e tente novamente."
               : "Nao foi possivel registrar ou analisar a resposta. Revise entitlement, permissoes ou disponibilidade do backend.",
         }),
       );
@@ -2241,7 +2514,7 @@ function PremiumEnrichmentPanel({
     }
   }
 
-  async function applySuggestedReprocess() {
+  async function applySuggestedReconciliation() {
     if (!result || !resultItem) {
       return;
     }
@@ -2249,7 +2522,7 @@ function PremiumEnrichmentPanel({
       resultItem,
       "",
       resultItem.entry.assumed_answer || result.resolved_entry.assumed_answer || resultItem.entry.suggested_answer || "",
-      "apply_reprocess",
+      "apply_reconciliation",
     );
   }
 
@@ -2400,6 +2673,45 @@ function PremiumEnrichmentPanel({
         </div>
       </div>
 
+      <div className="mt-4 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/75 p-3.5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
+              {byLanguage(language, {
+                en: "Decision policy",
+                es: "Politica de decisiones",
+                pt: "Politica de decisoes",
+              })}
+            </p>
+            <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {byLanguage(language, {
+                en: "Answering saves and analyzes impact. Deliverables are reconciled only when you confirm the queue. Delegated decisions travel to ACP/implementation without hidden generation.",
+                es: "Responder guarda y analiza impacto. Los entregables solo se reconcilian cuando confirmas la cola. Las decisiones delegadas viajan a ACP/implementacion sin generacion oculta.",
+                pt: "Responder salva e analisa impacto. Entregaveis so sao reconciliados quando voce confirma a fila. Decisoes delegadas seguem para ACP/implementacao sem geracao oculta.",
+              })}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <UxaBadge tone={decisionCounters.blocking ? "danger" : "neutral"}>
+              {decisionCounters.blocking} {byLanguage(language, { en: "blocking", es: "bloqueante(s)", pt: "bloqueante(s)" })}
+            </UxaBadge>
+            <UxaBadge tone={decisionCounters.pending ? "warning" : "neutral"}>
+              {decisionCounters.pending} {byLanguage(language, { en: "pending", es: "pendiente(s)", pt: "pendente(s)" })}
+            </UxaBadge>
+            <UxaBadge tone={decisionCounters.inferred ? "info" : "neutral"}>
+              {decisionCounters.inferred} {byLanguage(language, { en: "inferred", es: "inferida(s)", pt: "inferida(s)" })}
+            </UxaBadge>
+            <UxaBadge tone={decisionCounters.delegated ? "warning" : "neutral"}>
+              {decisionCounters.delegated} {byLanguage(language, { en: "delegated", es: "delegada(s)", pt: "delegada(s)" })}
+            </UxaBadge>
+            <UxaBadge tone={decisionCounters.reconciliationPending ? "warning" : "neutral"}>
+              {decisionCounters.reconciliationPending}{" "}
+              {byLanguage(language, { en: "to reconcile", es: "por reconciliar", pt: "para reconciliar" })}
+            </UxaBadge>
+          </div>
+        </div>
+      </div>
+
       {status === "loading" ? (
         <p className="mt-4 text-[13px] text-[var(--uxa-color-ink-soft)]">
           {byLanguage(language, {
@@ -2416,7 +2728,7 @@ function PremiumEnrichmentPanel({
         </p>
       ) : null}
 
-      {/* Visual FIFO Reprocessing Queue Progress Banner */}
+      {/* Visual FIFO reconciliation queue progress banner. */}
       {result ? (
         <div className="mt-4 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-brand-muted)] bg-[var(--uxa-color-muted-panel)] p-4.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2424,7 +2736,7 @@ function PremiumEnrichmentPanel({
               <span
                 className={cn(
                   "flex h-2.5 w-2.5 rounded-full",
-                  resultHasExecutedReprocess
+                  resultHasExecutedReconciliation
                     ? "bg-[var(--uxa-color-brand)] animate-pulse"
                     : result.material_impact
                     ? "bg-[var(--uxa-color-brand)]"
@@ -2445,11 +2757,11 @@ function PremiumEnrichmentPanel({
                   pt: "entregaveis em revisao",
                 })}
               </UxaBadge>
-              {resultHasExecutedReprocess ? (
+              {resultHasExecutedReconciliation ? (
                 <>
                   <UxaBadge tone="success">
-                    {result.regenerated_deliverable_keys.length}{" "}
-                    {byLanguage(language, { en: "regenerated", es: "regenerados", pt: "regenerados" })}
+                    {(result.reconciled_deliverable_keys ?? result.regenerated_deliverable_keys).length}{" "}
+                    {byLanguage(language, { en: "reconciled", es: "reconciliados", pt: "reconciliados" })}
                   </UxaBadge>
                   <UxaBadge tone="neutral">
                     {result.preserved_deliverable_keys.length}{" "}
@@ -2460,7 +2772,7 @@ function PremiumEnrichmentPanel({
             </div>
           </div>
 
-          {resultHasExecutedReprocess && result.queue_total ? (
+          {resultHasExecutedReconciliation && result.queue_total ? (
             <div className="mt-3">
               <div className="flex items-center justify-between text-[11px] font-medium text-[var(--uxa-color-ink-muted)] mb-1">
                 <span>
@@ -2491,22 +2803,38 @@ function PremiumEnrichmentPanel({
           {result.impact_summary && result.impact_summary !== result.comparison_summary ? (
             <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">{result.comparison_summary}</p>
           ) : null}
-          {resultNeedsExplicitReprocess ? (
+          {result.ordered_regeneration_keys.length ? (
+            <details className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/80 px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
+              <summary className="cursor-pointer font-black text-[var(--uxa-color-brand)]">
+                {byLanguage(language, {
+                  en: "View impact before reconciling",
+                  es: "Ver impacto antes de reconciliar",
+                  pt: "Ver impacto antes de reconciliar",
+                })}
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {result.ordered_regeneration_keys.map((key) => (
+                  <UxaBadge key={key} tone="neutral">{formatToken(key)}</UxaBadge>
+                ))}
+              </div>
+            </details>
+          ) : null}
+          {resultNeedsExplicitReconciliation ? (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/70 px-3.5 py-3">
               <p className="text-[12px] leading-5 text-[var(--uxa-color-ink-rich)]">{result.recommended_action}</p>
               {resultItem ? (
                 <button
                   className="uxa-button uxa-button--primary justify-center gap-1.5"
                   disabled={!unlocked || status === "resolving"}
-                  onClick={() => void applySuggestedReprocess()}
+                  onClick={() => void applySuggestedReconciliation()}
                   type="button"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
                   {status === "resolving" && resolvingId === resultItem.entry.id
                     ? byLanguage(language, {
-                        en: "Reprocessing...",
-                        es: "Reprocesando...",
-                        pt: "Reprocessando...",
+                        en: "Reconciling...",
+                        es: "Reconciliando...",
+                        pt: "Reconciliando...",
                       })
                     : resultActionLabel}
                 </button>
@@ -2520,6 +2848,12 @@ function PremiumEnrichmentPanel({
         {displayedItems.length ? (
           displayedItems.map((item) => {
             const isResolvingThis = resolvingId === item.entry.id;
+            const dispositionBadge = getPremiumDispositionBadge(language, item);
+            const reconciliationBadge = getPremiumReconciliationBadge(language, item);
+            const itemNeedsReconciliation =
+              item.entry.status === "resolved" &&
+              Boolean(item.material_impact) &&
+              item.reconciliation_status === "pending_user_confirmation";
             return (
               <div
                 className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-surface)] p-4.5 transition-shadow hover:shadow-xs"
@@ -2531,6 +2865,8 @@ function PremiumEnrichmentPanel({
                       <UxaBadge tone={item.entry.status === "resolved" ? "success" : item.entry.status === "deferred" ? "warning" : "info"}>
                         {formatToken(item.entry.status)}
                       </UxaBadge>
+                      <UxaBadge tone={dispositionBadge.tone}>{dispositionBadge.label}</UxaBadge>
+                      <UxaBadge tone={reconciliationBadge.tone}>{reconciliationBadge.label}</UxaBadge>
                       <UxaBadge tone="neutral">{formatToken(item.entry.source_stage)}</UxaBadge>
                       <UxaBadge tone="success">{Math.round(item.priority_score)}%</UxaBadge>
                     </div>
@@ -2564,7 +2900,47 @@ function PremiumEnrichmentPanel({
                         {item.unaffected_deliverable_count}{" "}
                         {byLanguage(language, { en: "preserved", es: "conservados", pt: "preservados" })}
                       </UxaBadge>
+                      {itemNeedsReconciliation ? (
+                        <UxaBadge tone="warning">
+                          {byLanguage(language, {
+                            en: "Reconciliation pending",
+                            es: "Reconciliación pendiente",
+                            pt: "Reconciliação pendente",
+                          })}
+                        </UxaBadge>
+                      ) : null}
                     </div>
+                    <details className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/70 px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
+                      <summary className="cursor-pointer font-black text-[var(--uxa-color-brand)]">
+                        {byLanguage(language, {
+                          en: "View impact",
+                          es: "Ver impacto",
+                          pt: "Ver impacto",
+                        })}
+                      </summary>
+                      <div className="mt-2 grid gap-2 md:grid-cols-2">
+                        <div>
+                          <p className="font-black text-[var(--uxa-color-ink-rich)]">
+                            {byLanguage(language, { en: "Affected deliverables", es: "Entregables afectados", pt: "Entregaveis afetados" })}
+                          </p>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            {(item.ordered_regeneration_keys.length ? item.ordered_regeneration_keys : item.affected_deliverable_keys).map((key) => (
+                              <UxaBadge key={key} tone="neutral">{formatToken(key)}</UxaBadge>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="font-black text-[var(--uxa-color-ink-rich)]">
+                            {byLanguage(language, { en: "Dependencies", es: "Dependencias", pt: "Dependencias" })}
+                          </p>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            {(item.changed_dependency_keys.length ? item.changed_dependency_keys : item.entry.dependency_keys).map((key) => (
+                              <UxaBadge key={key} tone="info">{formatToken(key)}</UxaBadge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </details>
                   </div>
 
                   {/* 3 Opciones Clave Requeridas */}
@@ -2595,6 +2971,35 @@ function PremiumEnrichmentPanel({
                             pt: "Responder e analisar",
                           })}
                     </button>
+
+                    {itemNeedsReconciliation ? (
+                      <button
+                        className="uxa-button uxa-button--secondary justify-center gap-1.5 text-[var(--uxa-color-brand)] border-[var(--uxa-color-brand-muted)] hover:bg-[var(--uxa-color-brand-muted)]/20"
+                        disabled={!unlocked || status === "resolving"}
+                        onClick={() =>
+                          void resolveItem(
+                            item,
+                            "",
+                            item.entry.assumed_answer || item.entry.suggested_answer || "",
+                            "apply_reconciliation",
+                          )
+                        }
+                        type="button"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {isResolvingThis
+                          ? byLanguage(language, {
+                              en: "Reconciling...",
+                              es: "Reconciliando...",
+                              pt: "Reconciliando...",
+                            })
+                          : byLanguage(language, {
+                              en: "Reconcile affected deliverables",
+                              es: "Reconciliar entregables afectados",
+                              pt: "Reconciliar entregáveis afetados",
+                            })}
+                      </button>
+                    ) : null}
 
                     {/* Opción 2: Diferir a ACP */}
                     {item.entry.status !== "deferred" && item.entry.status !== "resolved" ? (
@@ -2690,6 +3095,236 @@ function PremiumEnrichmentPanel({
   );
 }
 
+function BlueprintProLifecyclePanel({
+  canOpenAcp,
+  checkoutState,
+  downloadGate,
+  premiumAssetCount,
+  productProgress,
+  purchasing,
+  requestSent,
+  unlocked,
+}: {
+  canOpenAcp: boolean;
+  checkoutState?: string | null;
+  downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  premiumAssetCount: number;
+  productProgress: number;
+  purchasing: boolean;
+  requestSent: boolean;
+  unlocked: boolean;
+}) {
+  const { language } = useLanguage();
+  const canSelfActivate = checkoutState === "available" || checkoutState === "pending";
+  const badgeTone = !unlocked
+    ? requestSent
+      ? "info"
+      : "warning"
+    : downloadGate.allowed
+      ? "success"
+      : "warning";
+  const badgeLabel = !unlocked
+    ? requestSent
+      ? byLanguage(language, {
+          en: "Access requested",
+          es: "Acceso solicitado",
+          pt: "Acesso solicitado",
+        })
+      : byLanguage(language, {
+          en: "Step 1 · Activate Blueprint Pro",
+          es: "Paso 1 · Activar Blueprint Pro",
+          pt: "Passo 1 · Ativar Blueprint Pro",
+        })
+    : downloadGate.allowed
+      ? byLanguage(language, {
+          en: "Ready to download",
+          es: "Listo para descargar",
+          pt: "Pronto para baixar",
+        })
+      : byLanguage(language, {
+          en: "Download permission required",
+          es: "Permiso de descarga requerido",
+          pt: "Permissao de download obrigatoria",
+        });
+  const title = !unlocked
+    ? requestSent
+      ? byLanguage(language, {
+          en: "Blueprint Pro is waiting for approval or activation",
+          es: "Blueprint Pro esta esperando aprobacion o activacion",
+          pt: "Blueprint Pro aguarda aprovacao ou ativacao",
+        })
+      : canSelfActivate
+        ? byLanguage(language, {
+            en: "Activate Blueprint Pro before opening the professional workspace",
+            es: "Activa Blueprint Pro antes de abrir el workspace profesional",
+            pt: "Ative o Blueprint Pro antes de abrir o workspace profissional",
+          })
+        : byLanguage(language, {
+            en: "Request Blueprint Pro access before continuing",
+            es: "Solicita acceso a Blueprint Pro antes de continuar",
+            pt: "Solicite acesso ao Blueprint Pro antes de continuar",
+          })
+    : downloadGate.allowed
+      ? canOpenAcp
+        ? byLanguage(language, {
+            en: "Blueprint Pro is active and ready to download or continue to ACP",
+            es: "Blueprint Pro esta activo y listo para descargar o continuar a ACP",
+            pt: "Blueprint Pro esta ativo e pronto para baixar ou continuar para ACP",
+          })
+        : byLanguage(language, {
+            en: "Blueprint Pro is active and ready for enrichment and download",
+            es: "Blueprint Pro esta activo y listo para enriquecer y descargar",
+            pt: "Blueprint Pro esta ativo e pronto para enriquecer e baixar",
+          })
+      : byLanguage(language, {
+          en: "The professional workspace is active, but export is still protected",
+          es: "El workspace profesional esta activo, pero la exportacion sigue protegida",
+          pt: "O workspace profissional esta ativo, mas a exportacao ainda esta protegida",
+        });
+  const description = !unlocked
+    ? requestSent
+      ? byLanguage(language, {
+          en: "The request was already registered. The professional workspace, prioritized questions, and the authenticated ZIP download will appear only after approval or activation is completed.",
+          es: "La solicitud ya fue registrada. El workspace profesional, las preguntas priorizadas y la descarga ZIP autenticada apareceran solo cuando termine la aprobacion o activacion.",
+          pt: "A solicitacao ja foi registrada. O workspace profissional, as perguntas priorizadas e o download ZIP autenticado aparecerao apenas quando a aprovacao ou ativacao terminar.",
+        })
+      : canSelfActivate
+        ? byLanguage(language, {
+            en: "Blueprint Free remains visible, but the professional enrichment backlog and downloadable bundle are gated until the upgrade is completed.",
+            es: "Blueprint Free sigue visible, pero el backlog de enriquecimiento profesional y el bundle descargable permanecen protegidos hasta completar el upgrade.",
+            pt: "O Blueprint Free continua visivel, mas o backlog de enriquecimento profissional e o bundle para download permanecem protegidos ate concluir o upgrade.",
+          })
+        : byLanguage(language, {
+            en: "This workspace requires an explicit approval flow before the premium experience can start.",
+            es: "Este workspace requiere un flujo de aprobacion explicita antes de iniciar la experiencia premium.",
+            pt: "Este workspace exige um fluxo de aprovacao explicita antes de iniciar a experiencia premium.",
+          })
+    : downloadGate.allowed
+      ? byLanguage(language, {
+          en: "Resolve only the prioritized professional questions, review the generated assets, and download the governed ZIP when it is ready. ACP remains the next commercial step, not part of this download.",
+          es: "Resuelve solo las preguntas profesionales priorizadas, revisa los activos generados y descarga el ZIP gobernado cuando este listo. ACP sigue siendo el siguiente paso comercial, no parte de esta descarga.",
+          pt: "Resolva apenas as perguntas profissionais priorizadas, revise os ativos gerados e baixe o ZIP governado quando ele estiver pronto. O ACP continua sendo o proximo passo comercial, nao parte deste download.",
+        })
+      : downloadGate.detail;
+  const nextStepLabel = !unlocked
+    ? requestSent
+      ? byLanguage(language, {
+          en: "Waiting for approval",
+          es: "Esperando aprobacion",
+          pt: "Aguardando aprovacao",
+        })
+      : canSelfActivate
+        ? byLanguage(language, {
+            en: "Next: acquire Blueprint Pro",
+            es: "Siguiente: adquirir Blueprint Pro",
+            pt: "Proximo: adquirir Blueprint Pro",
+          })
+        : byLanguage(language, {
+            en: "Next: request access",
+            es: "Siguiente: solicitar acceso",
+            pt: "Proximo: solicitar acesso",
+          })
+    : canOpenAcp
+      ? byLanguage(language, {
+          en: "Next: continue to ACP when you decide to build",
+          es: "Siguiente: continuar a ACP cuando decidas construir",
+          pt: "Proximo: continuar para ACP quando decidir construir",
+        })
+      : downloadGate.allowed
+        ? byLanguage(language, {
+            en: "Next: download or request ACP",
+            es: "Siguiente: descargar o solicitar ACP",
+            pt: "Proximo: baixar ou solicitar ACP",
+          })
+        : byLanguage(language, {
+            en: "Next: review workspace export permissions",
+            es: "Siguiente: revisar permisos de exportacion del workspace",
+            pt: "Proximo: revisar permissoes de exportacao do workspace",
+          });
+  const progress = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        !unlocked
+          ? requestSent
+            ? 35
+            : 22
+          : downloadGate.allowed
+            ? Math.max(productProgress, canOpenAcp ? 92 : 82)
+            : Math.max(productProgress, 68),
+      ),
+    ),
+  );
+
+  return (
+    <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <UxaBadge tone={badgeTone}>{badgeLabel}</UxaBadge>
+          <h2 className="mt-3 text-[20px] font-black">{title}</h2>
+          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{description}</p>
+        </div>
+        <div className="grid min-w-[280px] grid-cols-2 gap-2">
+          {[
+            {
+              label: byLanguage(language, { en: "Current state", es: "Estado actual", pt: "Estado atual" }),
+              value: purchasing
+                ? byLanguage(language, { en: "Processing", es: "Procesando", pt: "Processando" })
+                : unlocked
+                  ? byLanguage(language, { en: "Active", es: "Activo", pt: "Ativo" })
+                  : requestSent
+                    ? byLanguage(language, { en: "Requested", es: "Solicitado", pt: "Solicitado" })
+                    : byLanguage(language, { en: "Pending", es: "Pendiente", pt: "Pendente" }),
+            },
+            {
+              label: byLanguage(language, { en: "Premium assets", es: "Activos premium", pt: "Ativos premium" }),
+              value: String(premiumAssetCount),
+            },
+            {
+              label: byLanguage(language, { en: "Download gate", es: "Gate de descarga", pt: "Gate de download" }),
+              value: downloadGate.label,
+            },
+            {
+              label: byLanguage(language, { en: "What follows", es: "Lo que sigue", pt: "O que vem depois" }),
+              value: canOpenAcp
+                ? "ACP"
+                : unlocked
+                  ? byLanguage(language, { en: "ACP request", es: "Solicitud ACP", pt: "Solicitacao ACP" })
+                  : byLanguage(language, { en: "Activation", es: "Activacion", pt: "Ativacao" }),
+            },
+          ].map((metric) => (
+            <div
+              className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/75 p-4"
+              key={metric.label}
+            >
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-ink-muted)]">
+                {metric.label}
+              </p>
+              <p className="mt-2 text-[16px] font-black text-[var(--uxa-color-ink)]">{metric.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-semibold text-[var(--uxa-color-ink-soft)]">
+          <span>{nextStepLabel}</span>
+          <span>{progress}%</span>
+        </div>
+        <UxaProcessingStrip
+          label={byLanguage(language, {
+            en: "Blueprint Pro lifecycle progress",
+            es: "Progreso del ciclo de vida de Blueprint Pro",
+            pt: "Progresso do ciclo de vida do Blueprint Pro",
+          })}
+          value={progress}
+        />
+      </div>
+    </UxaSurface>
+  );
+}
+
 function BlueprintProPage({
   activeRoute,
 }: {
@@ -2708,6 +3343,12 @@ function BlueprintProPage({
   const canOpenAcp =
     hasTier(viewModel.accessTier, "acp") ||
     Boolean(viewModel.access?.can_build_acp);
+  const blueprintProProgress =
+    viewModel.products.find((product) => product.key === "blueprint_pro")?.progress ??
+    (unlocked ? 75 : 20);
+  const premiumAssetCount = viewModel.artifactCards.filter(
+    (artifact) => resolveArtifactTier(artifact) === "blueprint_pro",
+  ).length;
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
@@ -2716,6 +3357,16 @@ function BlueprintProPage({
 
   return (
     <div className="space-y-5">
+      <BlueprintProLifecyclePanel
+        canOpenAcp={canOpenAcp}
+        checkoutState={viewModel.access?.checkout_state}
+        downloadGate={viewModel.blueprintDownload}
+        premiumAssetCount={premiumAssetCount}
+        productProgress={blueprintProProgress}
+        purchasing={purchasing}
+        requestSent={requestSent}
+        unlocked={unlocked}
+      />
       <CommercialBlueprintResult
         activeRoute={activeRoute}
         artifactCards={viewModel.artifactCards}
@@ -2772,46 +3423,63 @@ function BlueprintProPage({
                 })}
               </span>
             </a>
-            <button
-              className={cn(
-                "uxa-button uxa-button--primary",
-                downloading && "opacity-60 cursor-not-allowed",
-              )}
-              disabled={downloading}
-              onClick={async () => {
-                if (downloading) return;
-                setDownloadNotice(null);
-                setDownloading(true);
-                try {
-                  const job = await executeBlueprintProDownload({ sessionId });
-                  setDownloadNotice(
-                    buildExportJobNotice(language, job, {
-                      en: "Blueprint Pro",
-                      es: "Blueprint Pro",
-                      pt: "Blueprint Pro",
-                    }),
-                  );
-                } finally {
-                  setDownloading(false);
-                }
-              }}
-              type="button"
-            >
-              <Download aria-hidden="true" className="mr-1.5 h-4 w-4" />
-              <span>
-                {downloading
-                  ? byLanguage(language, {
-                      en: "Preparing download...",
-                      es: "Preparando descarga...",
-                      pt: "Preparando download...",
-                    })
-                  : byLanguage(language, {
-                      en: "Download Blueprint Pro",
-                      es: "Descargar Blueprint Pro",
-                      pt: "Baixar Blueprint Pro",
-                    })}
-              </span>
-            </button>
+            {viewModel.canDownloadBlueprint ? (
+              <button
+                className={cn(
+                  "uxa-button uxa-button--primary",
+                  downloading && "opacity-60 cursor-not-allowed",
+                )}
+                disabled={downloading}
+                onClick={async () => {
+                  if (downloading) return;
+                  setDownloadNotice(null);
+                  setDownloading(true);
+                  try {
+                    const job = await executeBlueprintProDownload({ sessionId });
+                    setDownloadNotice(
+                      buildExportJobNotice(language, job, {
+                        en: "Blueprint Pro",
+                        es: "Blueprint Pro",
+                        pt: "Blueprint Pro",
+                      }),
+                    );
+                  } finally {
+                    setDownloading(false);
+                  }
+                }}
+                type="button"
+              >
+                <Download aria-hidden="true" className="mr-1.5 h-4 w-4" />
+                <span>
+                  {downloading
+                    ? byLanguage(language, {
+                        en: "Preparing download...",
+                        es: "Preparando descarga...",
+                        pt: "Preparando download...",
+                      })
+                    : byLanguage(language, {
+                        en: "Download Blueprint Pro",
+                        es: "Descargar Blueprint Pro",
+                        pt: "Baixar Blueprint Pro",
+                      })}
+                </span>
+              </button>
+            ) : (
+              <button
+                className="uxa-button uxa-button--secondary"
+                disabled
+                title={viewModel.blueprintDownload.detail}
+                type="button"
+              >
+                <span>
+                  {byLanguage(language, {
+                    en: "Download permission required",
+                    es: "Permiso de descarga requerido",
+                    pt: "Permissao de download obrigatoria",
+                  })}
+                </span>
+              </button>
+            )}
           </>
         ) : (
           <button
@@ -2905,6 +3573,16 @@ function AcpDirectReadinessPanel({
       });
       return;
     }
+    if (!canBuild) {
+      deferStateUpdate(() => {
+        setResolution(null);
+        setWorkspace(null);
+        setQuestions([]);
+        setStatus("ready");
+        onPreparationStateChange?.(null);
+      });
+      return;
+    }
 
     let cancelled = false;
     deferStateUpdate(() => {
@@ -2952,18 +3630,56 @@ function AcpDirectReadinessPanel({
     };
   }, [canBuild, onPreparationStateChange, sessionId]);
 
-  const leanCompletedCount = resolution?.completed_stage_keys.length ?? 0;
-  const leanRequiredCount = resolution?.required_stage_keys.length ?? 7;
-  const workspacePhaseCount = workspace?.phase_definitions.length ?? 6;
-  const completedPhaseCount =
-    workspace?.phases.filter((phase) => phase.status === "completed" || phase.status === "completed_with_observations").length ?? 0;
   const openQuestions = useMemo(() => getOpenQuestions(questions), [questions]);
   const blockingQuestions = useMemo(() => getBlockingQuestions(questions), [questions]);
-  const activeBlockerCount = (workspace?.readiness.blocking_gaps ?? 0) + blockingQuestions.length;
-  const preparationPending = status === "idle" || status === "loading";
+  const unansweredQuestions = useMemo(
+    () => questions.filter((question) => question.status === "open"),
+    [questions],
+  );
+  const answeredQuestions = useMemo(
+    () => questions.filter((question) => question.status === "answered" || question.status === "resolved"),
+    [questions],
+  );
+  const deferredQuestions = useMemo(
+    () => questions.filter((question) => question.status === "deferred"),
+    [questions],
+  );
+  const reconciliationPendingQuestions = useMemo(
+    () => answeredQuestions.filter((question) => question.impact_analysis?.material_impact),
+    [answeredQuestions],
+  );
+  const impactCounters = useMemo(() => {
+    return questions.reduce(
+      (accumulator, question) => {
+        switch (question.impact_analysis?.impact_kind) {
+          case "delegated_to_implementation":
+            accumulator.delegated += 1;
+            break;
+          case "localized_impact":
+            accumulator.localized += 1;
+            break;
+          case "structural_impact":
+            accumulator.structural += 1;
+            break;
+          case "no_material_impact":
+            accumulator.documentOnly += 1;
+            break;
+          default:
+            break;
+        }
+        return accumulator;
+      },
+      {
+        delegated: 0,
+        documentOnly: 0,
+        localized: 0,
+        structural: 0,
+      },
+    );
+  }, [questions]);
   const questionGroups = useMemo(() => {
     const grouped = new Map<string, { artifacts: Set<string>; blocking: number; count: number; domain: string }>();
-    for (const question of openQuestions) {
+    for (const question of unansweredQuestions) {
       const key = question.domain || "general";
       const current = grouped.get(key) ?? {
         artifacts: new Set<string>(),
@@ -2987,7 +3703,122 @@ function AcpDirectReadinessPanel({
         return left.domain.localeCompare(right.domain);
       })
       .slice(0, 4);
+  }, [unansweredQuestions]);
+  const impactedArtifacts = useMemo(() => {
+    const keys = new Set<string>();
+    for (const question of openQuestions) {
+      for (const artifact of question.impacted_artifacts ?? []) {
+        if (artifact) {
+          keys.add(artifact);
+        }
+      }
+    }
+    return Array.from(keys).sort((left, right) => left.localeCompare(right));
   }, [openQuestions]);
+
+  if (!canBuild) {
+    const metrics = [
+      {
+        label: byLanguage(language, { en: "Blueprint foundations", es: "Bases del Blueprint", pt: "Bases do Blueprint" }),
+        value: "—",
+        detail: byLanguage(language, {
+          en: "They unlock after ACP approval.",
+          es: "Se desbloquean después de aprobar ACP.",
+          pt: "Eles se liberam depois da aprovacao do ACP.",
+        }),
+      },
+      {
+        label: byLanguage(language, { en: "ACP phases", es: "Fases ACP", pt: "Fases ACP" }),
+        value: "—",
+        detail: byLanguage(language, {
+          en: "Validate and Package stay inside ACP.",
+          es: "Validar y Package viven dentro del ACP.",
+          pt: "Validar e Package ficam dentro do ACP.",
+        }),
+      },
+      {
+        label: byLanguage(language, { en: "Open questions", es: "Preguntas abiertas", pt: "Perguntas abertas" }),
+        value: "—",
+        detail: byLanguage(language, {
+          en: "They appear after activation.",
+          es: "Aparecen después de la activación.",
+          pt: "Aparecem depois da ativacao.",
+        }),
+      },
+      {
+        label: byLanguage(language, { en: "Active blockers", es: "Bloqueos activos", pt: "Bloqueios ativos" }),
+        value: "—",
+        detail: byLanguage(language, {
+          en: "The workspace is not running yet.",
+          es: "El workspace todavía no está ejecutándose.",
+          pt: "O workspace ainda nao esta em execucao.",
+        }),
+      },
+    ];
+
+    return (
+      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <UxaBadge tone="info">
+              {byLanguage(language, {
+                en: "ACP approval gate",
+                es: "Gate de aprobación ACP",
+                pt: "Gate de aprovacao ACP",
+              })}
+            </UxaBadge>
+            <h2 className="mt-3 text-[20px] font-black">
+              {byLanguage(language, {
+                en: "ACP starts after approval, not before",
+                es: "ACP inicia después de la aprobación, no antes",
+                pt: "O ACP comeca depois da aprovacao, nao antes",
+              })}
+            </h2>
+            <p className="mt-2 max-w-[780px] text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+              {byLanguage(language, {
+                en: "The current flow is Estimate -> Blueprint Free -> request Blueprint Pro -> Blueprint Pro -> request ACP -> ACP -> Validate -> Package. Before ACP approval, the platform should explain the next step without starting the preparation workspace.",
+                es: "El flujo actual es Estimate -> Blueprint Free -> solicitar Blueprint Pro -> Blueprint Pro -> solicitar ACP -> ACP -> Validar -> Package. Antes de aprobar ACP, la plataforma debe explicar el siguiente paso sin iniciar el workspace de preparación.",
+                pt: "O fluxo atual e Estimate -> Blueprint Free -> solicitar Blueprint Pro -> Blueprint Pro -> solicitar ACP -> ACP -> Validar -> Package. Antes da aprovacao do ACP, a plataforma deve explicar o proximo passo sem iniciar o workspace de preparacao.",
+              })}
+            </p>
+          </div>
+          <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/acp`}>
+            <span>
+              {byLanguage(language, {
+                en: "Request ACP",
+                es: "Solicitar ACP",
+                pt: "Solicitar ACP",
+              })}
+            </span>
+            <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
+          </a>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          {metrics.map((metric) => (
+            <div
+              className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/75 p-4"
+              key={metric.label}
+            >
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
+                {metric.label}
+              </p>
+              <p className="mt-2 text-[24px] font-black text-[var(--uxa-color-ink)]">{metric.value}</p>
+              <p className="text-[12px] text-[var(--uxa-color-ink-soft)]">{metric.detail}</p>
+            </div>
+          ))}
+        </div>
+      </UxaSurface>
+    );
+  }
+
+  const leanCompletedCount = resolution?.completed_stage_keys.length ?? 0;
+  const leanRequiredCount = resolution?.required_stage_keys.length ?? 7;
+  const workspacePhaseCount = workspace?.phase_definitions.length ?? 6;
+  const completedPhaseCount =
+    workspace?.phases.filter((phase) => phase.status === "completed" || phase.status === "completed_with_observations").length ?? 0;
+  const activeBlockerCount = (workspace?.readiness.blocking_gaps ?? 0) + blockingQuestions.length;
+  const preparationPending = status === "idle" || status === "loading";
   const nextHref =
     resolution?.can_start_package || workspace?.readiness.can_start_build
       ? getAcpResultTabHref(sessionId, "package")
@@ -3035,7 +3866,55 @@ function AcpDirectReadinessPanel({
         </a>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-4">
+      <nav
+        aria-label={byLanguage(language, {
+          en: "ACP internal navigation",
+          es: "Navegacion interna ACP",
+          pt: "Navegacao interna ACP",
+        })}
+        className="mt-5 flex flex-wrap gap-2"
+      >
+        {[
+          {
+            href: "#acp-preparation-overview",
+            key: "prep",
+            label: byLanguage(language, { en: "Preparation", es: "Preparacion", pt: "Preparacao" }),
+          },
+          {
+            count: openQuestions.length,
+            href: "#acp-pending-questions",
+            key: "pending",
+            label: byLanguage(language, { en: "Pending", es: "Pendientes", pt: "Pendentes" }),
+          },
+          {
+            count: impactedArtifacts.length,
+            href: "#acp-impact-summary",
+            key: "impact",
+            label: byLanguage(language, { en: "Impact", es: "Impacto", pt: "Impacto" }),
+          },
+          {
+            href: getAcpResultTabHref(sessionId, "validate"),
+            key: "validate",
+            label: byLanguage(language, { en: "Validate ACP", es: "Validar ACP", pt: "Validar ACP" }),
+          },
+          {
+            href: getAcpResultTabHref(sessionId, "package"),
+            key: "package",
+            label: byLanguage(language, { en: "Package ACP", es: "Package ACP", pt: "Package ACP" }),
+          },
+        ].map((item) => (
+          <a
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--uxa-color-border)] bg-white px-3 py-2 text-[12px] font-semibold text-[var(--uxa-color-ink-soft)] transition hover:border-[var(--uxa-color-brand)] hover:text-[var(--uxa-color-brand)]"
+            href={item.href}
+            key={item.key}
+          >
+            <span>{item.label}</span>
+            {typeof item.count === "number" ? <UxaBadge tone="info">{item.count}</UxaBadge> : null}
+          </a>
+        ))}
+      </nav>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-4" id="acp-preparation-overview">
         {[
           {
             label: byLanguage(language, { en: "Blueprint foundations", es: "Bases del Blueprint", pt: "Bases do Blueprint" }),
@@ -3124,6 +4003,140 @@ function AcpDirectReadinessPanel({
                 })}
           </p>
         </div>
+      </div>
+
+      <div
+        className="mt-5 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/75 p-4"
+        id="acp-impact-summary"
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
+              {byLanguage(language, {
+                en: "Impact and accumulation",
+                es: "Impacto y acumulacion",
+                pt: "Impacto e acumulacao",
+              })}
+            </p>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+              {preparationPending
+                ? byLanguage(language, {
+                    en: "ACP is still calculating the impact of open questions against validation and package outputs.",
+                    es: "ACP todavia esta calculando el impacto de las preguntas abiertas sobre Validate y Package.",
+                    pt: "O ACP ainda esta calculando o impacto das perguntas abertas sobre Validate e Package.",
+                  })
+                : byLanguage(language, {
+                    en: "Answers accumulate inside ACP. If they materially affect deliverables, LAB prepares a visible reconciliation queue for Validate, Package, or the affected ACP phase instead of restarting the Blueprint.",
+                    es: "Las respuestas se acumulan dentro del ACP. Si afectan materialmente entregables, LAB prepara una cola visible de reconciliacion para Validar, Package o la fase ACP afectada, sin reiniciar el Blueprint.",
+                    pt: "As respostas se acumulam dentro do ACP. Se afetarem materialmente entregaveis, o LAB prepara uma fila visivel de reconciliacao para Validar, Package ou a fase ACP afetada, sem reiniciar o Blueprint.",
+                  })}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <UxaBadge tone={unansweredQuestions.length ? "warning" : "neutral"}>
+              {unansweredQuestions.length}{" "}
+              {byLanguage(language, { en: "to answer", es: "por responder", pt: "para responder" })}
+            </UxaBadge>
+            <UxaBadge tone={blockingQuestions.length ? "danger" : "info"}>
+              {blockingQuestions.length}{" "}
+              {byLanguage(language, { en: "blocking", es: "bloqueante(s)", pt: "bloqueante(s)" })}
+            </UxaBadge>
+            <UxaBadge tone="warning">
+              {openQuestions.length}{" "}
+              {byLanguage(language, { en: "open question(s)", es: "pregunta(s) abierta(s)", pt: "pergunta(s) aberta(s)" })}
+            </UxaBadge>
+            <UxaBadge tone="info">
+              {impactedArtifacts.length}{" "}
+              {byLanguage(language, { en: "impacted artifact(s)", es: "artefacto(s) impactado(s)", pt: "artefato(s) impactado(s)" })}
+            </UxaBadge>
+            <UxaBadge tone={deferredQuestions.length ? "warning" : "neutral"}>
+              {deferredQuestions.length}{" "}
+              {byLanguage(language, { en: "delegated", es: "delegada(s)", pt: "delegada(s)" })}
+            </UxaBadge>
+            <UxaBadge tone={reconciliationPendingQuestions.length ? "warning" : "neutral"}>
+              {reconciliationPendingQuestions.length}{" "}
+              {byLanguage(language, { en: "to reconcile", es: "por reconciliar", pt: "para reconciliar" })}
+            </UxaBadge>
+          </div>
+        </div>
+        {!preparationPending && (answeredQuestions.length > 0 || deferredQuestions.length > 0) ? (
+          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+            <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/85 p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, {
+                  en: "Answer outcomes",
+                  es: "Resultado de respuestas",
+                  pt: "Resultado das respostas",
+                })}
+              </p>
+              <p className="mt-2 text-[12px] leading-6 text-[var(--uxa-color-ink-soft)]">
+                {byLanguage(language, {
+                  en: `${answeredQuestions.length} answer(s) are already traceable. ${impactCounters.documentOnly} stay documented, ${impactCounters.localized} require localized reconciliation, and ${impactCounters.structural} should reconcile Validate plus Package before export.`,
+                  es: `${answeredQuestions.length} respuesta(s) ya quedaron trazables. ${impactCounters.documentOnly} se documentan sin reconciliacion, ${impactCounters.localized} requieren reconciliacion localizada y ${impactCounters.structural} deberian reconciliar Validar y Package antes de exportar.`,
+                  pt: `${answeredQuestions.length} resposta(s) ja ficaram rastreaveis. ${impactCounters.documentOnly} ficam documentadas sem reconciliacao, ${impactCounters.localized} exigem reconciliacao localizada e ${impactCounters.structural} devem reconciliar Validar e Package antes da exportacao.`,
+                })}
+              </p>
+            </div>
+            <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/85 p-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, {
+                  en: "Delegated decisions",
+                  es: "Decisiones delegadas",
+                  pt: "Decisoes delegadas",
+                })}
+              </p>
+              <p className="mt-2 text-[12px] leading-6 text-[var(--uxa-color-ink-soft)]">
+                {deferredQuestions.length > 0
+                  ? byLanguage(language, {
+                      en: `${deferredQuestions.length} decision(s) will travel inside the ACP package for implementation time. They stay visible without forcing immediate regeneration.`,
+                      es: `${deferredQuestions.length} decision(es) viajaran dentro del paquete ACP para resolverse en implementacion. Siguen visibles sin forzar una regeneracion inmediata.`,
+                      pt: `${deferredQuestions.length} decisao(oes) viajarao dentro do pacote ACP para fechamento na implementacao. Elas continuam visiveis sem forcar uma regeneracao imediata.`,
+                    })
+                  : byLanguage(language, {
+                      en: "No decisions have been delegated yet. When a question can wait until implementation, ACP will preserve it separately from the current package calculation.",
+                      es: "Todavia no hay decisiones delegadas. Cuando una pregunta pueda esperar hasta implementacion, ACP la conservara aparte del calculo actual del paquete.",
+                      pt: "Ainda nao ha decisoes delegadas. Quando uma pergunta puder esperar ate a implementacao, o ACP a conservara separada do calculo atual do pacote.",
+                    })}
+              </p>
+            </div>
+          </div>
+        ) : null}
+        {impactedArtifacts.length ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {impactedArtifacts.slice(0, 8).map((artifact) => (
+              <UxaBadge key={artifact} tone="neutral">{formatToken(artifact)}</UxaBadge>
+            ))}
+          </div>
+        ) : null}
+        {!preparationPending && questions.length ? (
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            {questions.slice(0, 4).map((question) => {
+              const stateBadge = getAcpQuestionStateBadge(language, question);
+              return (
+                <div
+                  className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/85 p-3"
+                  key={question.question_key}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <UxaBadge tone={stateBadge.tone}>{stateBadge.label}</UxaBadge>
+                    <UxaBadge tone={question.impact_analysis?.material_impact ? "warning" : "neutral"}>
+                      {getReconciliationLabel(
+                        language,
+                        question.impact_analysis?.reconciliation_decision ?? question.impact_analysis?.reprocess_decision,
+                      )}
+                    </UxaBadge>
+                  </div>
+                  <p className="mt-2 text-[12px] font-black text-[var(--uxa-color-ink-rich)]">
+                    {question.question_text}
+                  </p>
+                  <p className="mt-1 text-[11px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                    {question.impact_analysis?.impact_summary || question.rationale}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-5 grid gap-2 lg:grid-cols-7">
@@ -3220,7 +4233,7 @@ function AcpDirectReadinessPanel({
         </div>
       ) : null}
 
-      <div className="mt-5">
+      <div className="mt-5" id="acp-pending-questions">
         <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
           {byLanguage(language, {
             en: "Open question groups",

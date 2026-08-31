@@ -682,8 +682,8 @@ function Traceability({ definition }: { definition: DefinitionArtifact }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--uxa-color-border)]">
-          {definition.traceability.map((entry) => (
-            <tr key={entry.key}>
+          {definition.traceability.map((entry, index) => (
+            <tr key={`${entry.key}:${entry.source_ref}:${entry.requirement_key}:${entry.coverage_status}:${index}`}>
               <td className="p-3 font-black">{entry.source_ref}</td>
               <td className="p-3">{entry.requirement_key}</td>
               <td className="p-3">{getCoverageStatusLabel(language, entry.coverage_status)}</td>

@@ -32,13 +32,13 @@ export const en: Record<TranslationKey, string> = {
   "enrichment.dismiss": "Dismiss",
   "enrichment.useSuggestion": "Use suggestion",
   "enrichment.modalTitle": "Enrich with client input",
-  "enrichment.modalSubtitle": "Enter context, requirements or clarifications to enrich this deliverable and trigger FIFO queue reprocessing.",
+  "enrichment.modalSubtitle": "Enter context, requirements or clarifications to enrich this deliverable and prepare FIFO queue reconciliation.",
   "enrichment.modalPlaceholder": "Write custom response, requirement or context here...",
-  "enrichment.modalSubmit": "Save and Reprocess (FIFO)",
+  "enrichment.modalSubmit": "Save and prepare reconciliation",
   "enrichment.modalCancel": "Cancel",
-  "enrichment.fifoProgress": "FIFO Reprocessing Queue",
+  "enrichment.fifoProgress": "FIFO Reconciliation Queue",
   "enrichment.fifoProcessing": "Processing deliverables in FIFO order...",
-  "enrichment.fifoCompleted": "FIFO reprocessing completed successfully.",
+  "enrichment.fifoCompleted": "FIFO reconciliation completed successfully.",
 
   // Language Selector Labels
   "lang.es": "Spanish",

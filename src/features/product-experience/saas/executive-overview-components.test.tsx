@@ -278,7 +278,7 @@ describe("executive overview shared components", () => {
     expect(screen.getByText("En Ejecución")).toBeInTheDocument();
   });
 
-  it("renders persistent queue counters and failed-item retry actions", () => {
+  it("renders persistent queue counters and retry action only for retryable failures", () => {
     const onProcessPending = vi.fn();
     const onRetryFailed = vi.fn();
     const status: ProductBuildStatus = {
@@ -306,13 +306,13 @@ describe("executive overview shared components", () => {
         failed_count: 1,
         failed_items: [
           {
-            attempt_count: 2,
+            attempt_count: 1,
             deliverable_key: "diagram.c4_container",
             deliverable_type: "diagram",
             error_message: "Fallo de render en el proveedor.",
             href: "/deliverables/diagram.c4_container",
             job_id: "job-diagram",
-            retried: true,
+            retried: false,
             stage_key: "package",
             status: "failed",
             title: "C4 Container",
@@ -343,13 +343,66 @@ describe("executive overview shared components", () => {
     );
 
     expect(screen.getByText("Completado con errores")).toBeInTheDocument();
-    expect(screen.getByText("Reprocesar fallidos")).toBeInTheDocument();
+    expect(screen.getByText("Reintentar fallidos")).toBeInTheDocument();
     expect(screen.getByText("Total")).toBeInTheDocument();
     expect(screen.getByText("Reintentados")).toBeInTheDocument();
     expect(screen.getByText("Master Specification")).toBeInTheDocument();
     expect(screen.getByText("Fallo de render en el proveedor.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Reprocesar fallidos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar fallidos" }));
     expect(onRetryFailed).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides failed-item retry action when the queue already exhausted the retry budget", () => {
+    const status: ProductBuildStatus = {
+      ...createStatus("requires_attention", "blueprint_pro"),
+      processing_queue: {
+        active: false,
+        completed_at: "2026-08-15T10:06:00Z",
+        completed_count: 2,
+        completed_items: [],
+        current_deliverable_key: "",
+        failed_count: 1,
+        failed_items: [
+          {
+            attempt_count: 2,
+            deliverable_key: "diagram.c4_container",
+            deliverable_type: "diagram",
+            error_message: "Fallo de render en el proveedor.",
+            href: "/deliverables/diagram.c4_container",
+            job_id: "job-diagram",
+            retried: true,
+            stage_key: "package",
+            status: "failed",
+            title: "C4 Container",
+            updated_at: "2026-08-15T10:06:00Z",
+          },
+        ],
+        mode: "process_pending",
+        pending_count: 0,
+        processing_count: 0,
+        queue_id: "queue-2",
+        retried_count: 1,
+        started_at: "2026-08-15T10:00:00Z",
+        status: "completed_with_errors",
+        summary: "Se completaron 2 de 3 entregables; 1 sigue fallando.",
+        total_count: 3,
+        updated_at: "2026-08-15T10:06:00Z",
+      },
+    };
+
+    render(
+      <DeliverableGenerationLiveTracker
+        productKey="blueprint_pro"
+        productLabel="Blueprint Pro"
+        status={status}
+        onProcessPending={vi.fn()}
+        onRetryFailed={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Reintentar fallidos" })).not.toBeInTheDocument();
+    expect(screen.getByText("Completado con errores")).toBeInTheDocument();
+    expect(screen.getByText("Fallo de render en el proveedor.")).toBeInTheDocument();
   });
 });
