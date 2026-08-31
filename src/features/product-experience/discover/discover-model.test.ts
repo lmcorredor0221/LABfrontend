@@ -14,6 +14,11 @@ describe("Discover UXA7 view model", () => {
     expect(viewModel.status).toBe("waiting_review");
     expect(viewModel.completionPercent).toBe(100);
     expect(viewModel.analysisArtifact?.summary).toBe("Discovery consistente para construir Definir.");
+    expect(viewModel.qualityConfidence).toBe(0.85);
+    expect(viewModel.evidenceConfidence).toBe(0.73);
+    expect(viewModel.delegatedPendingCount).toBe(1);
+    expect(viewModel.blockingPendingCount).toBe(0);
+    expect(viewModel.deferredResolutionItems).toHaveLength(1);
     expect(viewModel.reviewDecisions["question:q1"]).toBe("accepted");
     expect(getDiscoverPrimaryAction(viewModel).kind).toBe("approve");
   });

@@ -51,6 +51,7 @@ import type {
   ProductDiscoveryActionState,
 } from "@/features/product-experience/shell/use-product-experience-route";
 import type {
+  DeferredResolutionItem,
   DiscoveryAnalysisQuestion,
   DiscoveryArtifact,
 } from "@/features/sessions/session-contracts";
@@ -419,11 +420,19 @@ function OpenQuestions({
 function AnalysisPanel({
   analysis,
   artifactState,
+  blockingPendingCount,
+  delegatedPendingCount,
+  evidenceConfidence,
+  qualityConfidence,
   evidenceCount,
   warnings,
 }: {
   analysis: ReturnType<typeof buildDiscoverViewModel>["analysisArtifact"];
   artifactState?: string;
+  blockingPendingCount: number;
+  delegatedPendingCount: number;
+  evidenceConfidence: number | null;
+  qualityConfidence: number | null;
   evidenceCount: number;
   warnings: string[];
 }) {
@@ -448,15 +457,50 @@ function AnalysisPanel({
       }}
       metrics={[
         {
-          label: byLanguage(language, { en: "Confidence", es: "Confianza", pt: "Confianca" }),
-          tone: analysis.confidence >= 0.75 ? "success" : "warning",
-          value: `${(analysis.confidence * 100).toFixed(0)}%`,
+          helper: byLanguage(language, {
+            en: "Quality measures whether this deliverable is solid enough to continue.",
+            es: "Calidad mide si esta entrega es suficientemente solida para continuar.",
+            pt: "Qualidade mede se esta entrega e suficientemente solida para continuar.",
+          }),
+          label: byLanguage(language, { en: "Quality", es: "Calidad", pt: "Qualidade" }),
+          tone: (qualityConfidence ?? analysis.confidence) >= 0.75 ? "success" : "warning",
+          value: `${(((qualityConfidence ?? analysis.confidence) || 0) * 100).toFixed(0)}%`,
         },
         {
           helper: byLanguage(language, {
-            en: "Refs and manifest stay in Evidence.",
-            es: "Refs y manifest quedan en Evidencia.",
-            pt: "Refs e manifest ficam em Evidencia.",
+            en: "Evidence shows what was confirmed directly versus inferred.",
+            es: "La evidencia muestra que fue confirmado directamente versus inferido.",
+            pt: "A evidencia mostra o que foi confirmado diretamente versus inferido.",
+          }),
+          label: byLanguage(language, { en: "Evidence", es: "Evidencia", pt: "Evidencia" }),
+          tone: (evidenceConfidence ?? analysis.confidence) >= 0.75 ? "success" : "warning",
+          value: `${(((evidenceConfidence ?? analysis.confidence) || 0) * 100).toFixed(0)}%`,
+        },
+        {
+          helper: byLanguage(language, {
+            en: "These items remain traceable but do not block Free.",
+            es: "Estos items quedan trazables pero no bloquean Free.",
+            pt: "Esses itens permanecem rastreaveis, mas nao bloqueiam Free.",
+          }),
+          label: byLanguage(language, { en: "Delegated pending", es: "Pendientes delegados", pt: "Pendencias delegadas" }),
+          tone: delegatedPendingCount ? "info" : "success",
+          value: delegatedPendingCount,
+        },
+        {
+          helper: byLanguage(language, {
+            en: "Blocking items must be solved in the current stage.",
+            es: "Los bloqueantes deben resolverse en la etapa actual.",
+            pt: "Os bloqueios devem ser resolvidos na etapa atual.",
+          }),
+          label: byLanguage(language, { en: "Blocking pending", es: "Pendientes bloqueantes", pt: "Pendencias bloqueantes" }),
+          tone: blockingPendingCount ? "warning" : "success",
+          value: blockingPendingCount,
+        },
+        {
+          helper: byLanguage(language, {
+            en: "Evidence refs and manifest stay in traceability.",
+            es: "Refs y manifest se mantienen en trazabilidad.",
+            pt: "Refs e manifest permanecem na rastreabilidade.",
           }),
           label: byLanguage(language, { en: "Traceable signals", es: "Senales trazables", pt: "Sinais rastreaveis" }),
           tone: "neutral",
@@ -497,6 +541,50 @@ function AnalysisPanel({
         pt: "Entrega de Descobrir",
       })}
     />
+  );
+}
+
+function DeferredResolutionPanel({
+  items,
+}: {
+  items: DeferredResolutionItem[];
+}) {
+  const { language, t } = useLanguage();
+
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+      <UxaBadge tone="info">{byLanguage(language, { en: "Delegated pending", es: "Pendientes delegados", pt: "Pendencias delegadas" })}</UxaBadge>
+      <h3 className="mt-3 text-[20px] font-black">{byLanguage(language, { en: "Deferred clarifications with traceability", es: "Aclaraciones diferidas con trazabilidad", pt: "Esclarecimentos diferidos com rastreabilidade" })}</h3>
+      <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+        {byLanguage(language, {
+          en: "LAB inferred a reasonable answer for Free and left these clarifications traceable for the next stage.",
+          es: "LAB infirio una respuesta razonable para Free y dejo estas aclaraciones trazadas para la siguiente etapa.",
+          pt: "LAB inferiu uma resposta razoavel para Free e deixou estes esclarecimentos rastreaveis para a proxima etapa.",
+        })}
+      </p>
+      <div className="mt-4 space-y-3">
+        {items.map((item, index) => (
+          <article className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4" key={`${item.target_stage}:${item.question}:${index}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <UxaBadge tone="info">{getLocalizedStageLabel(item.target_stage, t)}</UxaBadge>
+              <UxaBadge tone="neutral">{item.kind || byLanguage(language, { en: "Clarification", es: "Aclaracion", pt: "Esclarecimento" })}</UxaBadge>
+            </div>
+            <p className="mt-3 text-[13px] font-black">{item.question}</p>
+            {item.reason ? <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">{item.reason}</p> : null}
+            {item.recommendation ? (
+              <p className="mt-3 rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px] leading-5">
+                {byLanguage(language, { en: "Recommendation: ", es: "Recomendacion: ", pt: "Recomendacao: " })}
+                {item.recommendation}
+              </p>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </UxaSurface>
   );
 }
 
@@ -918,6 +1006,7 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       value: warning,
     })),
   ];
+  const deferredResolutionItems = viewModel.deferredResolutionItems;
   const primaryDescription =
     primaryAction.kind === "continue"
       ? copy(
@@ -1156,13 +1245,17 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
           <AnalysisPanel
             analysis={analysis}
             artifactState={latestArtifact?.state}
+            blockingPendingCount={viewModel.blockingPendingCount}
+            delegatedPendingCount={viewModel.delegatedPendingCount}
+            evidenceConfidence={viewModel.evidenceConfidence}
             evidenceCount={latestArtifact?.evidence_manifest.length ?? 0}
+            qualityConfidence={viewModel.qualityConfidence}
             warnings={viewModel.warnings}
           />
         ),
       },
       {
-        badge: (analysis?.open_questions.length ?? 0) + viewModel.warnings.length,
+        badge: (analysis?.open_questions.length ?? 0) + deferredResolutionItems.length + viewModel.warnings.length,
         description: t("discover.tab.evidence.desc", "Questions, validations, warnings, and review decisions."),
         key: "evidence",
         label: t("discover.tab.evidence.label", "Evidence and traceability"),
@@ -1190,6 +1283,7 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
                 )}
               </UxaSurface>
             </div>
+            <DeferredResolutionPanel items={deferredResolutionItems} />
             <OpenQuestions items={analysis?.open_questions ?? []} sessionId={sessionId} />
             <ReviewDecisionPanel
               decisions={viewModel.reviewDecisions}

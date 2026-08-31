@@ -9,9 +9,11 @@ import {
 } from "@/features/discovery/discovery-adapter";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 import type {
+  DeferredResolutionItem,
   DiscoveryArtifact,
   DiscoveryAnalysisArtifact,
   JourneyStageArtifactEntry,
+  QualityGateResult,
 } from "@/features/sessions/session-contracts";
 import type { SessionValidationEntry } from "@/features/sessions/types";
 
@@ -30,14 +32,20 @@ export type DiscoverStageStatus =
 
 export type DiscoverViewModel = {
   analysisArtifact: DiscoveryAnalysisArtifact | null;
+  blockingPendingCount: number;
   checklist: ReturnType<typeof getDiscoveryChecklist>;
   completionPercent: number;
+  deferredResolutionItems: DeferredResolutionItem[];
   discoveryValidation: SessionValidationEntry | null;
+  evidenceConfidence: number | null;
   fieldErrors: DiscoveryFormErrors;
   formValues: DiscoveryFormValues;
+  delegatedPendingCount: number;
   latestArtifact: JourneyStageArtifactEntry | null;
   missingFields: string[];
   projectTitle: string;
+  qualityConfidence: number | null;
+  qualityGate: QualityGateResult | null;
   reviewDecisions: DiscoverReviewDecisionMap;
   sessionId: string;
   snapshotUpdatedAt: string | null;
@@ -156,17 +164,29 @@ export function buildDiscoverViewModel(
     ...(discoveryValidation?.warnings ?? []),
     ...(latestArtifact?.warnings ?? []),
   ];
+  const qualityGate = analysisArtifact?.quality_gate ?? null;
+  const deferredResolutionItems = analysisArtifact?.deferred_resolution_items ?? [];
+  const delegatedPendingCount = qualityGate?.delegated_resolution ?? deferredResolutionItems.length;
+  const blockingPendingCount = qualityGate?.blocking_resolution ?? analysisArtifact?.missing_information.length ?? 0;
+  const qualityConfidence = qualityGate?.quality_confidence ?? analysisArtifact?.confidence ?? null;
+  const evidenceConfidence = qualityGate?.evidence_confidence ?? analysisArtifact?.confidence ?? null;
 
   return {
     analysisArtifact,
+    blockingPendingCount,
     checklist,
     completionPercent: checklist.length ? Math.round((completedChecklistItems / checklist.length) * 100) : 0,
+    deferredResolutionItems,
     discoveryValidation,
+    evidenceConfidence,
     fieldErrors: getDiscoveryFieldErrors(formValues),
     formValues,
+    delegatedPendingCount,
     latestArtifact,
     missingFields,
     projectTitle: activeRoute?.operation.data?.overview?.project_title ?? snapshot?.session.title ?? "Nuevo proyecto",
+    qualityConfidence,
+    qualityGate,
     reviewDecisions: getDiscoverReviewDecisions(latestArtifact),
     sessionId: activeRoute?.route.sessionId ?? snapshot?.session.id ?? "",
     snapshotUpdatedAt: snapshot?.session.updated_at ?? null,

@@ -76,6 +76,16 @@ export type DiscoveryAnalysisQuestion = {
   answer_options?: GuidedAnswerOption[];
 };
 
+export type DeferredResolutionItem = {
+  kind: string;
+  question: string;
+  reason: string;
+  recommendation: string;
+  source_refs: string[];
+  source_stage: string;
+  target_stage: string;
+};
+
 export type DiscoveryAnalysisArtifact = {
   summary: string;
   facts: DiscoveryAnalysisInsight[];
@@ -87,9 +97,11 @@ export type DiscoveryAnalysisArtifact = {
   risk_signals: DiscoveryAnalysisInsight[];
   sensitive_data_signals: DiscoveryAnalysisInsight[];
   missing_information: string[];
+  deferred_resolution_items?: DeferredResolutionItem[];
   evidence_refs: string[];
   confidence: number;
   normalized_discovery_candidate: DiscoveryArtifact;
+  quality_gate?: QualityGateResult | null;
   schema_version?: string;
 };
 
@@ -325,14 +337,66 @@ export type DesignRecommendationConfidence = {
 
 export type QualityGateResult = {
   blocking: boolean;
+  blocking_resolution?: number;
   capability: string;
   contract_version?: string;
+  delegated_resolution?: number;
   evidence_confidence: number;
+  evidence_penalty_count?: number;
   flow_readiness: boolean;
+  hypothesis_resolution?: number;
+  inferred_resolution?: number;
   issues: string[];
+  inference_trace?: {
+    applied_count: number;
+    contract_version?: string;
+    deferred_count: number;
+    effective_language: string;
+    hypothesis_count: number;
+    inference_trace_version?: string;
+    product_mode: string;
+    resolution_count: number;
+    resolutions: Array<{
+      applied_to_stage: boolean;
+      confidence: number;
+      confidence_bucket: "high_confidence" | "tentative" | "low_confidence";
+      contradiction_status: "none" | "superseded_by_user" | "conflicting_evidence";
+      evidence_refs: string[];
+      evidence_summary: string;
+      final_disposition:
+        | "apply_now"
+        | "record_as_hypothesis"
+        | "defer"
+        | "requires_human"
+        | "reject_as_noise"
+        | "not_inferable";
+      inferred_answer: string;
+      model_name: string;
+      permission_status:
+        | "apply_now"
+        | "record_as_hypothesis"
+        | "defer_to_next_stage"
+        | "defer_to_blueprint_pro"
+        | "defer_to_acp"
+        | "requires_human"
+        | "reject_as_noise"
+        | "not_inferable";
+      provider_key: string;
+      question_key: string;
+      question_text: string;
+      source_stage: string;
+      target_stage: string;
+    }>;
+    run_mode: string;
+    stage: string;
+    unresolved_count: number;
+    warnings: string[];
+  } | null;
   language_status: "not_checked" | "ok" | "mismatch";
+  minimum_repair_cycles?: number;
   pending_resolution: number;
   quality_confidence: number;
+  quality_repair_cycles?: number;
   quality_gate_version?: string;
   reason_summary: string;
   repair_policy:

@@ -161,6 +161,27 @@ describe("DiscoverStageView UXA7", () => {
     expect(mockRouterPush).toHaveBeenCalledWith("/projects/session-uxa7/work/define");
   });
 
+  it("separates quality, evidence, and delegated pending items in the generated deliverable", async () => {
+    const actions = createActions();
+    renderWithLanguage(
+      <DiscoverStageView
+        actionState={{ status: "idle" }}
+        actions={actions}
+        activeRoute={createDiscoverRouteFixture()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /Entrega generada/i }));
+
+    expect(await screen.findByText("Calidad")).toBeInTheDocument();
+    expect(screen.getByText("Evidencia")).toBeInTheDocument();
+    expect(screen.getByText("Pendientes delegados")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Evidencia y trazabilidad/i }));
+    expect(await screen.findByText(/Aclaraciones diferidas con trazabilidad/i)).toBeInTheDocument();
+    expect(screen.getByText(/Definir el grupo de usuarios prioritario para la primera version/i)).toBeInTheDocument();
+  });
+
   it("records review decisions and can reject the generated proposal", async () => {
     const actions = createActions();
     renderWithLanguage(
