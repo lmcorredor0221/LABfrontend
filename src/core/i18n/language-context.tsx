@@ -77,16 +77,24 @@ export function LanguageProvider({
   children: React.ReactNode;
   initialLanguage?: SupportedLanguage;
 }) {
-  const [language, setLanguageState] = useState<SupportedLanguage>(() => readStoredLanguage() ?? initialLanguage);
+  const [language, setLanguageState] = useState<SupportedLanguage>(initialLanguage);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    document.documentElement.lang = language;
-    getStorage()?.setItem(LANGUAGE_STORAGE_KEY, language);
-    document.cookie = `${LANGUAGE_COOKIE_NAME}=${language}; path=/; max-age=31536000; samesite=lax`;
+    const storedLanguage = readStoredLanguage();
+    const resolvedLanguage = storedLanguage ?? language;
+
+    queueMicrotask(() => {
+      if (storedLanguage && storedLanguage !== language) {
+        setLanguageState(storedLanguage);
+      }
+      document.documentElement.lang = resolvedLanguage;
+      getStorage()?.setItem(LANGUAGE_STORAGE_KEY, resolvedLanguage);
+      document.cookie = `${LANGUAGE_COOKIE_NAME}=${resolvedLanguage}; path=/; max-age=31536000; samesite=lax`;
+    });
   }, [language]);
 
   const setLanguage = (newLanguage: SupportedLanguage) => {
