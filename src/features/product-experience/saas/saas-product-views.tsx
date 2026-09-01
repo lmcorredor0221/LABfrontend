@@ -11,9 +11,6 @@ import {
   Edit3,
   ExternalLink,
   FastForward,
-  FileText,
-  Filter,
-  Layers,
   Search,
   Sparkles,
   Trash2,
@@ -54,9 +51,6 @@ import {
   DeliverableProgressSummary,
   ExecutiveOverviewShell,
   ExecutiveProductKeyDeliverables,
-  ExecutiveStorySection,
-  ProductAttentionCallout,
-  ProductMilestoneTimeline,
   ProductNextAction,
   buildExecutiveOverviewModel,
 } from "@/features/product-experience/saas/executive-overview-components";
@@ -760,64 +754,6 @@ function MetricStrip({ metrics }: { metrics: ProductMetric[] }) {
   );
 }
 
-function ProductProgressCards({
-  activeRoute,
-}: {
-  activeRoute: ProductExperienceRouteSnapshot | null;
-}) {
-  const { language } = useLanguage();
-  const viewModel = buildProductSaasViewModel({
-    activeRoute,
-    language,
-    section: "blueprint",
-  });
-
-  return (
-    <div className="grid gap-3 lg:grid-cols-3">
-      {viewModel.products.map((product) => (
-        <a
-          className="uxa-card block p-4 transition hover:-translate-y-0.5 hover:shadow-[var(--uxa-shadow-card)]"
-          href={product.href}
-          key={product.key}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <UxaBadge tone={product.tone}>{product.label}</UxaBadge>
-              <p className="mt-3 text-[13px] leading-5 text-[var(--uxa-color-ink-soft)]">
-                {product.detail}
-              </p>
-            </div>
-            <ArrowUpRight
-              aria-hidden="true"
-              className="h-4 w-4 text-[var(--uxa-color-ink-muted)]"
-            />
-          </div>
-          <div className="mt-4">
-            <div className="mb-2 flex justify-between text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
-              <span>
-                {byLanguage(language, {
-                  en: "Progress",
-                  es: "Avance",
-                  pt: "Avanco",
-                })}
-              </span>
-              <span>{product.progress}%</span>
-            </div>
-            <UxaProcessingStrip
-              label={byLanguage(language, {
-                en: `Progress ${product.label}`,
-                es: `Avance ${product.label}`,
-                pt: `Avanco ${product.label}`,
-              })}
-              value={product.progress}
-            />
-          </div>
-        </a>
-      ))}
-    </div>
-  );
-}
-
 function ProductDeliverableCatalog({
   artifactCards,
   currentStage,
@@ -1268,32 +1204,6 @@ function CommercialBlueprintResult({
     return "";
   }
 
-  function fallbackCommercialDescription(artifact: (typeof commercialArtifacts)[number]) {
-    const key = String(artifact.metadata.artifact_key ?? artifact.key).toLocaleLowerCase("es");
-    if (key.includes("resultado-ejecutivo")) {
-      return byLanguage(language, {
-        en: "Consolidated executive vision designed to align business leaders and technical teams before implementation.",
-        es: "Vision ejecutiva consolidada para alinear lideres de negocio y equipo tecnico antes de implementar.",
-        pt: "Visao executiva consolidada para alinhar lideranca e time tecnico antes de implementar.",
-      });
-    }
-    if (key.includes("comparativa-valor")) {
-      return byLanguage(language, {
-        en: "Defends investment, projected savings, and comparison across development scenarios.",
-        es: "Defiende la inversion, el ahorro proyectado y la comparativa entre escenarios de desarrollo.",
-        pt: "Defende o investimento, a economia projetada e a comparacao entre cenarios.",
-      });
-    }
-    if (key.includes("arquitectura")) {
-      return byLanguage(language, {
-        en: "Architectural blueprint and capabilities explaining technical feasibility clearly.",
-        es: "Blueprint de arquitectura y capacidades que explica la viabilidad tecnica con claridad.",
-        pt: "Blueprint de arquitetura e capacidades que explica a viabilidade tecnica com clareza.",
-      });
-    }
-    return metadataText(artifact, "description", artifact.detail);
-  }
-
   function fallbackContains(): string[] {
     return [
       byLanguage(language, {
@@ -1301,38 +1211,6 @@ function CommercialBlueprintResult({
         es: "Artefacto comercial generado para explicar el valor y alcance del Blueprint.",
         pt: "Artefato comercial gerado para explicar o valor e escopo do Blueprint.",
       }),
-    ];
-  }
-
-  function fallbackCommercialAudience(artifact: (typeof commercialArtifacts)[number]) {
-    const key = String(artifact.metadata.artifact_key ?? artifact.key).toLocaleLowerCase("es");
-    if (key.includes("comparativa-valor")) {
-      return [
-        byLanguage(language, { en: "CFO / Finance", es: "CFO / Finanzas", pt: "CFO / Financas" }),
-        byLanguage(language, { en: "Procurement", es: "Compras", pt: "Compras" }),
-        byLanguage(language, { en: "Executive sponsor", es: "Sponsor ejecutivo", pt: "Sponsor executivo" }),
-      ];
-    }
-    return [
-      byLanguage(language, { en: "Executive leadership", es: "Liderazgo ejecutivo", pt: "Lideranca executiva" }),
-      byLanguage(language, { en: "Product owner", es: "Product owner", pt: "Product owner" }),
-      byLanguage(language, { en: "Architecture team", es: "Equipo de arquitectura", pt: "Time de arquitetura" }),
-    ];
-  }
-
-  function fallbackCommercialHighlights(artifact: (typeof commercialArtifacts)[number]) {
-    const key = String(artifact.metadata.artifact_key ?? artifact.key).toLocaleLowerCase("es");
-    if (key.includes("comparativa-valor")) {
-      return [
-        byLanguage(language, { en: "Development scenarios", es: "Escenarios de desarrollo", pt: "Cenarios de desenvolvimento" }),
-        byLanguage(language, { en: "Clear effort and cost", es: "Esfuerzo y costo claros", pt: "Esforco e custo claros" }),
-        byLanguage(language, { en: "Savings and ROI projection", es: "Proyeccion de ahorro y ROI", pt: "Projecao de economia e ROI" }),
-      ];
-    }
-    return [
-      byLanguage(language, { en: "Executive explanation", es: "Explicacion ejecutiva", pt: "Explicacao executiva" }),
-      byLanguage(language, { en: "Approved context", es: "Contexto aprobado", pt: "Contexto aprovado" }),
-      byLanguage(language, { en: "Commercial decision support", es: "Soporte para decision comercial", pt: "Suporte para decisao comercial" }),
     ];
   }
 
@@ -1876,11 +1754,6 @@ function ProductExecutiveOverviewTab({
       }),
     [productBuild.data, productKey, projectTitle, sessionId],
   );
-  const [selectedMilestoneKey, setSelectedMilestoneKey] = useState<string | undefined>();
-  const selectedMilestone =
-    overview.milestones.find((milestone) => milestone.key === selectedMilestoneKey) ??
-    overview.milestones.find((milestone) => milestone.progress < 80) ??
-    overview.milestones[0];
   const shouldShowBuildTracker = canRenderBuildTracker(productBuild.data);
 
   return (

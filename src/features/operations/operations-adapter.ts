@@ -1,4 +1,7 @@
 import type {
+  TranslationKey,
+} from "@/core/i18n/locales/es";
+import type {
   AgentExecutionBackend,
   AntigravityProviderConfig,
   ArtifactRecordEntry,
@@ -18,6 +21,7 @@ const CRITICAL_SEVERITIES = new Set(["blocking", "critical", "error", "high"]);
 const WARNING_SEVERITIES = new Set(["medium", "needs_review", "warning"]);
 
 export type StatusTone = "violet" | "green" | "orange" | "red" | "blue" | "slate";
+type TranslationFunction = (key: TranslationKey, fallback?: string) => string;
 
 export type CodexRolloutSummary = ReturnType<typeof buildCodexRolloutSummary>;
 
@@ -398,7 +402,7 @@ export function getRuntimeFieldOrigin(runtime: Pick<LLMRuntimeSettings, "field_o
 export function getRuntimeFieldOriginLabel(
   runtime: Pick<LLMRuntimeSettings, "field_origins">,
   fieldPath: string,
-  t?: (key: any, fallback?: string) => string,
+  t?: TranslationFunction,
 ) {
   const origin = getRuntimeFieldOrigin(runtime, fieldPath);
   if (t) {
@@ -407,7 +411,7 @@ export function getRuntimeFieldOriginLabel(
   return origin === "override" ? "Override workspace" : "Default plataforma";
 }
 
-export function getSecretSourceLabel(source: string, t?: (key: any, fallback?: string) => string) {
+export function getSecretSourceLabel(source: string, t?: TranslationFunction) {
   if (t) {
     switch (source) {
       case "workspace_managed":
@@ -436,7 +440,7 @@ export function getSecretSourceLabel(source: string, t?: (key: any, fallback?: s
   }
 }
 
-export function getAgentExecutionBackendCopy(value: AgentExecutionBackend, t?: (key: any, fallback?: string) => string) {
+export function getAgentExecutionBackendCopy(value: AgentExecutionBackend, t?: TranslationFunction) {
   if (t) {
     switch (value) {
       case "codex_cli":
@@ -475,7 +479,7 @@ export function getAgentExecutionBackendCopy(value: AgentExecutionBackend, t?: (
   }
 }
 
-export function getKnowledgeAccessBackendCopy(value: KnowledgeAccessBackend, t?: (key: any, fallback?: string) => string) {
+export function getKnowledgeAccessBackendCopy(value: KnowledgeAccessBackend, t?: TranslationFunction) {
   if (t) {
     switch (value) {
       case "workspace_staged":

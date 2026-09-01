@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertTriangle,
-  Info,
   Copy,
   Check,
   TrendingUp,
@@ -482,7 +481,6 @@ function buildDocument({
 
 export function ProfessionalArtifactViewer({
   canCopy,
-  canDownload: _canDownload,
   className,
   contentText,
   description,

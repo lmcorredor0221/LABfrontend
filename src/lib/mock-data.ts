@@ -25,7 +25,7 @@ export type NavItem = {
   icon: LucideIcon;
 };
 
-function getHomeNavigationHref(activeSessionId?: string | null) {
+function getHomeNavigationHref() {
   return "/";
 }
 
@@ -48,7 +48,7 @@ function getProductNavigation(activeSessionId?: string | null): NavItem[] {
 
 export function getFullNavigation(activeSessionId?: string | null): NavItem[] {
   return [
-    { label: "Inicio", href: getHomeNavigationHref(activeSessionId), icon: LayoutDashboard },
+    { label: "Inicio", href: getHomeNavigationHref(), icon: LayoutDashboard },
     { label: "Proyectos", href: "/projects", icon: FolderKanban },
     ...getProductNavigation(activeSessionId),
     { label: "Agentes", href: getAgentNavigationHref(activeSessionId), icon: Bot },
@@ -63,7 +63,7 @@ export function getFullNavigation(activeSessionId?: string | null): NavItem[] {
 
 export function getIconNavigation(activeSessionId?: string | null): NavItem[] {
   return [
-    { label: "Inicio", href: getHomeNavigationHref(activeSessionId), icon: LayoutDashboard },
+    { label: "Inicio", href: getHomeNavigationHref(), icon: LayoutDashboard },
     { label: "Proyectos", href: "/projects", icon: FolderKanban },
     ...getProductNavigation(activeSessionId),
     { label: "Agentes", href: getAgentNavigationHref(activeSessionId), icon: Bot },

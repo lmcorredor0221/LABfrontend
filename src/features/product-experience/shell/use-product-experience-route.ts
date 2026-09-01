@@ -258,8 +258,10 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
       return;
     }
 
-    setDiscoveryAction((current) => reconcileBackendOperation(current, serverOperation, "discover"));
-    setStageAction((current) => reconcileBackendOperation(current, serverOperation, serverOperation.stage));
+    queueMicrotask(() => {
+      setDiscoveryAction((current) => reconcileBackendOperation(current, serverOperation, "discover"));
+      setStageAction((current) => reconcileBackendOperation(current, serverOperation, serverOperation.stage));
+    });
   }, [serverOperation]);
 
   useEffect(() => {

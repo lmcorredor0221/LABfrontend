@@ -109,7 +109,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
     if (auth.status !== "authenticated" || !userId) {
       if (storedCurrency) {
-        setCurrencyState(storedCurrency);
+        queueMicrotask(() => setCurrencyState(storedCurrency));
       }
       return;
     }
@@ -125,7 +125,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
     if (canMigrateLegacyStorage && migrationInFlightRef.current !== migrationKey) {
       migrationInFlightRef.current = migrationKey;
-      setCurrencyState(storedCurrency);
+      queueMicrotask(() => setCurrencyState(storedCurrency));
       writeStoredCurrency(storedCurrency, userId);
       void apiClient
         .patch("/api/v1/auth/currency", {
@@ -136,7 +136,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {
           const fallbackCurrency = backendCurrency ?? "COP";
-          setCurrencyState(fallbackCurrency);
+          queueMicrotask(() => setCurrencyState(fallbackCurrency));
           writeStoredCurrency(fallbackCurrency, userId);
         })
         .finally(() => {
@@ -146,7 +146,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     }
 
     const resolvedCurrency = backendCurrency ?? storedCurrency ?? "COP";
-    setCurrencyState(resolvedCurrency);
+    queueMicrotask(() => setCurrencyState(resolvedCurrency));
     writeStoredCurrency(resolvedCurrency, userId);
     markMigration(userId);
   }, [auth.status, auth.user?.id, auth.user?.preferred_currency]);

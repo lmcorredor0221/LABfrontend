@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -10,13 +10,10 @@ import {
   ChevronDown,
   ChevronUp,
   Cpu,
-  HelpCircle,
   Layers,
   Lightbulb,
   RotateCcw,
   ShieldAlert,
-  Sparkles,
-  Zap,
 } from "lucide-react";
 import { useLanguage } from "@/core/i18n/language-context";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";

@@ -608,12 +608,6 @@ function buildAdminRoles(): AdminRolesResponse {
   };
 }
 
-function getProviderSummaryText() {
-  const label = screen.getByText("Provider efectivo");
-  const container = label.parentElement;
-  return container?.textContent ?? "";
-}
-
 function renderSettingsPage(props: Parameters<typeof SettingsWorkspacePage>[0] = {}) {
   return render(
     <LanguageProvider initialLanguage="es">

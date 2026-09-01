@@ -24,6 +24,7 @@ vi.mock("next/navigation", () => ({
     push: vi.fn(),
     replace: mocks.replace,
   }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/core/api", async () => {

@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "../features/product-experience/design-system/tokens.css";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --font-sans-local:
     "Aptos", "Segoe UI Variable", "Segoe UI", "Helvetica Neue", sans-serif;

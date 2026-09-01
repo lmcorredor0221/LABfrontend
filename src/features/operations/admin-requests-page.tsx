@@ -7,12 +7,9 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Clock,
-  ExternalLink,
-  Filter,
   Inbox,
   RefreshCw,
   Search,
-  ShieldAlert,
   ShieldCheck,
   User,
   XCircle,
@@ -69,7 +66,7 @@ export function AdminRequestsPage() {
   }, [language]);
 
   useEffect(() => {
-    void fetchRequests();
+    queueMicrotask(() => void fetchRequests());
   }, [fetchRequests]);
 
   const handleResolve = async (requestId: string, decision: "approved" | "rejected", note = "") => {

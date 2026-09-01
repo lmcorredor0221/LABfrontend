@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Link2, FileJson, Check, X, Shield, Key } from "lucide-react";
-import { AppButton, Badge, Panel, TextField, TextAreaField } from "@/components/lean/ui";
+import { Link2, Shield, X } from "lucide-react";
+import { AppButton, Badge, TextAreaField, TextField } from "@/components/lean/ui";
 
 type ApiBindModalProps = {
   isOpen: boolean;
@@ -24,7 +24,6 @@ type ApiBindModalProps = {
 export function ApiBindModal({
   isOpen,
   toolName,
-  toolPurpose,
   currentEndpoint = "",
   currentAuth = "",
   currentApiRef = "",
@@ -49,7 +48,7 @@ export function ApiBindModal({
       if (bindMode === "openapi" && openapiJson.trim()) {
         try {
           openapiSpec = JSON.parse(openapiJson);
-        } catch (e) {
+        } catch {
           throw new Error("El contenido ingresado no es un JSON válido para OpenAPI.");
         }
       }

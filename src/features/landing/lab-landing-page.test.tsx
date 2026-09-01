@@ -43,29 +43,29 @@ describe("LabLandingPage Component", () => {
     expect(screen.getByText("Diseño de Asistentes IA")).toBeInTheDocument();
 
     // Hero
-    expect(screen.getByText(/No programes a ciegas. Diseña los/i)).toBeInTheDocument();
-    expect(screen.getByText(/No construyas la casa sin los planos. Evita proyectos fallidos de IA./i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Diseña agentes de IA para tu empresa antes de programar/i })).toBeInTheDocument();
+    expect(screen.getByText(/Evalúa qué procesos automatizar con IA/i)).toBeInTheDocument();
 
     // Direct product experience (Simulator)
     expect(screen.getByText("Evaluación Gratuita")).toBeInTheDocument();
-    expect(screen.getByText("¿Qué tarea repetitiva agota a tu equipo?")).toBeInTheDocument();
+    expect(screen.getByText("Validar mi idea")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Escribe aquí tu problema/i)).toBeInTheDocument();
 
     // Methodology (4 steps)
-    expect(screen.getByText("4 pasos antes de escribir código")).toBeInTheDocument();
+    expect(screen.getByText("Cómo diseñamos un agente de IA paso a paso")).toBeInTheDocument();
     expect(screen.getByText("El Problema Real")).toBeInTheDocument();
     expect(screen.getByText("Entrega de Planos")).toBeInTheDocument();
 
     // Deliverables (Blueprint vs ACP)
-    expect(screen.getByText("Dos documentos. Un solo objetivo: Claridad.")).toBeInTheDocument();
+    expect(screen.getByText("Blueprints claros para construir tu agente de IA")).toBeInTheDocument();
     expect(screen.getByText("PLANO ESTRATÉGICO (BLUEPRINT)")).toBeInTheDocument();
     expect(screen.getByText("PAQUETE TÉCNICO (ACP)")).toBeInTheDocument();
 
     // Impact calculator
-    expect(screen.getByText("Estimación de Impacto en Horas")).toBeInTheDocument();
+    expect(screen.getByText("Estimación Transparente")).toBeInTheDocument();
 
     // Commercial plans
-    expect(screen.getByText("Planes por Proyecto")).toBeInTheDocument();
+    expect(screen.getByText("Planes para validar y diseñar tu agente de IA")).toBeInTheDocument();
     expect(screen.getByText("Free")).toBeInTheDocument();
 
     // Agencies & Factory

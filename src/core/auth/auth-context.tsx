@@ -50,14 +50,10 @@ function AuthGate({
   const router = useRouter();
   const auth = useAuth();
   const publicRoute = isPublicRoute(pathname ?? "/");
-  const [hydratedLanguage, setHydratedLanguage] = useState<SupportedLanguage>("es");
+  const [hydratedLanguage] = useState<SupportedLanguage>(() => resolveLanguage());
   const enterpriseThemeFixtureRoute =
     process.env.NODE_ENV !== "production"
     && pathname?.startsWith("/projects/enterprise-theme-fixture");
-
-  useEffect(() => {
-    setHydratedLanguage(resolveLanguage());
-  }, []);
 
   useEffect(() => {
     if (!auth.isHydrated || publicRoute || enterpriseThemeFixtureRoute) {

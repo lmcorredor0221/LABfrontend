@@ -3,7 +3,6 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Badge, Panel } from "@/components/lean/ui";
-import { cn } from "@/lib/utils";
 
 interface ProviderAccordionProps {
   badges?: { label: string; tone: "violet" | "green" | "orange" | "red" | "blue" | "slate" }[];

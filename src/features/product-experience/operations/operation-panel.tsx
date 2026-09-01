@@ -12,7 +12,6 @@ import {
   PauseCircle,
   RefreshCw,
   RotateCcw,
-  Sparkles,
   XCircle,
 } from "lucide-react";
 import { useLanguage } from "@/core/i18n/language-context";
@@ -26,11 +25,9 @@ import {
 import {
   buildProductOperationEnvelope,
   getOperationStepMetrics,
-  isOperationActive,
   type ProductOperationActionSnapshot,
   type ProductOperationEnvelope,
   type ProductOperationStatus,
-  type ProductOperationStep,
   type ProductOperationStepStatus,
 } from "@/features/product-experience/operations/operation-model";
 import { cn } from "@/lib/utils";
@@ -234,7 +231,7 @@ function MinimalistStepBar({
   );
 }
 
-function EmptyOperation({ onReload }: { onReload?: () => void }) {
+function EmptyOperation() {
   return null;
 }
 
@@ -250,7 +247,7 @@ export function ProductOperationPanel({
   const operation = buildProductOperationEnvelope({ actionState, activeRoute });
 
   if (!operation) {
-    return <EmptyOperation onReload={onReload} />;
+    return <EmptyOperation />;
   }
 
   const copy = statusCopy(operation.status);

@@ -21,7 +21,6 @@ import {
   Target,
   Workflow,
   Wrench,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -984,7 +983,6 @@ export function ExecutiveProductKeyDeliverables({
 }
 
 export function DeliverableGenerationLiveTracker({
-  productKey,
   productLabel,
   status,
   onProcessPending,

@@ -77,33 +77,17 @@ export function LanguageProvider({
   children: React.ReactNode;
   initialLanguage?: SupportedLanguage;
 }) {
-  const [language, setLanguageState] = useState<SupportedLanguage>(initialLanguage);
-  const [isLanguageBootstrapped, setIsLanguageBootstrapped] = useState(false);
+  const [language, setLanguageState] = useState<SupportedLanguage>(() => readStoredLanguage() ?? initialLanguage);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    const storedLanguage = readStoredLanguage();
-    if (storedLanguage && storedLanguage !== language) {
-      setLanguageState(storedLanguage);
-      setIsLanguageBootstrapped(true);
-      return;
-    }
-
-    setIsLanguageBootstrapped(true);
-  }, [language]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !isLanguageBootstrapped) {
-      return;
-    }
-
     document.documentElement.lang = language;
     getStorage()?.setItem(LANGUAGE_STORAGE_KEY, language);
     document.cookie = `${LANGUAGE_COOKIE_NAME}=${language}; path=/; max-age=31536000; samesite=lax`;
-  }, [isLanguageBootstrapped, language]);
+  }, [language]);
 
   const setLanguage = (newLanguage: SupportedLanguage) => {
     setLanguageState(newLanguage);
@@ -154,7 +138,7 @@ export function useLanguage(): LanguageContextType {
       language: "es",
       languages: SUPPORTED_LANGUAGES,
       setLanguage: () => {},
-      t: (key: any, fallback?: string) => fallback ?? String(key),
+      t: (key: TranslationKey, fallback?: string) => fallback ?? String(key),
     };
   }
   return context;

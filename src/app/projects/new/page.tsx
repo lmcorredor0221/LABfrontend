@@ -14,7 +14,6 @@ export default function NewProjectPage() {
   const sessions = useSessions();
   const { language } = useLanguage();
   const [error, setError] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(true);
   const initiatedRef = useRef(false);
 
   useEffect(() => {
@@ -33,7 +32,6 @@ export default function NewProjectPage() {
     initiatedRef.current = true;
 
     async function initializeProject() {
-      setIsCreating(true);
       setError(null);
 
       try {
@@ -82,7 +80,6 @@ export default function NewProjectPage() {
         // Navigate to Discover stage
         router.replace(`/projects/${session.id}/discover`);
       } catch (err) {
-        setIsCreating(false);
         setError(
           err instanceof Error
             ? err.message

@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ArrowRight, CheckCircle2, FileArchive, Gauge, PackageCheck, Play, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, FileArchive, Gauge, PackageCheck, ShieldCheck } from "lucide-react";
 import { sessionsApi } from "@/features/sessions/session-api";
 import {
   UxaBadge,

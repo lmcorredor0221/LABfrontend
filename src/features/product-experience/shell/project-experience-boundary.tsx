@@ -84,7 +84,7 @@ function ProductExperienceEnabledGate({
   useEffect(() => {
     if (!user || !sessionWorkspaceId || user.active_workspace_id === sessionWorkspaceId) {
       workspaceSyncRequestRef.current = null;
-      setWorkspaceSyncError(null);
+      queueMicrotask(() => setWorkspaceSyncError(null));
       return;
     }
     if (workspaceSyncRequestRef.current === sessionWorkspaceId) {
@@ -92,7 +92,7 @@ function ProductExperienceEnabledGate({
     }
 
     workspaceSyncRequestRef.current = sessionWorkspaceId;
-    setWorkspaceSyncError(null);
+    queueMicrotask(() => setWorkspaceSyncError(null));
 
     let cancelled = false;
     void Promise.resolve(selectWorkspace(sessionWorkspaceId))
