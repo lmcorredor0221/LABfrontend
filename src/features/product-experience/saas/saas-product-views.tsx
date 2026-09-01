@@ -1602,8 +1602,8 @@ function CommercialBlueprintResult({
             productKey={productBuildKey}
             productLabel={productTierLabel(language, tierScope)}
             status={productBuild.data}
-            onProcessPending={() => productBuild.executeCommand("process_pending")}
-            onRetryFailed={() => productBuild.executeCommand("retry_failed")}
+            onProcessPending={() => productBuild.executeCommand("process_pending", { allow_llm: true })}
+            onRetryFailed={() => productBuild.executeCommand("retry_failed", { allow_llm: true })}
             processingDisabled={productBuild.isFetching}
           />
         ) : productBuild.isLoading || productBuild.isFetching ? (
@@ -1913,8 +1913,8 @@ function ProductExecutiveOverviewTab({
               productKey={productKey}
               productLabel={overview.productLabel}
               status={productBuild.data}
-              onProcessPending={() => productBuild.executeCommand("process_pending")}
-              onRetryFailed={() => productBuild.executeCommand("retry_failed")}
+              onProcessPending={() => productBuild.executeCommand("process_pending", { allow_llm: true })}
+              onRetryFailed={() => productBuild.executeCommand("retry_failed", { allow_llm: true })}
               processingDisabled={productBuild.isFetching}
             />
           ) : null}
@@ -1988,8 +1988,8 @@ function ProductExecutiveOverviewPage({
                 productKey={config.productKey}
                 productLabel={overview.productLabel}
                 status={productBuild.data}
-                onProcessPending={() => productBuild.executeCommand("process_pending")}
-                onRetryFailed={() => productBuild.executeCommand("retry_failed")}
+                onProcessPending={() => productBuild.executeCommand("process_pending", { allow_llm: true })}
+                onRetryFailed={() => productBuild.executeCommand("retry_failed", { allow_llm: true })}
                 processingDisabled={productBuild.isFetching}
               />
             ) : null}

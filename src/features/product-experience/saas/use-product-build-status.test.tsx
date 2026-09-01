@@ -159,4 +159,34 @@ describe("useProductBuildStatus", () => {
     expect(shouldPollProductBuildStatus(createStatus("requires_attention"))).toBe(false);
     expect(shouldPollProductBuildStatus(createStatus("error"))).toBe(false);
   });
+
+  it("passes explicit LLM authorization when retrying failed product build items", async () => {
+    const api = {
+      executeProductBuildAction: vi.fn(async () => createStatus("requires_attention")),
+      getProductBuildStatus: vi.fn(async () => createStatus("requires_attention")),
+      listProductBuildStatuses: vi.fn(),
+    };
+
+    const { result } = renderHook(() =>
+      useProductBuildStatus("session-1", "blueprint_pro", {
+        api,
+        polling: false,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.status).toBe("success"));
+
+    await act(async () => {
+      await result.current.executeCommand("retry_failed", { allow_llm: true });
+    });
+
+    expect(api.executeProductBuildAction).toHaveBeenCalledWith(
+      "session-1",
+      "blueprint_pro",
+      expect.objectContaining({
+        action: "retry_failed",
+        allow_llm: true,
+      }),
+    );
+  });
 });
