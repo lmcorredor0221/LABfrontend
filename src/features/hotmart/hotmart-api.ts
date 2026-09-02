@@ -64,6 +64,68 @@ function buildIdempotencyKey(prefix: string, parts: Array<string | null | undefi
 
 const DEFAULT_ADMIN_LIST_LIMIT = 100;
 
+type RawCommercialAdminBootstrapData = Partial<CommercialAdminBootstrapData> & {
+  balance_snapshot?: CommercialBalanceSnapshotResponse;
+  effective_config?: CommercialQuotaEffectiveConfigResponse;
+  open_debt_count?: number;
+  product_key?: string;
+  quota_configs?: CommercialQuotaProductConfigResponse[];
+  workspace_id?: string;
+  workspace_overrides?: CommercialQuotaWorkspaceOverrideResponse[];
+};
+
+function normalizeCommercialBootstrap(payload: RawCommercialAdminBootstrapData): CommercialAdminBootstrapData {
+  return {
+    balanceSnapshot: payload.balanceSnapshot ?? payload.balance_snapshot ?? {
+      buckets: [],
+      by_source_kind: {},
+      contract_version: "commercial-balance-snapshot.v1",
+      product_key: payload.product_key ?? "",
+      total_available_units: 0,
+      workspace_id: payload.workspace_id ?? "",
+    },
+    effectiveConfig: payload.effectiveConfig ?? payload.effective_config ?? {
+      allow_courtesy: false,
+      allow_debt_pending: false,
+      allow_manual_override_without_charge: false,
+      catalog_priority_strategy: "package_priority",
+      checkout_required_on_zero_balance: true,
+      consumption_priority: [],
+      contract_version: "commercial-quota-effective-config.v1",
+      debt_enabled: false,
+      default_blocked_request_ttl_hours: 72,
+      default_checkout_ttl_minutes: 30,
+      display_name: payload.product_key ?? "",
+      duplicate_conflict_visibility: "platform_admin_only",
+      enabled: false,
+      fifo_auto_approval_enabled: false,
+      initial_free_units: 0,
+      product_key: payload.product_key ?? "",
+      sync_retry_limit: 5,
+      workspace_id: payload.workspace_id ?? "",
+    },
+    openDebtCount: payload.openDebtCount ?? payload.open_debt_count ?? 0,
+    quotaConfigs: payload.quotaConfigs ?? payload.quota_configs ?? [],
+    recommendation: payload.recommendation ?? {
+      contract_version: "commercial-package-recommendation.v1",
+      display_name: "",
+      granted_units_for_product: 0,
+      hotmart_environment: "",
+      hotmart_product_id: "",
+      hotmart_product_ucode: "",
+      offer_code: "",
+      package_code: "",
+      package_type: null,
+      plan_code: "",
+      recommendation_priority: 0,
+      recommendation_reason: "",
+      requested_product_key: payload.product_key ?? "",
+      required_units: 1,
+    },
+    workspaceOverrides: payload.workspaceOverrides ?? payload.workspace_overrides ?? [],
+  };
+}
+
 export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
   return {
     async getDashboardBootstrap(environment: HotmartEnvironment): Promise<HotmartDashboardBootstrapData> {
@@ -109,9 +171,11 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
       workspaceId?: string;
     }) {
       const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
-      return client.get<CommercialAdminBootstrapData>(
-        `/api/v1/admin/integrations/hotmart/commercial/bootstrap?product_key=${encodeURIComponent(productKey)}${workspaceQuery}`,
-      );
+      return client
+        .get<RawCommercialAdminBootstrapData>(
+          `/api/v1/admin/integrations/hotmart/commercial/bootstrap?product_key=${encodeURIComponent(productKey)}${workspaceQuery}`,
+        )
+        .then(normalizeCommercialBootstrap);
     },
 
     async getDashboard(environment: HotmartEnvironment): Promise<HotmartDashboardData> {
