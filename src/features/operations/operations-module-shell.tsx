@@ -20,6 +20,7 @@ export function OperationsModuleShell({
   sessionOptions,
   sessionValue,
   showSessionContext = true,
+  showWorkspaceSelector = true,
   title,
   onSessionChange,
 }: {
@@ -38,6 +39,7 @@ export function OperationsModuleShell({
   sessionOptions: Array<{ label: string; value: string }>;
   sessionValue?: string | null;
   showSessionContext?: boolean;
+  showWorkspaceSelector?: boolean;
   title: string;
   onSessionChange?: (value: string) => void;
 }) {
@@ -54,7 +56,7 @@ export function OperationsModuleShell({
         actions={
           <>
             {actions}
-            <TopUtilities />
+            <TopUtilities showWorkspaceSelector={showWorkspaceSelector} />
           </>
         }
       >

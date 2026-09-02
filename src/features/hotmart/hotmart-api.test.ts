@@ -301,14 +301,11 @@ const commercialBootstrap: CommercialAdminBootstrapData = {
 };
 
 describe("createHotmartAdminApi", () => {
-  it("loads the Hotmart bootstrap from the summary endpoints only", async () => {
+  it("loads the Hotmart bootstrap from the minimum entry endpoints only", async () => {
     const client = {
       delete: vi.fn(),
       get: vi.fn((path: string) => {
         if (path.includes("/status")) return Promise.resolve(status);
-        if (path.includes("/coupons/metrics")) return Promise.resolve(promotionMetrics);
-        if (path.includes("/club/overview")) return Promise.resolve(clubOverview);
-        if (path.includes("/release-readiness")) return Promise.resolve(releaseReadiness);
         if (path.includes("/commerce/products")) return Promise.resolve([]);
         return Promise.reject(new Error(`Unexpected GET ${path}`));
       }),
@@ -319,14 +316,9 @@ describe("createHotmartAdminApi", () => {
     const dashboard = await api.getDashboardBootstrap("sandbox");
 
     expect(dashboard.status.status).toBe("configured");
-    expect(dashboard.promotionMetrics.active).toBe(1);
-    expect(dashboard.clubOverview.subdomain).toBe("leanclub");
-    expect(dashboard.releaseReadiness.overall_status).toBe("needs_attention");
-    expect(client.get).toHaveBeenCalledTimes(5);
+    expect(dashboard.products).toEqual([]);
+    expect(client.get).toHaveBeenCalledTimes(2);
     expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/status?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/coupons/metrics?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/overview?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/release-readiness?environment=sandbox");
     expect(client.get).toHaveBeenCalledWith("/api/v1/commerce/products");
   });
 
@@ -374,32 +366,29 @@ describe("createHotmartAdminApi", () => {
     expect(dashboard.runbook).toHaveLength(1);
     expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/status?environment=sandbox");
     expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/mappings?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/payment-links");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/coupons?environment=sandbox");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/payment-links?limit=100");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/coupons?environment=sandbox&limit=100");
     expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/coupons/metrics?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/sync-runs?environment=sandbox");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/sync-runs?environment=sandbox&limit=100");
     expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/sync-cursors?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/reconciliation?environment=sandbox&status=open");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/reconciliation?environment=sandbox&status=open&limit=100");
     expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/overview?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/modules?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/pages?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/students?environment=sandbox");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/progress?environment=sandbox");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/modules?environment=sandbox&limit=100");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/pages?environment=sandbox&limit=100");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/students?environment=sandbox&limit=100");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/club/progress?environment=sandbox&limit=100");
     expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/release-readiness?environment=sandbox");
     expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/alerts?environment=sandbox");
     expect(client.get).toHaveBeenCalledWith("/api/v1/admin/integrations/hotmart/runbook");
     expect(client.get).toHaveBeenCalledWith("/api/v1/commerce/products");
   });
 
-  it("caps dashboard bootstrap fan-out to five concurrent requests", async () => {
+  it("caps dashboard bootstrap fan-out to two concurrent requests", async () => {
     let activeRequests = 0;
     let maxConcurrentRequests = 0;
 
     const resolveGet = (path: string) => {
       if (path.includes("/status")) return status;
-      if (path.includes("/coupons/metrics")) return promotionMetrics;
-      if (path.includes("/club/overview")) return clubOverview;
-      if (path.includes("/release-readiness")) return releaseReadiness;
       if (path.includes("/commerce/products")) return [];
       throw new Error(`Unexpected GET ${path}`);
     };
@@ -429,8 +418,8 @@ describe("createHotmartAdminApi", () => {
     const dashboard = await api.getDashboardBootstrap("sandbox");
 
     expect(dashboard.status.status).toBe("configured");
-    expect(maxConcurrentRequests).toBeLessThanOrEqual(5);
-    expect(client.get).toHaveBeenCalledTimes(5);
+    expect(maxConcurrentRequests).toBeLessThanOrEqual(2);
+    expect(client.get).toHaveBeenCalledTimes(2);
   });
 
   it("loads the commercial bootstrap from a single scoped endpoint", async () => {

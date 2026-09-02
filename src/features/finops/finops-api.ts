@@ -38,21 +38,30 @@ function buildQueryString(params: Record<string, QueryValue>) {
 export function createFinOpsApi(client = apiClient) {
   return {
     listUsage(params: FinOpsUsageQuery = {}) {
-      return client.get<FinOpsUsageListResponse>(`/api/v1/finops/llm/usage${buildQueryString(params)}`);
+      return client.get<FinOpsUsageListResponse>(`/api/v1/finops/llm/usage${buildQueryString(params)}`, {
+        includeWorkspaceId: false,
+      });
     },
     getSummary(params: FinOpsSummaryQuery = {}) {
-      return client.get<FinOpsSummary>(`/api/v1/finops/llm/summary${buildQueryString(params)}`);
+      return client.get<FinOpsSummary>(`/api/v1/finops/llm/summary${buildQueryString(params)}`, {
+        includeWorkspaceId: false,
+      });
     },
     getTopConsumers(params: FinOpsTopConsumersQuery = {}) {
-      return client.get<FinOpsTopConsumersResponse>(`/api/v1/finops/llm/top-consumers${buildQueryString(params)}`);
+      return client.get<FinOpsTopConsumersResponse>(`/api/v1/finops/llm/top-consumers${buildQueryString(params)}`, {
+        includeWorkspaceId: false,
+      });
     },
     getProviderBreakdown(params: FinOpsSummaryQuery = {}) {
       return client.get<FinOpsProviderBreakdownResponse>(
         `/api/v1/finops/llm/provider-breakdown${buildQueryString(params)}`,
+        { includeWorkspaceId: false },
       );
     },
     getTimeseries(params: FinOpsTimeseriesQuery = {}) {
-      return client.get<FinOpsTimeseriesResponse>(`/api/v1/finops/llm/timeseries${buildQueryString(params)}`);
+      return client.get<FinOpsTimeseriesResponse>(`/api/v1/finops/llm/timeseries${buildQueryString(params)}`, {
+        includeWorkspaceId: false,
+      });
     },
     listBudgets(params: FinOpsBudgetListQuery = {}) {
       return client.get<FinOpsBudgetListResponse>(`/api/v1/finops/llm/budgets${buildQueryString(params)}`);
@@ -68,7 +77,9 @@ export function createFinOpsApi(client = apiClient) {
       });
     },
     listAlerts(params: FinOpsAlertListQuery = {}) {
-      return client.get<FinOpsAlertListResponse>(`/api/v1/finops/llm/alerts${buildQueryString(params)}`);
+      return client.get<FinOpsAlertListResponse>(`/api/v1/finops/llm/alerts${buildQueryString(params)}`, {
+        includeWorkspaceId: false,
+      });
     },
   };
 }

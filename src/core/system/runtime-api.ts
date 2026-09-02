@@ -5,6 +5,7 @@ import type {
   LLMRuntimeSettingsUpdateRequest,
   PlatformRuntimeProviderResponse,
   PlatformRuntimeProviderUpdateRequest,
+  PlatformProviderSecretResponse,
   RuntimeSettingsAuditListResponse,
   WorkspaceProviderSecretResponse,
   WorkspaceProviderSecretUpsertRequest,
@@ -71,6 +72,36 @@ export type RuntimeStatusResponse = {
   version: string | null;
 };
 
+export type RuntimePropagationMode = "fallback_only" | "reset_to_platform" | "force_selected" | "force_all";
+
+export type RuntimePropagationRequest = {
+  dry_run?: boolean;
+  mode: RuntimePropagationMode;
+  payload: LLMRuntimeSettingsUpdateRequest;
+  workspace_ids?: string[];
+};
+
+export type RuntimePropagationItemResponse = {
+  action: string;
+  detail: string;
+  effective_provider_after?: string | null;
+  status: "applied" | "failed" | "planned" | "skipped" | string;
+  workspace_id: string;
+  workspace_name: string;
+};
+
+export type RuntimePropagationRunResponse = {
+  applied_count: number;
+  dry_run: boolean;
+  failed_count: number;
+  id: string;
+  items: RuntimePropagationItemResponse[];
+  mode: RuntimePropagationMode;
+  planned_count: number;
+  skipped_count: number;
+  status: "applied" | "failed" | "planned" | "skipped" | string;
+};
+
 export function createRuntimeApi(client = apiClient) {
   return {
     health() {
@@ -86,6 +117,11 @@ export function createRuntimeApi(client = apiClient) {
     deleteWorkspaceSecret(providerKey: LLMProviderKey) {
       return client.delete<WorkspaceProviderSecretResponse>(`/api/v1/runtime/llm/secrets/${providerKey}`);
     },
+    deletePlatformSecret(providerKey: LLMProviderKey) {
+      return client.delete<PlatformProviderSecretResponse>(`/api/v1/platform/runtime/secrets/${providerKey}`, {
+        redirectOnUnauthorized: false,
+      });
+    },
     getPlatformAudit(limit = 50) {
       return client.get<RuntimeSettingsAuditListResponse>(`/api/v1/platform/runtime/audit?limit=${limit}`, {
         redirectOnUnauthorized: false,
@@ -93,6 +129,11 @@ export function createRuntimeApi(client = apiClient) {
     },
     getPlatformDefaults() {
       return client.get<LLMRuntimeSettings>("/api/v1/platform/runtime/defaults", {
+        redirectOnUnauthorized: false,
+      });
+    },
+    getPlatformSecret(providerKey: LLMProviderKey) {
+      return client.get<PlatformProviderSecretResponse>(`/api/v1/platform/runtime/secrets/${providerKey}`, {
         redirectOnUnauthorized: false,
       });
     },
@@ -112,11 +153,23 @@ export function createRuntimeApi(client = apiClient) {
         body: payload,
       });
     },
+    rotatePlatformSecret(providerKey: LLMProviderKey, payload: WorkspaceProviderSecretUpsertRequest) {
+      return client.post<PlatformProviderSecretResponse>(`/api/v1/platform/runtime/secrets/${providerKey}/rotate`, {
+        body: payload,
+        redirectOnUnauthorized: false,
+      });
+    },
     testWorkspaceRuntime() {
       return client.post<WorkspaceRuntimeHealthResponse>("/api/v1/runtime/llm/test");
     },
     updatePlatformDefaults(payload: LLMRuntimeSettingsUpdateRequest) {
       return client.patch<LLMRuntimeSettings>("/api/v1/platform/runtime/defaults", {
+        body: payload,
+        redirectOnUnauthorized: false,
+      });
+    },
+    propagatePlatformDefaults(payload: RuntimePropagationRequest) {
+      return client.post<RuntimePropagationRunResponse>("/api/v1/platform/runtime/defaults/propagate", {
         body: payload,
         redirectOnUnauthorized: false,
       });
@@ -130,6 +183,12 @@ export function createRuntimeApi(client = apiClient) {
     upsertWorkspaceSecret(providerKey: LLMProviderKey, payload: WorkspaceProviderSecretUpsertRequest) {
       return client.post<WorkspaceProviderSecretResponse>(`/api/v1/runtime/llm/secrets/${providerKey}`, {
         body: payload,
+      });
+    },
+    upsertPlatformSecret(providerKey: LLMProviderKey, payload: WorkspaceProviderSecretUpsertRequest) {
+      return client.post<PlatformProviderSecretResponse>(`/api/v1/platform/runtime/secrets/${providerKey}`, {
+        body: payload,
+        redirectOnUnauthorized: false,
       });
     },
   };

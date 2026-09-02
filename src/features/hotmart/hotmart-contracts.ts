@@ -424,7 +424,7 @@ export type HotmartDashboardData = {
 
 export type HotmartDashboardBootstrapData = Pick<
   HotmartDashboardData,
-  "clubOverview" | "products" | "promotionMetrics" | "releaseReadiness" | "status"
+  "products" | "status"
 >;
 
 export type CommercialQuotaProductConfigUpsertRequest = {

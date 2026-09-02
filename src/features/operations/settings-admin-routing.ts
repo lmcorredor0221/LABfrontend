@@ -2,6 +2,7 @@ import {
   ADMIN_CONFIG_TAB_KEYS,
   ADMIN_SECTION_KEYS,
   PRODUCT_GOVERNANCE_TAB_KEYS,
+  SETTINGS_CONFIG_SUB_TABS,
   type AdminConfigTabKey,
   type AdminSettingsSectionKey,
   type ProductGovernanceTabKey,
@@ -62,7 +63,7 @@ export function parseSettingsRouteState(params: SettingsSearchParams): ParsedSet
 
   if (rawSection === "integrations" || (rawConfig && LEGACY_HOTMART_CONFIG_KEYS.has(rawConfig))) {
     return {
-      configSubTab: "hotmart",
+      configSubTab: "prices",
       configTab: "commerce",
       productGovernanceTab: undefined,
       section: "configuration",
@@ -87,9 +88,15 @@ export function parseSettingsRouteState(params: SettingsSearchParams): ParsedSet
     };
   }
 
+  const configTab = parseSettingsConfigTab(rawConfig);
+  const configSubTab =
+    configTab && rawSubTab && SETTINGS_CONFIG_SUB_TABS[configTab].some((item) => item.key === rawSubTab)
+      ? rawSubTab
+      : undefined;
+
   return {
-    configSubTab: rawSubTab,
-    configTab: parseSettingsConfigTab(rawConfig),
+    configSubTab,
+    configTab,
     productGovernanceTab: parseProductGovernanceTab(firstParam(params, "tab")),
     section: parseSettingsSection(rawSection),
   };

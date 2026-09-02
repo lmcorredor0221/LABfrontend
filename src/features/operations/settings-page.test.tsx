@@ -11,6 +11,7 @@ import type {
 } from "@/features/operations/admin-console-contracts";
 import type {
   LLMRuntimeSettings,
+  PlatformProviderSecretResponse,
   PlatformRuntimeProviderResponse,
   WorkspaceRuntimeHealthResponse,
 } from "@/features/sessions/session-contracts";
@@ -20,6 +21,8 @@ const {
   authStateRef,
   createSessionMock,
   getEstimationCalibrationMock,
+  getPlatformAdminUsersMock,
+  getPlatformAdminWorkspacesMock,
   getRuntimeSettingsMock,
   getPlanAccessMock,
   hotmartAdminViewMock,
@@ -61,6 +64,8 @@ const {
   },
   createSessionMock: vi.fn(),
   getEstimationCalibrationMock: vi.fn(),
+  getPlatformAdminUsersMock: vi.fn(),
+  getPlatformAdminWorkspacesMock: vi.fn(),
   getPlanAccessMock: vi.fn(),
   getRuntimeSettingsMock: vi.fn(),
   hotmartAdminViewMock: vi.fn(({ embedded }: { embedded?: boolean }) => (
@@ -69,17 +74,22 @@ const {
   patchFeatureFlagMock: vi.fn(),
   patchRuntimeSettingsMock: vi.fn(),
   runtimeApiMock: {
+    deletePlatformSecret: vi.fn(),
     deleteWorkspaceSecret: vi.fn(),
     getPlatformAudit: vi.fn(),
     getPlatformDefaults: vi.fn(),
+    getPlatformSecret: vi.fn(),
     getWorkspaceRuntimeHealth: vi.fn(),
     listPlatformProviders: vi.fn(),
+    propagatePlatformDefaults: vi.fn(),
     resetWorkspaceRuntime: vi.fn(),
+    rotatePlatformSecret: vi.fn(),
     rotateWorkspaceSecret: vi.fn(),
     status: vi.fn(),
     testWorkspaceRuntime: vi.fn(),
     updatePlatformDefaults: vi.fn(),
     updatePlatformProvider: vi.fn(),
+    upsertPlatformSecret: vi.fn(),
     upsertWorkspaceSecret: vi.fn(),
   },
   refreshSessionListMock: vi.fn(),
@@ -137,6 +147,11 @@ vi.mock("@/core/system/runtime-api", () => ({
 
 vi.mock("@/features/operations/admin-console-api", () => ({
   adminConsoleApi: adminConsoleApiMock,
+}));
+
+vi.mock("@/features/platform-admin/platform-admin-api", () => ({
+  getPlatformAdminUsers: getPlatformAdminUsersMock,
+  getPlatformAdminWorkspaces: getPlatformAdminWorkspacesMock,
 }));
 
 vi.mock("@/features/finops/finops-budget-panel", () => ({
@@ -334,6 +349,23 @@ function buildPlatformProviders(): PlatformRuntimeProviderResponse[] {
   ];
 }
 
+function buildPlatformProviderSecret(providerKey: "antigravity_cli" | "codex_local" | "deepseek" | "openai"): PlatformProviderSecretResponse {
+  const configured = providerKey === "openai";
+  const supports = providerKey === "openai" || providerKey === "deepseek";
+  return {
+    configured,
+    health_status: configured ? "platform_ready" : supports ? "platform_missing" : "local_runtime",
+    last_rotated_at: configured ? "2026-07-20T16:00:00Z" : null,
+    provider_key: providerKey,
+    secret_kind: "api_key",
+    secret_source: "platform_managed",
+    status: configured ? "active" : "not_configured",
+    storage_mode: configured ? "ciphertext" : "none",
+    supports_platform_managed_credentials: supports,
+    updated_at: configured ? "2026-07-20T16:00:00Z" : null,
+  };
+}
+
 function buildAdminProjectsAnalytics(): AdminProjectsAnalytics {
   return {
     active: 2,
@@ -520,6 +552,66 @@ function buildAdminUsersList(): AdminUsersListResponse {
   };
 }
 
+function buildPlatformAdminUsers() {
+  return {
+    total: 2,
+    users: [
+      {
+        active_workspace_count: 1,
+        created_at: "2026-08-01T09:00:00",
+        default_workspace_id: "workspace-a",
+        email: "admin@leanbuilder.local",
+        full_name: "Lean Builder Admin",
+        id: "user-1",
+        is_active: true,
+        llm_total_cost: 12.4,
+        llm_total_tokens: 12000,
+        memberships: [
+          {
+            created_at: "2026-08-01T09:00:00",
+            is_active: true,
+            role: "owner",
+            updated_at: "2026-08-14T09:00:00",
+            workspace_id: "workspace-a",
+            workspace_name: "Workspace A",
+            workspace_slug: "workspace-a",
+          },
+        ],
+        platform_roles: ["platform_admin"],
+        project_count: 1,
+        updated_at: "2026-08-14T09:00:00",
+        workspace_count: 1,
+      },
+      {
+        active_workspace_count: 1,
+        created_at: "2026-08-05T10:00:00",
+        default_workspace_id: "workspace-b",
+        email: "global@other.local",
+        full_name: "Global Other User",
+        id: "user-global-2",
+        is_active: true,
+        llm_total_cost: 3.25,
+        llm_total_tokens: 4500,
+        memberships: [
+          {
+            created_at: "2026-08-05T10:00:00",
+            is_active: true,
+            role: "viewer",
+            updated_at: "2026-08-12T11:20:00",
+            workspace_id: "workspace-b",
+            workspace_name: "Workspace B",
+            workspace_slug: "workspace-b",
+          },
+        ],
+        platform_roles: [],
+        project_count: 0,
+        updated_at: "2026-08-12T11:20:00",
+        workspace_count: 1,
+      },
+    ],
+  };
+}
+
 function buildAdminInvitations(): AdminUserInvitationListResponse {
   return {
     count: 1,
@@ -630,22 +722,29 @@ describe("SettingsWorkspacePage", () => {
     replaceMock.mockReset();
     createSessionMock.mockReset();
     getEstimationCalibrationMock.mockReset();
+    getPlatformAdminUsersMock.mockReset();
+    getPlatformAdminWorkspacesMock.mockReset();
     getRuntimeSettingsMock.mockReset();
     patchFeatureFlagMock.mockReset();
     patchRuntimeSettingsMock.mockReset();
     selectOperationalSessionMock.mockReset();
 
+    runtimeApiMock.deletePlatformSecret.mockReset();
     runtimeApiMock.deleteWorkspaceSecret.mockReset();
     runtimeApiMock.getPlatformAudit.mockReset();
     runtimeApiMock.getPlatformDefaults.mockReset();
+    runtimeApiMock.getPlatformSecret.mockReset();
     runtimeApiMock.getWorkspaceRuntimeHealth.mockReset();
     runtimeApiMock.listPlatformProviders.mockReset();
+    runtimeApiMock.propagatePlatformDefaults.mockReset();
     runtimeApiMock.resetWorkspaceRuntime.mockReset();
+    runtimeApiMock.rotatePlatformSecret.mockReset();
     runtimeApiMock.rotateWorkspaceSecret.mockReset();
     runtimeApiMock.status.mockReset();
     runtimeApiMock.testWorkspaceRuntime.mockReset();
     runtimeApiMock.updatePlatformDefaults.mockReset();
     runtimeApiMock.updatePlatformProvider.mockReset();
+    runtimeApiMock.upsertPlatformSecret.mockReset();
     runtimeApiMock.upsertWorkspaceSecret.mockReset();
 
     authStateRef.current = {
@@ -688,6 +787,69 @@ describe("SettingsWorkspacePage", () => {
     adminConsoleApiMock.listInvitations.mockResolvedValue(buildAdminInvitations());
     adminConsoleApiMock.listUsers.mockResolvedValue(buildAdminUsersList());
     adminConsoleApiMock.updateUser.mockResolvedValue(buildAdminUsersList().items[1]);
+    getPlatformAdminUsersMock.mockResolvedValue(buildPlatformAdminUsers());
+    getPlatformAdminWorkspacesMock.mockResolvedValue({
+      total: 2,
+      workspaces: [
+        {
+          active_runtime_provider: "openai",
+          created_at: "2026-08-20T10:00:00Z",
+          hotmart_enabled: true,
+          hotmart_status: "configured",
+          id: "workspace-a",
+          member_count: 2,
+          name: "Workspace A",
+          owner_emails: ["admin@leanbuilder.local"],
+          project_count: 1,
+          slug: "workspace-a",
+          updated_at: "2026-08-21T10:00:00Z",
+          uses_platform_credentials: true,
+        },
+        {
+          active_runtime_provider: "deepseek",
+          created_at: "2026-08-20T10:00:00Z",
+          hotmart_enabled: false,
+          hotmart_status: "missing",
+          id: "workspace-b",
+          member_count: 1,
+          name: "Workspace B",
+          owner_emails: ["owner@other.local"],
+          project_count: 0,
+          slug: "workspace-b",
+          updated_at: "2026-08-21T10:00:00Z",
+          uses_platform_credentials: false,
+        },
+      ],
+    });
+    runtimeApiMock.propagatePlatformDefaults.mockResolvedValue({
+      applied_count: 0,
+      dry_run: true,
+      failed_count: 0,
+      id: "run-1",
+      items: [],
+      mode: "fallback_only",
+      planned_count: 1,
+      skipped_count: 0,
+      status: "planned",
+    });
+    runtimeApiMock.getPlatformSecret.mockImplementation((providerKey: "antigravity_cli" | "codex_local" | "deepseek" | "openai") =>
+      Promise.resolve(buildPlatformProviderSecret(providerKey)),
+    );
+    runtimeApiMock.upsertPlatformSecret.mockImplementation((providerKey: "antigravity_cli" | "codex_local" | "deepseek" | "openai") =>
+      Promise.resolve(buildPlatformProviderSecret(providerKey)),
+    );
+    runtimeApiMock.rotatePlatformSecret.mockImplementation((providerKey: "antigravity_cli" | "codex_local" | "deepseek" | "openai") =>
+      Promise.resolve(buildPlatformProviderSecret(providerKey)),
+    );
+    runtimeApiMock.deletePlatformSecret.mockImplementation((providerKey: "antigravity_cli" | "codex_local" | "deepseek" | "openai") =>
+      Promise.resolve({
+        ...buildPlatformProviderSecret(providerKey),
+        configured: false,
+        health_status: "platform_missing",
+        status: "not_configured",
+        storage_mode: "none",
+      }),
+    );
     createSessionMock.mockResolvedValue({ id: "session-new" });
     patchRuntimeSettingsMock.mockResolvedValue(buildRuntimeSettings("openai", "workspace-a"));
   });
@@ -800,7 +962,7 @@ describe("SettingsWorkspacePage", () => {
     expect(screen.queryByText("Administracion de plataforma")).not.toBeInTheDocument();
   });
 
-  it("renderiza Hotmart embebido dentro de Comercial y costos en Settings", async () => {
+  it("mantiene Hotmart fuera de Comercial y costos en Settings", async () => {
     getRuntimeSettingsMock.mockResolvedValue(buildRuntimeSettings("openai", "workspace-a"));
     runtimeApiMock.getWorkspaceRuntimeHealth.mockResolvedValue(buildWorkspaceHealth("workspace-a", "openai"));
     runtimeApiMock.status.mockRejectedValue(buildForbiddenError());
@@ -814,17 +976,10 @@ describe("SettingsWorkspacePage", () => {
       initialSection: "configuration",
     });
 
-    expect(await screen.findByTestId("hotmart-admin-view")).toHaveTextContent("Hotmart embebido");
-    expect(hotmartAdminViewMock).toHaveBeenCalled();
-    expect(hotmartAdminViewMock.mock.calls.at(-1)?.[0]).toEqual(
-      expect.objectContaining({
-        embedded: true,
-        listStatus: "ready",
-        sessionValue: null,
-      }),
-    );
-    expect(screen.getByRole("tab", { name: "Hotmart" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryByText("Runtime efectivo del workspace")).not.toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Precios" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByTestId("hotmart-admin-view")).not.toBeInTheDocument();
+    expect(hotmartAdminViewMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("tab", { name: "Hotmart" })).not.toBeInTheDocument();
   });
 
   it("sincroniza la URL canonica al navegar tabs y sub-tabs de Settings", async () => {
@@ -968,6 +1123,14 @@ describe("SettingsWorkspacePage", () => {
     renderSettingsPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Usuarios" }));
+
+    expect(await screen.findByText("Usuarios globales de la plataforma")).toBeInTheDocument();
+    expect(screen.getByText("global@other.local")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(getPlatformAdminUsersMock).toHaveBeenCalledWith(100);
+    });
+
+    fireEvent.change(screen.getByLabelText("Vista"), { target: { value: "workspace" } });
 
     expect(await screen.findByText("Miembros del workspace activo")).toBeInTheDocument();
     await waitFor(() => {

@@ -17,6 +17,9 @@ type UseSettingsConfigNavigationOptions = {
 
 function resolveScope(tab: AdminConfigTabKey, subTab: string, isPlatformPanelVisible: boolean): SettingsScope {
   if (tab === "general") {
+    if (subTab === "workspace" && isPlatformPanelVisible) {
+      return "platform";
+    }
     return "personal";
   }
   if (tab === "commerce") {

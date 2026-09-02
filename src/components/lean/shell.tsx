@@ -271,8 +271,10 @@ export function PageChrome({
 
 export function TopUtilities({
   density = "standard",
+  showWorkspaceSelector = true,
 }: {
   density?: "compact" | "standard";
+  showWorkspaceSelector?: boolean;
 } = {}) {
   const auth = useAuth();
   const { t } = useLanguage();
@@ -282,7 +284,7 @@ export function TopUtilities({
 
   return (
     <div className={cn("flex w-full items-center justify-end gap-3 sm:w-auto", compact ? "gap-2" : "gap-3")}>
-      {workspaceOptions.length > 0 ? (
+      {showWorkspaceSelector && workspaceOptions.length > 0 ? (
         <label className={cn("flex min-w-0 items-center rounded-[10px] border border-[var(--border-default)] bg-white text-[var(--text-primary)]", compact ? "h-9 gap-2 px-2.5 sm:min-w-[190px]" : "gap-3 px-3 py-2 sm:min-w-[220px]")}>
           <div className="min-w-0 flex-1">
             <p className={cn("uppercase tracking-[0.18em] text-[var(--text-muted)]", compact ? "sr-only" : "text-[11px]")}>{t("shell.workspaceLabel", "Workspace")}</p>

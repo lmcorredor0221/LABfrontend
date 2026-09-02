@@ -50,7 +50,12 @@ import { useLanguage } from "@/core/i18n/language-context";
 import { hasPlatformAdminRole, type WorkspaceRole } from "@/core/auth/types";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { cn } from "@/lib/utils";
-import { runtimeApi, type RuntimeStatusResponse } from "@/core/system/runtime-api";
+import {
+  runtimeApi,
+  type RuntimePropagationMode,
+  type RuntimePropagationRunResponse,
+  type RuntimeStatusResponse,
+} from "@/core/system/runtime-api";
 import {
   buildCodexRolloutSummary,
   buildCodexRuntimeSummary,
@@ -76,11 +81,16 @@ import type {
   LLMProviderKey,
   LLMRuntimeSettings,
   LLMRuntimeSettingsUpdateRequest,
+  PlatformProviderSecretResponse,
   PlatformRuntimeProviderResponse,
   RuntimeProviderReleaseStage,
   WorkspaceProviderSecretUpsertRequest,
   WorkspaceRuntimeHealthResponse,
 } from "@/features/sessions/session-contracts";
+import {
+  getPlatformAdminWorkspaces,
+  type PlatformAdminWorkspaceSummary,
+} from "@/features/platform-admin/platform-admin-api";
 import { EmptyState, ErrorState, LoadingState } from "@/shared/states/runtime-states";
 
 type AsyncState<TData> = {
@@ -219,6 +229,10 @@ function supportsWorkspaceSecrets(providerKey: LLMProviderKey) {
   return providerKey === "openai" || providerKey === "deepseek";
 }
 
+function supportsPlatformSecrets(providerKey: LLMProviderKey) {
+  return providerKey === "openai" || providerKey === "deepseek";
+}
+
 function getProviderLabel(providerKey: LLMProviderKey) {
   switch (providerKey) {
     case "openai":
@@ -295,6 +309,35 @@ function createSecretDrafts(runtime: LLMRuntimeSettings): SecretDraftMap {
     },
     antigravity_cli: {
       activate_for_runtime: false,
+      secret_kind: "api_key",
+      secret_ref: "",
+      secret_value: "",
+    },
+  };
+}
+
+function createPlatformSecretDrafts(activeProvider: LLMProviderKey = "openai"): SecretDraftMap {
+  return {
+    antigravity_cli: {
+      activate_for_runtime: false,
+      secret_kind: "api_key",
+      secret_ref: "",
+      secret_value: "",
+    },
+    codex_local: {
+      activate_for_runtime: false,
+      secret_kind: "api_key",
+      secret_ref: "",
+      secret_value: "",
+    },
+    deepseek: {
+      activate_for_runtime: activeProvider === "deepseek",
+      secret_kind: "api_key",
+      secret_ref: "",
+      secret_value: "",
+    },
+    openai: {
+      activate_for_runtime: activeProvider === "openai",
       secret_kind: "api_key",
       secret_ref: "",
       secret_value: "",
@@ -387,6 +430,14 @@ export function SettingsWorkspacePage({
   const [platformDefaultsPending, setPlatformDefaultsPending] = useState(false);
   const [platformProviderDrafts, setPlatformProviderDrafts] = useState<PlatformProviderDraftMap | null>(null);
   const [platformProviderPending, setPlatformProviderPending] = useState<SecretPendingMap>({});
+  const [platformWorkspacesState, setPlatformWorkspacesState] = useState<AsyncState<PlatformAdminWorkspaceSummary[] | null>>(createIdleState);
+  const [runtimePropagationPending, setRuntimePropagationPending] = useState<RuntimePropagationMode | null>(null);
+  const [runtimePropagationPreview, setRuntimePropagationPreview] = useState<RuntimePropagationRunResponse | null>(null);
+  const [selectedPropagationWorkspaceIds, setSelectedPropagationWorkspaceIds] = useState<string[]>([]);
+  const [platformSecretsState, setPlatformSecretsState] = useState<AsyncState<Record<LLMProviderKey, PlatformProviderSecretResponse> | null>>(createIdleState);
+  const [platformSecretDrafts, setPlatformSecretDrafts] = useState<SecretDraftMap | null>(null);
+  const [platformSecretPending, setPlatformSecretPending] = useState<SecretPendingMap>({});
+  const [selectedPlatformSecretProvider, setSelectedPlatformSecretProvider] = useState<LLMProviderKey>("openai");
 
   const [secretDrafts, setSecretDrafts] = useState<SecretDraftMap | null>(null);
   const [secretPending, setSecretPending] = useState<SecretPendingMap>({});
@@ -436,18 +487,26 @@ export function SettingsWorkspacePage({
       setPlatformProvidersState({ data: null, error: null, status: "ready" });
       setPlatformDefaultsState({ data: null, error: null, status: "ready" });
       setPlatformAuditState({ data: null, error: null, status: "ready" });
+      setPlatformWorkspacesState({ data: null, error: null, status: "ready" });
+      setPlatformSecretsState({ data: null, error: null, status: "ready" });
       setPlatformDefaultsDraft(null);
       setPlatformProviderDrafts(null);
+      setPlatformSecretDrafts(null);
+      setSelectedPropagationWorkspaceIds([]);
       return;
     }
     setPlatformProvidersState({ data: null, error: null, status: "loading" });
     setPlatformDefaultsState({ data: null, error: null, status: "loading" });
     setPlatformAuditState({ data: null, error: null, status: "loading" });
+    setPlatformWorkspacesState({ data: null, error: null, status: "loading" });
+    setPlatformSecretsState({ data: null, error: null, status: "loading" });
 
-    const [providersResult, defaultsResult, auditResult] = await Promise.allSettled([
+    const [providersResult, defaultsResult, auditResult, workspacesResult, secretsResult] = await Promise.allSettled([
       runtimeApi.listPlatformProviders(),
       runtimeApi.getPlatformDefaults(),
       runtimeApi.getPlatformAudit(12),
+      getPlatformAdminWorkspaces(100),
+      Promise.all(PROVIDER_ORDER.map(async (providerKey) => [providerKey, await runtimeApi.getPlatformSecret(providerKey)] as const)),
     ]);
 
     if (providersResult.status === "fulfilled") {
@@ -494,6 +553,43 @@ export function SettingsWorkspacePage({
         error: getErrorMessage(auditResult.reason, "No se pudo cargar la auditoria de plataforma."),
         status: "error",
       });
+    }
+
+    if (workspacesResult.status === "fulfilled") {
+      setPlatformWorkspacesState({ data: workspacesResult.value.workspaces, error: null, status: "ready" });
+      setSelectedPropagationWorkspaceIds((current) =>
+        current.filter((workspaceId) => workspacesResult.value.workspaces.some((workspace) => workspace.id === workspaceId)),
+      );
+    } else if (isForbidden(workspacesResult.reason)) {
+      setPlatformWorkspacesState({ data: null, error: null, status: "ready" });
+      setSelectedPropagationWorkspaceIds([]);
+    } else {
+      setPlatformWorkspacesState({
+        data: null,
+        error: getErrorMessage(workspacesResult.reason, "No se pudo cargar workspaces para propagacion."),
+        status: "error",
+      });
+    }
+
+    if (secretsResult.status === "fulfilled") {
+      setPlatformSecretsState({
+        data: Object.fromEntries(secretsResult.value) as Record<LLMProviderKey, PlatformProviderSecretResponse>,
+        error: null,
+        status: "ready",
+      });
+      setPlatformSecretDrafts(
+        createPlatformSecretDrafts(defaultsResult.status === "fulfilled" ? defaultsResult.value.active_provider : "openai"),
+      );
+    } else if (isForbidden(secretsResult.reason)) {
+      setPlatformSecretsState({ data: null, error: null, status: "ready" });
+      setPlatformSecretDrafts(null);
+    } else {
+      setPlatformSecretsState({
+        data: null,
+        error: getErrorMessage(secretsResult.reason, "No se pudo cargar secretos globales de plataforma."),
+        status: "error",
+      });
+      setPlatformSecretDrafts(null);
     }
   }, [isPlatformAdmin]);
 
@@ -803,6 +899,73 @@ export function SettingsWorkspacePage({
     }
   }
 
+  async function handlePlatformSecretAction(providerKey: LLMProviderKey, mode: "delete" | "rotate" | "upsert") {
+    if (!platformSecretDrafts) {
+      return;
+    }
+
+    const draft = platformSecretDrafts[providerKey];
+    if (mode !== "delete" && !draft.secret_value.trim() && !draft.secret_ref.trim()) {
+      setSecretFeedback({
+        message: `Ingresa secret_value o secret_ref global para ${getProviderLabel(providerKey)}.`,
+        tone: "error",
+      });
+      return;
+    }
+
+    const actionLabel = mode === "delete" ? "limpiar" : mode === "rotate" ? "rotar" : "guardar";
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        `Vas a ${actionLabel} el secreto global de plataforma para ${getProviderLabel(providerKey)}. Este cambio afecta a todos los workspaces que heredan credenciales de plataforma. ¿Continuar?`,
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setPlatformSecretPending((current) => ({ ...current, [providerKey]: true }));
+    setSecretFeedback(null);
+
+    try {
+      if (mode === "delete") {
+        await runtimeApi.deletePlatformSecret(providerKey);
+      } else if (mode === "rotate") {
+        await runtimeApi.rotatePlatformSecret(providerKey, draft);
+      } else {
+        await runtimeApi.upsertPlatformSecret(providerKey, draft);
+      }
+
+      setPlatformSecretDrafts((current) =>
+        current
+          ? {
+              ...current,
+              [providerKey]: {
+                ...current[providerKey],
+                secret_ref: "",
+                secret_value: "",
+              },
+            }
+          : current,
+      );
+      setSecretFeedback({
+        message:
+          mode === "delete"
+            ? `${getProviderLabel(providerKey)} dejo de tener secreto global de plataforma configurado.`
+            : `${getProviderLabel(providerKey)} actualizo su secreto global de plataforma.`,
+        tone: "success",
+      });
+      await loadPlatformPanel();
+      await loadWorkspacePanel({ keepRuntime: true, keepStatus: true });
+    } catch (error) {
+      setSecretFeedback({
+        message: getErrorMessage(error, `No se pudo actualizar el secreto global de ${getProviderLabel(providerKey)}.`),
+        tone: "error",
+      });
+    } finally {
+      setPlatformSecretPending((current) => ({ ...current, [providerKey]: false }));
+    }
+  }
+
   async function handleSavePlatformDefaults() {
     if (!platformDefaultsDraft) {
       return;
@@ -831,6 +994,55 @@ export function SettingsWorkspacePage({
       });
     } finally {
       setPlatformDefaultsPending(false);
+    }
+  }
+
+  async function handleSaveAndPropagatePlatformDefaults(mode: RuntimePropagationMode, dryRun: boolean) {
+    if (!platformDefaultsDraft) {
+      return;
+    }
+
+    const errors = validateRuntimeSettingsForm(platformDefaultsDraft);
+    setPlatformDefaultsErrors(errors);
+    setPlatformFeedback(null);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+    if (mode === "reset_to_platform" && selectedPropagationWorkspaceIds.length === 0) {
+      setPlatformFeedback({
+        message: "Selecciona al menos un workspace antes de resetear overrides a plataforma.",
+        tone: "error",
+      });
+      return;
+    }
+
+    setRuntimePropagationPending(mode);
+    setRuntimePropagationPreview(null);
+    try {
+      const saved = await runtimeApi.updatePlatformDefaults(platformDefaultsDraft);
+      const payload = buildRuntimeDraft(saved);
+      const response = await runtimeApi.propagatePlatformDefaults({
+        dry_run: dryRun,
+        mode,
+        payload,
+        workspace_ids: mode === "reset_to_platform" ? selectedPropagationWorkspaceIds : undefined,
+      });
+      setRuntimePropagationPreview(response);
+      setPlatformFeedback({
+        message: dryRun
+          ? `Preview listo: ${response.planned_count} planificados, ${response.skipped_count} omitidos.`
+          : `Propagacion aplicada: ${response.applied_count} aplicados, ${response.skipped_count} omitidos, ${response.failed_count} fallidos.`,
+        tone: response.failed_count > 0 ? "error" : "success",
+      });
+      await loadPlatformPanel();
+      await loadWorkspacePanel({ keepRuntime: true, keepStatus: true });
+    } catch (error) {
+      setPlatformFeedback({
+        message: getErrorMessage(error, "No se pudo ejecutar la propagacion del runtime."),
+        tone: "error",
+      });
+    } finally {
+      setRuntimePropagationPending(null);
     }
   }
 
@@ -873,7 +1085,13 @@ export function SettingsWorkspacePage({
   const runtimeHealth = workspaceHealthState.data;
   const runtimeHasChanges = hasRuntimeDraftChanges(runtime, runtimeDraft);
   const platformDefaultsHasChanges = hasRuntimeDraftChanges(platformDefaultsState.data, platformDefaultsDraft);
+  const platformWorkspaces = platformWorkspacesState.data ?? [];
   const selectedProvider = runtimeDraft?.active_provider ?? runtime?.active_provider ?? "openai";
+  const platformSecretView = platformSecretsState.data?.[selectedPlatformSecretProvider] ?? null;
+  const platformSecretDraft = platformSecretDrafts?.[selectedPlatformSecretProvider] ?? null;
+  const platformSecretSupports =
+    platformSecretView?.supports_platform_managed_credentials ?? supportsPlatformSecrets(selectedPlatformSecretProvider);
+  const platformSecretBusy = Boolean(platformSecretPending[selectedPlatformSecretProvider]);
   const executionBackendCopy = getAgentExecutionBackendCopy(runtimeDraft?.agent_execution_backend ?? "provider_native", t);
   const knowledgeBackendCopy = getKnowledgeAccessBackendCopy(runtimeDraft?.knowledge_access_backend ?? "inline_context", t);
   const rolloutSummary = runtimeDraft ? buildCodexRolloutSummary(runtimeDraft.codex_local) : null;
@@ -923,6 +1141,7 @@ export function SettingsWorkspacePage({
     (activeConfigTab === "governance" && activeConfigSubTab === "flags");
   const showWorkspaceSecretsPanel = activeConfigTab === "security" && activeConfigSubTab === "secrets";
   const showWorkspaceDiagnosticsPanel = activeConfigTab === "llmRuntime" && activeConfigSubTab === "diagnostics";
+  const showPlatformGeneralPanel = activeConfigTab === "general" && activeConfigSubTab === "workspace";
   const showPlatformBasePricesPanel = activeConfigTab === "commerce" && activeConfigSubTab === "prices";
   const showPlatformRegistryPanel = activeConfigTab === "governance" && activeConfigSubTab === "registry";
   const showPlatformRuntimeAuditPanel = activeConfigTab === "governance" && activeConfigSubTab === "runtimeAudit";
@@ -2021,7 +2240,7 @@ export function SettingsWorkspacePage({
                   <div>
                     <p className="text-[20px] font-semibold text-[var(--text-primary)]">Secretos y aislamiento por provider</p>
                     <p className="mt-1 max-w-3xl text-[13px] leading-6 text-[var(--text-secondary)]">
-                      Cada workspace puede usar credenciales propias cuando el provider lo soporte. La API nunca devuelve el secreto, solo su estado, origen y salud.
+                      Separamos el estado global de plataforma del override del workspace activo. Los workspaces platform-managed usan la credencial global cifrada sin duplicar secretos.
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -2030,6 +2249,138 @@ export function SettingsWorkspacePage({
                       {runtime.uses_platform_credentials ? "Plataforma activa" : "Workspace activo"}
                     </Badge>
                   </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 border-b border-[var(--border-default)] bg-[var(--surface-subtle)] p-5 lg:grid-cols-2">
+                <div className="rounded-[18px] border border-[var(--border-default)] bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[15px] font-semibold text-[var(--text-primary)]">Credenciales de plataforma</p>
+                    <Badge tone={platformSecretView?.configured ? "green" : "orange"}>
+                      {platformSecretView?.configured ? "Secreto global activo" : "Secreto global pendiente"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+                    El Platform Admin gobierna la credencial global cifrada. Los workspaces que heredan plataforma resuelven este secreto sin copiarlo a cada workspace.
+                  </p>
+
+                  <div className="mt-4 grid gap-3">
+                    <SelectField
+                      label="Provider global"
+                      value={selectedPlatformSecretProvider}
+                      options={PROVIDER_ORDER.map((providerKey) => ({
+                        disabled: !supportsPlatformSecrets(providerKey),
+                        label: getProviderLabel(providerKey),
+                        value: providerKey,
+                      }))}
+                      onValueChange={(value) => setSelectedPlatformSecretProvider(value as LLMProviderKey)}
+                    />
+
+                    {platformSecretsState.status === "loading" ? (
+                      <p className="text-[13px] text-[var(--text-secondary)]">Leyendo secreto global...</p>
+                    ) : platformSecretsState.error ? (
+                      <p className="text-[13px] font-medium text-[var(--danger)]">{platformSecretsState.error}</p>
+                    ) : (
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <KeyValue label="Estado" value={platformSecretView?.status ?? "not_configured"} hint={platformSecretView?.health_status ?? "platform_missing"} />
+                        <KeyValue label="Storage" value={platformSecretView?.storage_mode ?? "none"} hint={getSecretLabel(platformSecretView?.secret_source ?? "platform_managed")} />
+                        <KeyValue label="Ultima rotacion" value={formatDateTime(platformSecretView?.last_rotated_at)} hint="Fecha conocida por backend" />
+                        <KeyValue label="Actualizado" value={formatDateTime(platformSecretView?.updated_at)} hint="Registro global de plataforma" />
+                      </div>
+                    )}
+
+                    {platformSecretSupports && platformSecretDraft ? (
+                      <div className="grid gap-3">
+                        <TextField
+                          label="Secret value global"
+                          type="password"
+                          value={platformSecretDraft.secret_value}
+                          hint="Se cifra en platform_provider_secrets y nunca se devuelve en respuestas."
+                          onValueChange={(value) =>
+                            setPlatformSecretDrafts((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    [selectedPlatformSecretProvider]: {
+                                      ...current[selectedPlatformSecretProvider],
+                                      secret_value: value,
+                                    },
+                                  }
+                                : current,
+                            )
+                          }
+                        />
+                        <TextField
+                          label="Secret reference global"
+                          value={platformSecretDraft.secret_ref}
+                          hint="Opcional para registrar una referencia externa sin exponer el valor."
+                          onValueChange={(value) =>
+                            setPlatformSecretDrafts((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    [selectedPlatformSecretProvider]: {
+                                      ...current[selectedPlatformSecretProvider],
+                                      secret_ref: value,
+                                    },
+                                  }
+                                : current,
+                            )
+                          }
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <AppButton
+                            className="h-10 px-3 text-[12px]"
+                            onClick={() => void handlePlatformSecretAction(selectedPlatformSecretProvider, "upsert")}
+                            loading={platformSecretBusy}
+                            icon={<KeyRound className="h-4 w-4" />}
+                          >
+                            Guardar secreto global
+                          </AppButton>
+                          <AppButton
+                            className="h-10 px-3 text-[12px]"
+                            onClick={() => void handlePlatformSecretAction(selectedPlatformSecretProvider, "rotate")}
+                            loading={platformSecretBusy}
+                            icon={<RotateCcw className="h-4 w-4" />}
+                          >
+                            Rotar secreto global
+                          </AppButton>
+                          <AppButton
+                            className="h-10 px-3 text-[12px] text-[var(--danger)]"
+                            onClick={() => void handlePlatformSecretAction(selectedPlatformSecretProvider, "delete")}
+                            loading={platformSecretBusy}
+                            icon={<ShieldCheck className="h-4 w-4" />}
+                          >
+                            Limpiar secreto global
+                          </AppButton>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-[16px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-4 py-3 text-[13px] leading-6 text-[var(--text-secondary)]">
+                        Este provider no usa credencial SaaS global administrada por plataforma.
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-[18px] border border-[var(--border-default)] bg-white p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[15px] font-semibold text-[var(--text-primary)]">Credenciales del workspace activo</p>
+                    <Badge tone={runtime.uses_platform_credentials ? "blue" : "green"}>
+                      {runtime.uses_platform_credentials ? "Hereda plataforma" : "Override workspace"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-[13px] leading-6 text-[var(--text-secondary)]">
+                    Usa los acordeones por provider para guardar, rotar o limpiar secretos del workspace. Limpiar permite que este workspace vuelva a resolver el baseline disponible.
+                  </p>
+                  <AppButton
+                    className="mt-3"
+                    onClick={() => void handleResetRuntime()}
+                    loading={runtimeResetPending}
+                    disabled={!canManageWorkspaceRuntime}
+                    icon={<RotateCcw className="h-4 w-4" />}
+                  >
+                    Resetear este workspace para usar plataforma
+                  </AppButton>
                 </div>
               </div>
 
@@ -2680,12 +3031,40 @@ export function SettingsWorkspacePage({
         <section aria-label="Administracion de plataforma" className="space-y-5" id="settings-panel-platform" role="tabpanel">
           <SettingsScopeHeader
             accessLabel="Platform admin"
-            description="Gobierna defaults SaaS, disponibilidad de providers y trazabilidad global. Los cambios se propagan a multiples workspaces sin override."
+            description="Gobierna defaults SaaS, disponibilidad de providers, Hotmart, FinOps y trazabilidad global. Los cambios se aplican a la plataforma y afectan clientes, usuarios y workspaces que heredan configuracion global."
             eyebrow="Administracion global"
             icon={<ServerCog aria-hidden="true" className="h-5 w-5" />}
             id="settings-platform-title"
             title="Administracion de plataforma"
           />
+
+          {showPlatformGeneralPanel ? (
+            <Panel className="p-6">
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <p className="text-[20px] font-semibold text-[var(--text-primary)]">Identidad y alcance global de plataforma</p>
+                  <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
+                    Esta vista pertenece al Platform Admin. No configura un workspace aislado: define el contexto administrativo global desde el cual se gobiernan clientes, usuarios, proyectos, runtime, Hotmart y costos.
+                  </p>
+                </div>
+                <Badge tone="green">Plataforma global</Badge>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <Panel className="p-4">
+                  <KeyValue label="Scope activo" value="Plataforma global" hint="No depende del workspace seleccionado en la cuenta" />
+                </Panel>
+                <Panel className="p-4">
+                  <KeyValue label="Rol efectivo" value="Platform Admin" hint="Gobierno transversal de la plataforma" />
+                </Panel>
+                <Panel className="p-4">
+                  <KeyValue label="Runtime default" value={platformDefaultsDraft?.active_provider ?? runtime?.active_provider ?? "Pendiente"} hint="Baseline administrado globalmente" />
+                </Panel>
+                <Panel className="p-4">
+                  <KeyValue label="Workspaces visibles" value={`${platformWorkspaces.length}`} hint="Clientes/workspaces gobernados por plataforma" />
+                </Panel>
+              </div>
+            </Panel>
+          ) : null}
 
           {showPlatformBasePricesPanel ? <PlatformBasePricesAdminPanel /> : null}
 
@@ -2842,6 +3221,7 @@ export function SettingsWorkspacePage({
                 <div className="space-y-4 rounded-[24px] border border-[var(--border-default)] bg-[var(--surface-subtle)] p-5">
                   <KeyValue label="Scope" value="Platform defaults" hint="Aplica a workspaces sin override" />
                   <KeyValue label="Registry visible" value={`${platformProvidersState.data?.length ?? 0} providers`} hint="Catalogo gobernado" />
+                  <KeyValue label="Workspaces visibles" value={`${platformWorkspaces.length}`} hint="Candidatos para dry-run y reset" />
                   <AppButton
                     onClick={() => void handleSavePlatformDefaults()}
                     loading={platformDefaultsPending}
@@ -2849,8 +3229,124 @@ export function SettingsWorkspacePage({
                     variant="primary"
                     icon={<Save className="h-4 w-4" />}
                   >
-                    Guardar baseline
+                    Guardar solo baseline
                   </AppButton>
+                  <AppButton
+                    onClick={() => void handleSaveAndPropagatePlatformDefaults("fallback_only", true)}
+                    loading={runtimePropagationPending === "fallback_only"}
+                    disabled={!platformDefaultsDraft}
+                    icon={<TestTube2 className="h-4 w-4" />}
+                  >
+                    Guardar y previsualizar propagacion
+                  </AppButton>
+                  <AppButton
+                    onClick={() => void handleSaveAndPropagatePlatformDefaults("reset_to_platform", false)}
+                    loading={runtimePropagationPending === "reset_to_platform"}
+                    disabled={!platformDefaultsDraft || selectedPropagationWorkspaceIds.length === 0}
+                    icon={<RotateCcw className="h-4 w-4" />}
+                  >
+                    Resetear workspaces seleccionados
+                  </AppButton>
+                  <AppButton
+                    className="text-[var(--danger)]"
+                    onClick={() => void handleSaveAndPropagatePlatformDefaults("force_all", false)}
+                    loading={runtimePropagationPending === "force_all"}
+                    disabled={!platformDefaultsDraft}
+                    icon={<ShieldCheck className="h-4 w-4" />}
+                  >
+                    Aplicar a todos los workspaces
+                  </AppButton>
+                </div>
+              </div>
+            ) : null}
+
+            {platformDefaultsDraft ? (
+              <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+                <div className="rounded-[20px] border border-[var(--border-default)] bg-white p-4">
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[14px] font-semibold text-[var(--text-primary)]">Workspaces para reset selectivo</p>
+                      <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                        Marca solo los workspaces que deben perder su override y volver a heredar plataforma.
+                      </p>
+                    </div>
+                    <Badge tone="blue">{selectedPropagationWorkspaceIds.length} seleccionados</Badge>
+                  </div>
+                  {platformWorkspacesState.status === "loading" ? (
+                    <p className="text-[13px] text-[var(--text-secondary)]">Cargando workspaces...</p>
+                  ) : platformWorkspacesState.error ? (
+                    <p className="text-[13px] font-medium text-[var(--danger)]">{platformWorkspacesState.error}</p>
+                  ) : platformWorkspaces.length > 0 ? (
+                    <div className="max-h-64 space-y-2 overflow-auto pr-1">
+                      {platformWorkspaces.map((workspace) => {
+                        const checked = selectedPropagationWorkspaceIds.includes(workspace.id);
+                        return (
+                          <label
+                            className="flex cursor-pointer items-start gap-3 rounded-[14px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2 text-[13px]"
+                            key={workspace.id}
+                          >
+                            <input
+                              checked={checked}
+                              className="mt-1"
+                              type="checkbox"
+                              onChange={(event) =>
+                                setSelectedPropagationWorkspaceIds((current) =>
+                                  event.target.checked
+                                    ? Array.from(new Set([...current, workspace.id]))
+                                    : current.filter((workspaceId) => workspaceId !== workspace.id),
+                                )
+                              }
+                            />
+                            <span>
+                              <span className="block font-semibold text-[var(--text-primary)]">{workspace.name}</span>
+                              <span className="block text-[11px] text-[var(--text-muted)]">
+                                {workspace.active_runtime_provider ?? "sin runtime"} · {workspace.id}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-[var(--text-secondary)]">No hay workspaces globales visibles.</p>
+                  )}
+                </div>
+
+                <div className="rounded-[20px] border border-[var(--border-default)] bg-white p-4">
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[14px] font-semibold text-[var(--text-primary)]">Dry-run / resultado de propagacion</p>
+                      <p className="mt-1 text-[12px] leading-5 text-[var(--text-secondary)]">
+                        El preview vive aqui mismo para revisar impacto antes de forzar cambios globales.
+                      </p>
+                    </div>
+                    {runtimePropagationPreview ? <Badge tone={getBadgeTone(runtimePropagationPreview.status)}>{runtimePropagationPreview.status}</Badge> : null}
+                  </div>
+                  {runtimePropagationPreview ? (
+                    <div className="space-y-3">
+                      <div className="grid gap-2 sm:grid-cols-4">
+                        <StatRow label="Planificados" value={String(runtimePropagationPreview.planned_count)} tone="blue" />
+                        <StatRow label="Aplicados" value={String(runtimePropagationPreview.applied_count)} tone="green" />
+                        <StatRow label="Omitidos" value={String(runtimePropagationPreview.skipped_count)} tone="orange" />
+                        <StatRow label="Fallidos" value={String(runtimePropagationPreview.failed_count)} tone={runtimePropagationPreview.failed_count > 0 ? "red" : "slate"} />
+                      </div>
+                      <div className="max-h-64 space-y-2 overflow-auto pr-1">
+                        {runtimePropagationPreview.items.slice(0, 20).map((item) => (
+                          <div className="rounded-[14px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2" key={`${runtimePropagationPreview.id}-${item.workspace_id}`}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-[13px] font-semibold text-[var(--text-primary)]">{item.workspace_name}</p>
+                              <Badge tone={getBadgeTone(item.status)}>{item.status}</Badge>
+                            </div>
+                            <p className="mt-1 text-[12px] text-[var(--text-secondary)]">{item.action} · {item.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-[var(--text-secondary)]">
+                      Usa “Guardar y previsualizar propagacion” para ver que workspaces heredarian plataforma y cuales se preservan por override.
+                    </p>
+                  )}
                 </div>
               </div>
             ) : null}

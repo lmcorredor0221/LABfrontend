@@ -228,10 +228,7 @@ const dashboard: HotmartDashboardData = {
 };
 
 const dashboardBootstrap = {
-  clubOverview: dashboard.clubOverview,
   products: dashboard.products,
-  promotionMetrics: dashboard.promotionMetrics,
-  releaseReadiness: dashboard.releaseReadiness,
   status: dashboard.status,
 };
 
@@ -522,6 +519,9 @@ describe("HotmartAdminView", () => {
     expect(await screen.findByText("Preparacion operacional")).toBeInTheDocument();
     expect(screen.getAllByText("connected").length).toBeGreaterThan(0);
     expect(api.getDashboardBootstrap).toHaveBeenCalledWith("sandbox");
+    expect(api.getClubOverview).not.toHaveBeenCalled();
+    expect(api.getPromotionMetrics).not.toHaveBeenCalled();
+    expect(api.getReleaseReadiness).not.toHaveBeenCalled();
   });
 
   it("protects the module for non-platform-admin users", async () => {
@@ -738,12 +738,12 @@ describe("HotmartAdminView", () => {
     expect(await screen.findByText("Club sincronizado: 3 registros, 1 diferencias.")).toBeInTheDocument();
   });
 
-  it("shows release readiness, operational alerts and runbook in audit tab", async () => {
+  it("shows release readiness, operational alerts and runbook in readiness tab", async () => {
     const api = createMockApi();
 
     renderView(api);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Auditoria" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Readiness" }));
 
     expect(await screen.findByText("Release checklist")).toBeInTheDocument();
     expect(screen.getByText("Conexion validada")).toBeInTheDocument();
@@ -760,7 +760,7 @@ describe("HotmartAdminView", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Comercial" }));
 
-    expect(await screen.findByText("Motor comercial por workspace")).toBeInTheDocument();
+    expect(await screen.findByText("Motor comercial por cliente/workspace")).toBeInTheDocument();
     expect(api.getCommercialBootstrap).toHaveBeenCalledWith({ productKey: "blueprint_pro" });
     expect(api.listCommercialBalanceLedger).not.toHaveBeenCalled();
     expect(api.listCommercialPackageCatalog).not.toHaveBeenCalled();

@@ -62,21 +62,17 @@ function buildIdempotencyKey(prefix: string, parts: Array<string | null | undefi
   return `${prefix}:${normalizedParts.join(":")}:${Date.now()}`;
 }
 
+const DEFAULT_ADMIN_LIST_LIMIT = 100;
+
 export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
   return {
     async getDashboardBootstrap(environment: HotmartEnvironment): Promise<HotmartDashboardBootstrapData> {
-      const [status, products, promotionMetrics, clubOverview, releaseReadiness] = await Promise.all([
+      const [status, products] = await Promise.all([
         this.getStatus(environment),
         this.listProducts(),
-        this.getPromotionMetrics(environment),
-        this.getClubOverview(environment),
-        this.getReleaseReadiness(environment),
       ]);
       return {
-        clubOverview,
         products,
-        promotionMetrics,
-        releaseReadiness,
         status,
       };
     },
@@ -120,7 +116,12 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
 
     async getDashboard(environment: HotmartEnvironment): Promise<HotmartDashboardData> {
       const bootstrap = await this.getDashboardBootstrap(environment);
-      const { clubOverview, products, promotionMetrics, releaseReadiness, status } = bootstrap;
+      const { products, status } = bootstrap;
+      const [promotionMetrics, clubOverview, releaseReadiness] = await Promise.all([
+        this.getPromotionMetrics(environment),
+        this.getClubOverview(environment),
+        this.getReleaseReadiness(environment),
+      ]);
       const [mappings, links, promotions, syncRuns, syncCursors] = await Promise.all([
         this.listMappings(environment),
         this.listPaymentLinks(),
@@ -203,7 +204,7 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
     },
 
     listPaymentLinks() {
-      return client.get<HotmartPaymentLinkResponse[]>("/api/v1/admin/integrations/hotmart/payment-links");
+      return client.get<HotmartPaymentLinkResponse[]>(`/api/v1/admin/integrations/hotmart/payment-links?limit=${DEFAULT_ADMIN_LIST_LIMIT}`);
     },
 
     createPaymentLink(payload: HotmartPaymentLinkCreateRequest) {
@@ -227,7 +228,7 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
 
     listPromotions(environment: HotmartEnvironment) {
       return client.get<HotmartPromotionResponse[]>(
-        `/api/v1/admin/integrations/hotmart/coupons?${buildEnvironmentQuery(environment)}`,
+        `/api/v1/admin/integrations/hotmart/coupons?${buildEnvironmentQuery(environment)}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 
@@ -278,7 +279,7 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
     listSyncRuns(environment: HotmartEnvironment, resource = "") {
       const resourceQuery = resource ? `&resource=${encodeURIComponent(resource)}` : "";
       return client.get<HotmartSyncRunResponse[]>(
-        `/api/v1/admin/integrations/hotmart/sync-runs?${buildEnvironmentQuery(environment)}${resourceQuery}`,
+        `/api/v1/admin/integrations/hotmart/sync-runs?${buildEnvironmentQuery(environment)}${resourceQuery}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 
@@ -290,7 +291,7 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
 
     listReconciliationIssues(environment: HotmartEnvironment, status = "open") {
       return client.get<HotmartReconciliationIssueResponse[]>(
-        `/api/v1/admin/integrations/hotmart/reconciliation?${buildEnvironmentQuery(environment)}&status=${encodeURIComponent(status)}`,
+        `/api/v1/admin/integrations/hotmart/reconciliation?${buildEnvironmentQuery(environment)}&status=${encodeURIComponent(status)}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 
@@ -337,25 +338,25 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
 
     listClubModules(environment: HotmartEnvironment) {
       return client.get<HotmartClubModuleResponse[]>(
-        `/api/v1/admin/integrations/hotmart/club/modules?${buildEnvironmentQuery(environment)}`,
+        `/api/v1/admin/integrations/hotmart/club/modules?${buildEnvironmentQuery(environment)}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 
     listClubPages(environment: HotmartEnvironment) {
       return client.get<HotmartClubPageResponse[]>(
-        `/api/v1/admin/integrations/hotmart/club/pages?${buildEnvironmentQuery(environment)}`,
+        `/api/v1/admin/integrations/hotmart/club/pages?${buildEnvironmentQuery(environment)}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 
     listClubStudents(environment: HotmartEnvironment) {
       return client.get<HotmartClubStudentResponse[]>(
-        `/api/v1/admin/integrations/hotmart/club/students?${buildEnvironmentQuery(environment)}`,
+        `/api/v1/admin/integrations/hotmart/club/students?${buildEnvironmentQuery(environment)}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 
     listClubProgress(environment: HotmartEnvironment) {
       return client.get<HotmartClubProgressResponse[]>(
-        `/api/v1/admin/integrations/hotmart/club/progress?${buildEnvironmentQuery(environment)}`,
+        `/api/v1/admin/integrations/hotmart/club/progress?${buildEnvironmentQuery(environment)}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 
@@ -418,7 +419,7 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
     listCommercialBalanceLedger(productKey: string, workspaceId?: string) {
       const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
       return client.get<CommercialBalanceLedgerResponse[]>(
-        `/api/v1/admin/integrations/hotmart/commercial/balance-ledger?product_key=${encodeURIComponent(productKey)}${workspaceQuery}`,
+        `/api/v1/admin/integrations/hotmart/commercial/balance-ledger?product_key=${encodeURIComponent(productKey)}${workspaceQuery}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 
@@ -449,7 +450,7 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
       const productQuery = productKey ? `&product_key=${encodeURIComponent(productKey)}` : "";
       const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
       return client.get<CommercialDebtResponse[]>(
-        `/api/v1/admin/integrations/hotmart/commercial/debts?status=${encodeURIComponent(status)}${productQuery}${workspaceQuery}`,
+        `/api/v1/admin/integrations/hotmart/commercial/debts?status=${encodeURIComponent(status)}${productQuery}${workspaceQuery}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 
@@ -480,7 +481,7 @@ export function createHotmartAdminApi(client: HotmartApiClient = apiClient) {
       const productQuery = productKey ? `&product_key=${encodeURIComponent(productKey)}` : "";
       const workspaceQuery = workspaceId ? `&workspace_id=${encodeURIComponent(workspaceId)}` : "";
       return client.get<CommercialLegacyPackageResolutionResponse[]>(
-        `/api/v1/admin/integrations/hotmart/commercial/legacy-package-resolutions?status=${encodeURIComponent(status)}${productQuery}${workspaceQuery}`,
+        `/api/v1/admin/integrations/hotmart/commercial/legacy-package-resolutions?status=${encodeURIComponent(status)}${productQuery}${workspaceQuery}&limit=${DEFAULT_ADMIN_LIST_LIMIT}`,
       );
     },
 

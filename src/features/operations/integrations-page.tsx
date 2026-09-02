@@ -289,8 +289,8 @@ export function IntegrationsWorkspacePage() {
                 <AppButton className="w-full" onClick={() => router.push("/library")}>
                   Ir a Biblioteca
                 </AppButton>
-                <AppButton className="w-full" icon={<CreditCard className="h-4 w-4" />} onClick={() => router.push("/settings?section=configuration&config=commerce&subtab=hotmart")}>
-                  Administrar Hotmart en Settings
+                <AppButton className="w-full" icon={<CreditCard className="h-4 w-4" />} onClick={() => router.push("/admin/hotmart")}>
+                  Administrar Hotmart
                 </AppButton>
                 <AppButton className="w-full" variant="primary" icon={<Settings className="h-4 w-4" />} onClick={() => router.push("/settings")}>
                   Ir a Configuracion

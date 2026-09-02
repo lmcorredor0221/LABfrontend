@@ -3,6 +3,7 @@ import {
   BarChart3,
   Boxes,
   CircleDollarSign,
+  CreditCard,
   FileText,
   FolderKanban,
   Gauge,
@@ -20,6 +21,7 @@ import type {
 
 export type AdminSettingsSectionKey =
   | "configuration"
+  | "hotmart"
   | "llm"
   | "overview"
   | "productGovernance"
@@ -51,14 +53,14 @@ export const ADMIN_SECTIONS: AdminSectionDefinition[] = [
     label: "Overview",
   },
   {
-    description: "Tokens, costos, proveedores y modelos.",
+    description: "Tokens, costos, proveedores y modelos de toda la plataforma.",
     group: "Operación",
     icon: BarChart3,
     key: "llm",
     label: "Analítica LLM",
   },
   {
-    description: "Proyectos, actividad y distribución por etapa.",
+    description: "Proyectos, actividad y distribución global por etapa.",
     group: "Operación",
     icon: FolderKanban,
     key: "projects",
@@ -79,7 +81,7 @@ export const ADMIN_SECTIONS: AdminSectionDefinition[] = [
     label: "Roles y permisos",
   },
   {
-    description: "Diagramas, artefactos, documentos LLM y componentes de entrega por producto.",
+    description: "Gobierno global de diagramas, artefactos, documentos LLM y componentes de entrega por producto.",
     group: "Gobierno",
     icon: Boxes,
     key: "productGovernance",
@@ -92,11 +94,18 @@ export const ADMIN_SECTIONS: AdminSectionDefinition[] = [
     key: "configuration",
     label: "Configuración",
   },
+  {
+    description: "Checkout, webhooks, activaciones, sincronización y conciliación bajo demanda.",
+    group: "Sistema",
+    icon: CreditCard,
+    key: "hotmart",
+    label: "Hotmart",
+  },
 ];
 
 export const CONFIG_TABS: Array<AdminConfigTabDefinitionWithScope<AdminConfigTabKey>> = [
   {
-    description: "Cuenta, workspace y preferencias.",
+    description: "Identidad global, parámetros de plataforma y preferencias.",
     icon: Users,
     badge: "Base",
     key: "general",
@@ -147,10 +156,9 @@ export const SETTINGS_CONFIG_SUB_TABS: Record<AdminConfigTabKey, Array<AdminSubT
     { key: "prices", label: "Precios", description: "Precios base, defaults comerciales y costos por modelo." },
     { key: "budgets", label: "Presupuestos", description: "Budgets, umbrales y controles FinOps del workspace." },
     { key: "alerts", label: "Alertas", description: "Señales de consumo, límites y riesgo operativo." },
-    { key: "hotmart", label: "Hotmart", description: "Acceso al módulo administrativo de Hotmart y payment links." },
   ],
   general: [
-    { key: "workspace", label: "Workspace", description: "Identidad, plan, membresía y contexto de acceso." },
+    { key: "workspace", label: "Plataforma", description: "Identidad, plan, membresía y contexto global de administración." },
     { key: "preferences", label: "Preferencias", description: "Idioma, moneda y preferencias personales disponibles." },
     { key: "privacy", label: "Privacidad", description: "Consentimientos, límites visibles y datos sensibles." },
   ],

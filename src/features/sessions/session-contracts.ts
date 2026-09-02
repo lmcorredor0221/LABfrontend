@@ -3052,6 +3052,19 @@ export type WorkspaceProviderSecretResponse = {
   workspace_id: string;
 };
 
+export type PlatformProviderSecretResponse = {
+  configured: boolean;
+  health_status: string;
+  last_rotated_at?: string | null;
+  provider_key: LLMProviderKey;
+  secret_kind: string;
+  secret_source: string;
+  status: RuntimeSecretStatus;
+  storage_mode: string;
+  supports_platform_managed_credentials: boolean;
+  updated_at?: string | null;
+};
+
 export type WorkspaceRuntimeHealthCheckEntry = {
   check_key: string;
   detail: string;

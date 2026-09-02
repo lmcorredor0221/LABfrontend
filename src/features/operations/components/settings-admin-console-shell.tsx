@@ -22,6 +22,12 @@ import { BarsByDimension, DonutChart, MultiSeriesChart } from "@/components/lean
 import { AppButton, Badge, KeyValue, Panel, SelectField, SimpleTable, TextField } from "@/components/lean/ui";
 import { FinOpsDashboard } from "@/features/finops/finops-dashboard";
 import { adminConsoleApi, type AdminConsoleApi } from "@/features/operations/admin-console-api";
+import {
+  getPlatformAdminProjects,
+  getPlatformAdminUsers,
+  type PlatformAdminProjectSummary,
+  type PlatformAdminUserSummary,
+} from "@/features/platform-admin/platform-admin-api";
 import { ProductGovernanceConsole } from "@/features/product-governance/product-governance-console";
 import type {
   AdminAnalyticsQuery,
@@ -91,6 +97,27 @@ type AdminDirectoryState =
   | { data: { invitations: AdminUserInvitationListResponse; roles: AdminRolesResponse; users: AdminUsersListResponse }; error: null; status: "ready" }
   | { data: null; error: string; status: "error" };
 
+type AdminUsersScope = "global" | "workspace";
+type PlatformAdminUsersState =
+  | { data: null; error: null; status: "idle" | "loading" | "unauthorized" }
+  | { data: { total: number; users: PlatformAdminUserSummary[] }; error: null; status: "ready" }
+  | { data: null; error: string; status: "error" };
+
+type PlatformAdminProjectsState =
+  | { data: null; error: null; status: "idle" | "loading" | "unauthorized" }
+  | { data: { projects: PlatformAdminProjectSummary[]; total: number }; error: null; status: "ready" }
+  | { data: null; error: string; status: "error" };
+
+type AdminProjectListItem = {
+  current_stage: SessionSummary["current_stage"];
+  id: string;
+  owner_email?: string;
+  status: SessionSummary["status"];
+  title: string;
+  updated_at: string;
+  workspace_name?: string;
+};
+
 type AdminWorkspaceRole = NonNullable<AdminUserPatchRequest["membership_role"]>;
 type AdminInvitationDraft = {
   email: string;
@@ -120,6 +147,14 @@ function createIdleAdminAnalyticsState(): AdminAnalyticsState {
 }
 
 function createIdleAdminDirectoryState(): AdminDirectoryState {
+  return { data: null, error: null, status: "idle" };
+}
+
+function createIdlePlatformAdminUsersState(): PlatformAdminUsersState {
+  return { data: null, error: null, status: "idle" };
+}
+
+function createIdlePlatformAdminProjectsState(): PlatformAdminProjectsState {
   return { data: null, error: null, status: "idle" };
 }
 
@@ -393,8 +428,6 @@ export function AdminOverviewSection({
   onRefresh,
   providerLabel,
   runtimeHealth,
-  workspaceName,
-  workspaceRole,
 }: {
   adminPeriod: AdminPeriodFilter;
   analyticsState: AdminAnalyticsState;
@@ -404,8 +437,6 @@ export function AdminOverviewSection({
   onRefresh: () => void;
   providerLabel: string;
   runtimeHealth: string;
-  workspaceName: string;
-  workspaceRole: WorkspaceRole | null;
 }) {
   if (analyticsState.status === "unauthorized") {
     return (
@@ -484,10 +515,10 @@ export function AdminOverviewSection({
       <Panel className="px-4 py-3">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-[var(--text-secondary)]">
           <span>
-            Workspace <strong className="ml-1 text-[var(--text-primary)]">{workspaceName || "Sin workspace"}</strong>
+            Scope <strong className="ml-1 text-[var(--text-primary)]">Plataforma global</strong>
           </span>
           <span>
-            Rol <strong className="ml-1 text-[var(--text-primary)]">{getRoleLabel(workspaceRole)}</strong>
+            Rol <strong className="ml-1 text-[var(--text-primary)]">Platform Admin</strong>
           </span>
           <span>
             Runtime <strong className="ml-1 text-[var(--text-primary)]">{providerLabel}</strong>
@@ -596,7 +627,7 @@ export function AdminOverviewSection({
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[18px] font-semibold text-[var(--text-primary)]">Proyectos por etapa</p>
-              <p className="text-[13px] text-[var(--text-secondary)]">Distribución global del workspace; no depende de la tabla visible.</p>
+              <p className="text-[13px] text-[var(--text-secondary)]">Distribución global de plataforma; no depende del workspace activo ni de la tabla visible.</p>
             </div>
             <Badge tone={projects.total > 0 ? "green" : "slate"}>{projects.total} proyectos</Badge>
           </div>
@@ -694,7 +725,7 @@ export function AdminProjectsSection({
 }: {
   adminPeriod: AdminPeriodFilter;
   analyticsState: AdminAnalyticsState;
-  items: SessionSummary[];
+  items: AdminProjectListItem[];
   onPeriodChange: (period: AdminPeriodFilter) => void;
   onRefresh: () => void;
 }) {
@@ -708,6 +739,11 @@ export function AdminProjectsSection({
     <div key={`${item.id}-name`} className="min-w-0">
       <p className="truncate font-semibold text-[var(--text-primary)]">{item.title}</p>
       <p className="mt-1 truncate text-[12px] text-[var(--text-muted)]">{item.id}</p>
+      {item.workspace_name || item.owner_email ? (
+        <p className="mt-1 truncate text-[12px] text-[var(--text-muted)]">
+          {[item.workspace_name, item.owner_email].filter(Boolean).join(" · ")}
+        </p>
+      ) : null}
     </div>,
     <Badge key={`${item.id}-stage`} tone={item.current_stage === "ready_for_export" ? "green" : "blue"}>{humanizeStage(item.current_stage)}</Badge>,
     <div key={`${item.id}-status`}>
@@ -752,10 +788,10 @@ export function AdminProjectsSection({
       <Panel className="p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">Proyectos</p>
-            <h3 className="mt-2 text-[19px] font-semibold text-[var(--text-primary)]">Distribución real por etapa</h3>
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">Plataforma global</p>
+            <h3 className="mt-2 text-[19px] font-semibold text-[var(--text-primary)]">Distribución global de proyectos por etapa</h3>
             <p className="mt-1 max-w-2xl text-[13px] leading-6 text-[var(--text-secondary)]">
-              Totales y series provienen del backend agregado; la tabla inferior conserva acciones de navegación sobre proyectos visibles.
+              Totales y series provienen del backend agregado de plataforma; la tabla inferior usa el directorio global de proyectos.
             </p>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -770,7 +806,7 @@ export function AdminProjectsSection({
         </div>
       </Panel>
       <div className="grid gap-3 sm:grid-cols-3">
-        <Panel className="p-4"><KeyValue label="Total backend" value={String(projects?.total ?? 0)} hint="Agregado global por workspace" /></Panel>
+        <Panel className="p-4"><KeyValue label="Total plataforma" value={String(projects?.total ?? 0)} hint="Agregado global, no depende del workspace activo" /></Panel>
         <Panel className="p-4"><KeyValue label="Activos" value={String(active)} hint="Sin archivar ni eliminar" /></Panel>
         <Panel className="p-4"><KeyValue label="Listos / revisión" value={`${completed} / ${needsReview}`} hint="Distribución operativa actual" /></Panel>
       </div>
@@ -790,7 +826,7 @@ export function AdminProjectsSection({
       </Panel>
       <Panel className="p-5">
         <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div><h3 className="text-[17px] font-semibold text-[var(--text-primary)]">Proyectos visibles</h3><p className="text-[13px] text-[var(--text-secondary)]">Tabla operativa para abrir proyectos; los totales ejecutivos vienen del endpoint agregado.</p></div>
+          <div><h3 className="text-[17px] font-semibold text-[var(--text-primary)]">Proyectos visibles de plataforma</h3><p className="text-[13px] text-[var(--text-secondary)]">Tabla operativa para abrir proyectos; los totales ejecutivos vienen del endpoint global agregado.</p></div>
           <Badge tone="slate">{items.length} visibles</Badge>
         </div>
         {rows.length > 0 ? <SimpleTable columns={["Proyecto", "Etapa", "Estado", "Acción"]} rows={rows} /> : <Panel className="border-dashed p-6"><p className="text-[14px] font-semibold text-[var(--text-primary)]">No hay proyectos visibles</p><p className="mt-1 text-[13px] text-[var(--text-secondary)]">Crea una sesión desde las acciones de Settings para comenzar.</p></Panel>}
@@ -799,29 +835,83 @@ export function AdminProjectsSection({
   );
 }
 
+function UsersScopePanel({
+  countLabel,
+  isPlatformAdmin,
+  onRefresh,
+  onScopeChange,
+  scope,
+  workspaceId,
+  workspaceName,
+}: {
+  countLabel: string;
+  isPlatformAdmin: boolean;
+  onRefresh: () => void;
+  onScopeChange: (scope: AdminUsersScope) => void;
+  scope: AdminUsersScope;
+  workspaceId: string | null;
+  workspaceName: string;
+}) {
+  return (
+    <Panel className="p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <Badge tone={scope === "global" ? "blue" : "green"}>{countLabel}</Badge>
+          <h3 className="mt-3 text-[17px] font-semibold text-[var(--text-primary)]">Vista de usuarios</h3>
+          <p className="mt-1 max-w-3xl text-[13px] leading-6 text-[var(--text-secondary)]">
+            Platform admin puede alternar entre todos los usuarios registrados y las membresias del workspace activo sin salir de Settings.
+          </p>
+          {workspaceId ? <p className="mt-2 text-[12px] text-[var(--text-muted)]">Workspace activo: {workspaceName || "Sin nombre"} · {workspaceId}</p> : null}
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <SelectField
+            disabled={!isPlatformAdmin}
+            label="Vista"
+            onValueChange={(value) => onScopeChange(value as AdminUsersScope)}
+            options={[
+              { label: "Global", value: "global" },
+              { label: "Workspace activo", value: "workspace" },
+            ]}
+            value={scope}
+          />
+          <AppButton variant="secondary" onClick={onRefresh} icon={<RefreshCcw className="h-4 w-4" />}>Refrescar</AppButton>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 export function AdminUsersSection({
   currentUser,
   directoryState,
+  globalUsersState,
   invitationDraft,
   invitationFeedback,
   invitationPending,
+  isPlatformAdmin,
   onDraftChange,
   onInviteUser,
   onRefresh,
+  onScopeChange,
   onUpdateUser,
+  scope,
   userMutationPendingId,
   workspaceId,
   workspaceName,
 }: {
   currentUser: AuthUser | null;
   directoryState: AdminDirectoryState;
+  globalUsersState: PlatformAdminUsersState;
   invitationDraft: AdminInvitationDraft;
   invitationFeedback: string | null;
   invitationPending: boolean;
+  isPlatformAdmin: boolean;
   onDraftChange: (patch: Partial<AdminInvitationDraft>) => void;
   onInviteUser: (payload: AdminUserInvitationCreateRequest) => void;
   onRefresh: () => void;
+  onScopeChange: (scope: AdminUsersScope) => void;
   onUpdateUser: (user: AdminUserRecord, payload: AdminUserPatchRequest) => void;
+  scope: AdminUsersScope;
   userMutationPendingId: string | null;
   workspaceId: string | null;
   workspaceName: string;
@@ -836,28 +926,107 @@ export function AdminUsersSection({
     );
   }
 
-  if (directoryState.status === "loading" || directoryState.status === "idle") {
+  const activeState = scope === "global" ? globalUsersState : directoryState;
+
+  if (activeState.status === "loading" || activeState.status === "idle") {
     return (
       <AdminViewState
         state="loading"
-        title="Cargando usuarios y membresias"
-        description="Consultando el directorio administrativo, invitaciones pendientes y catalogo de roles desde el backend."
+        title={scope === "global" ? "Cargando usuarios globales" : "Cargando usuarios y membresias"}
+        description={
+          scope === "global"
+            ? "Consultando /platform/admin/users sin x-workspace-id."
+            : "Consultando el directorio administrativo, invitaciones pendientes y catalogo de roles desde el backend."
+        }
       />
     );
   }
 
-  if (directoryState.status === "error") {
+  if (activeState.status === "error") {
     return (
       <AdminViewState
         action={<AppButton icon={<RefreshCcw className="h-4 w-4" />} onClick={onRefresh}>Reintentar</AppButton>}
         state="error"
         title="No se pudo cargar usuarios"
-        description={directoryState.error}
+        description={activeState.error}
       />
     );
   }
 
   const directoryData = directoryState.data;
+  if (scope === "global" && globalUsersState.status === "ready") {
+    const globalRows: AdminAccordionRow[] = globalUsersState.data.users.map((user) => ({
+      detail: (
+        <div className="space-y-3">
+          <p>
+            Usuario global visible para platform admin. Puede pertenecer a varios workspaces; los cambios de rol siguen protegidos en la vista de workspace activo para exigir contexto explicito.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {user.memberships.map((membership) => (
+              <span key={`${user.id}-${membership.workspace_id}`} className="rounded-[10px] border border-[var(--border-default)] bg-[var(--surface-subtle)] px-3 py-2 text-[12px] text-[var(--text-secondary)]">
+                {membership.workspace_name || membership.workspace_slug} · {getAdminRoleLabel(membership.role)} · {membership.is_active ? "activa" : "inactiva"}
+              </span>
+            ))}
+          </div>
+        </div>
+      ),
+      fields: [
+        { label: "Workspaces", value: String(user.workspace_count) },
+        { label: "Activos", value: String(user.active_workspace_count) },
+        { label: "Proyectos", value: String(user.project_count) },
+        { label: "Tokens LLM", value: formatNumber(user.llm_total_tokens) },
+        { label: "Costo LLM", value: formatCurrency(user.llm_total_cost) },
+        { label: "ID usuario", value: user.id },
+      ],
+      id: user.id,
+      name: user.full_name || user.email,
+      owner: (
+        <div>
+          <p className="font-medium">{user.platform_roles.length ? user.platform_roles.join(", ") : "Sin rol plataforma"}</p>
+          <p className="mt-1 text-[12px] text-[var(--text-muted)]">Actualizado {formatAdminDate(user.updated_at)}</p>
+        </div>
+      ),
+      primaryAction: currentUser?.id === user.id ? "Usuario actual" : "Solo lectura global",
+      scope: (
+        <div>
+          <p className="font-medium">{user.workspace_count} workspaces</p>
+          <p className="mt-1 text-[12px] text-[var(--text-muted)]">{user.active_workspace_count} activos</p>
+        </div>
+      ),
+      statusLabel: user.is_active ? "Cuenta activa" : "Cuenta inactiva",
+      statusTone: user.is_active ? "green" : "red",
+      summary: (
+        <span>
+          {user.email}
+          <span className="mt-1 block text-[11px] text-[var(--text-muted)]">Creado {formatAdminDate(user.created_at)}</span>
+        </span>
+      ),
+    }));
+
+    return (
+      <div className="space-y-5">
+        <UsersScopePanel
+          countLabel={`${globalUsersState.data.total} usuarios globales`}
+          isPlatformAdmin={isPlatformAdmin}
+          onRefresh={onRefresh}
+          onScopeChange={onScopeChange}
+          scope={scope}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+        />
+        {globalRows.length > 0 ? (
+          <AdminAccordionTable
+            title="Usuarios globales de la plataforma"
+            description="Vista global real desde /platform/admin/users. Las acciones de membresia se mantienen en Workspace activo para evitar cambios sin contexto."
+            rows={globalRows}
+          />
+        ) : (
+          <AdminViewState state="empty" title="Sin usuarios globales" description="El endpoint global no devolvio usuarios." />
+        )}
+      </div>
+    );
+  }
+
   if (!directoryData) {
     return (
       <AdminViewState
@@ -988,6 +1157,15 @@ export function AdminUsersSection({
 
   return (
     <div className="space-y-5">
+      <UsersScopePanel
+        countLabel={`${users.count} usuarios del workspace`}
+        isPlatformAdmin={isPlatformAdmin}
+        onRefresh={onRefresh}
+        onScopeChange={onScopeChange}
+        scope={scope}
+        workspaceId={workspaceId}
+        workspaceName={workspaceName}
+      />
       <Panel className="border-[rgba(79,70,245,0.22)] bg-[rgba(79,70,245,0.04)] p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex gap-3">
@@ -1291,6 +1469,11 @@ export function AdminSettingsConsoleShell({
   const [adminAnalyticsState, setAdminAnalyticsState] = useState<AdminAnalyticsState>(createIdleAdminAnalyticsState);
   const [adminDirectoryRefreshIndex, setAdminDirectoryRefreshIndex] = useState(0);
   const [adminDirectoryState, setAdminDirectoryState] = useState<AdminDirectoryState>(createIdleAdminDirectoryState);
+  const [adminUsersScope, setAdminUsersScope] = useState<AdminUsersScope>(isPlatformAdmin ? "global" : "workspace");
+  const [platformAdminUsersState, setPlatformAdminUsersState] = useState<PlatformAdminUsersState>(createIdlePlatformAdminUsersState);
+  const [platformAdminProjectsState, setPlatformAdminProjectsState] = useState<PlatformAdminProjectsState>(
+    createIdlePlatformAdminProjectsState,
+  );
   const [adminUserMutationPendingId, setAdminUserMutationPendingId] = useState<string | null>(null);
   const [adminInvitationPending, setAdminInvitationPending] = useState(false);
   const [adminInvitationDraft, setAdminInvitationDraft] = useState<AdminInvitationDraft>(createAdminInvitationDraft);
@@ -1301,7 +1484,11 @@ export function AdminSettingsConsoleShell({
   const configSubTabDefinition = configSubTabs.find((item) => item.key === activeConfigSubTab);
   const roleLabel = getRoleLabel(workspaceRole);
   const canReadAdminAnalytics = canLoadAdminAnalytics(workspaceRole, isPlatformAdmin);
-  const shouldLoadAdminDirectory = canReadAdminAnalytics && (activeSection === "users" || activeSection === "roles");
+  const effectiveAdminUsersScope: AdminUsersScope = isPlatformAdmin ? adminUsersScope : "workspace";
+  const shouldLoadAdminDirectory =
+    canReadAdminAnalytics && (activeSection === "roles" || (activeSection === "users" && effectiveAdminUsersScope === "workspace"));
+  const shouldLoadPlatformAdminUsers = canReadAdminAnalytics && activeSection === "users" && effectiveAdminUsersScope === "global";
+  const shouldLoadPlatformAdminProjects = canReadAdminAnalytics && isPlatformAdmin && activeSection === "projects";
   const adminAnalyticsQuery = useMemo(() => buildAdminAnalyticsQuery(adminPeriod), [adminPeriod]);
   const effectiveAdminAnalyticsState: AdminAnalyticsState = canReadAdminAnalytics
     ? adminAnalyticsState
@@ -1325,18 +1512,19 @@ export function AdminSettingsConsoleShell({
     onSectionChange: setActiveSection,
   });
 
+  const adminScopeLabel = isPlatformAdmin ? "Plataforma global" : workspaceName || "Workspace";
   const breadcrumbs =
     activeSection === "configuration"
       ? [
           "Administración",
-          workspaceName || "Workspace",
+          adminScopeLabel,
           section.label,
           configTabDefinition.label,
           configSubTabDefinition?.label ?? activeConfigSubTab,
         ]
       : activeSection === "productGovernance"
-        ? ["Administración", workspaceName || "Workspace", section.label, productGovernanceTab.label]
-        : ["Administración", workspaceName || "Workspace", section.label];
+        ? ["Administración", adminScopeLabel, section.label, productGovernanceTab.label]
+        : ["Administración", adminScopeLabel, section.label];
 
   useEffect(() => {
     if (!canReadAdminAnalytics) {
@@ -1408,6 +1596,97 @@ export function AdminSettingsConsoleShell({
       cancelled = true;
     };
   }, [adminApi, adminDirectoryRefreshIndex, shouldLoadAdminDirectory]);
+
+  useEffect(() => {
+    if (!shouldLoadPlatformAdminUsers) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadPlatformAdminUsers() {
+      setPlatformAdminUsersState({ data: null, error: null, status: "loading" });
+      try {
+        const response = await getPlatformAdminUsers(100);
+        if (!cancelled) {
+          setPlatformAdminUsersState({
+            data: {
+              total: response.total,
+              users: response.users,
+            },
+            error: null,
+            status: "ready",
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPlatformAdminUsersState({
+            data: null,
+            error: getErrorMessage(error, "No se pudo cargar usuarios globales."),
+            status: "error",
+          });
+        }
+      }
+    }
+
+    void loadPlatformAdminUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminDirectoryRefreshIndex, shouldLoadPlatformAdminUsers]);
+
+  useEffect(() => {
+    if (!shouldLoadPlatformAdminProjects) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadPlatformAdminProjects() {
+      setPlatformAdminProjectsState({ data: null, error: null, status: "loading" });
+      try {
+        const response = await getPlatformAdminProjects(100);
+        if (!cancelled) {
+          setPlatformAdminProjectsState({
+            data: {
+              projects: response.projects,
+              total: response.total,
+            },
+            error: null,
+            status: "ready",
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPlatformAdminProjectsState({
+            data: null,
+            error: getErrorMessage(error, "No se pudo cargar proyectos globales."),
+            status: "error",
+          });
+        }
+      }
+    }
+
+    void loadPlatformAdminProjects();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminRefreshIndex, shouldLoadPlatformAdminProjects]);
+
+  const effectiveProjectItems: AdminProjectListItem[] =
+    isPlatformAdmin && platformAdminProjectsState.status === "ready"
+      ? platformAdminProjectsState.data.projects.map((item) => ({
+          current_stage: item.current_stage as SessionSummary["current_stage"],
+          id: item.id,
+          owner_email: item.owner_email,
+          status: item.status as SessionSummary["status"],
+          title: item.title,
+          updated_at: item.updated_at,
+          workspace_name: item.workspace_name,
+        }))
+      : projectItems;
 
   async function handleAdminUserUpdate(user: AdminUserRecord, payload: AdminUserPatchRequest) {
     if (!canReadAdminAnalytics) {
@@ -1485,7 +1764,8 @@ export function AdminSettingsConsoleShell({
         </div>
       }
       sections={ADMIN_SECTIONS}
-      workspaceLabel={workspaceName || "Sin workspace"}
+      scopeEyebrow={isPlatformAdmin ? "Ambito" : "Espacio de Trabajo"}
+      workspaceLabel={isPlatformAdmin ? "Plataforma global" : workspaceName || "Sin workspace"}
     >
       {activeSection === "configuration" ? (
         <div className="space-y-5">
@@ -1541,16 +1821,14 @@ export function AdminSettingsConsoleShell({
           onRefresh={() => setAdminRefreshIndex((value) => value + 1)}
           providerLabel={providerLabel}
           runtimeHealth={runtimeHealth}
-          workspaceName={workspaceName}
-          workspaceRole={workspaceRole}
         />
       ) : null}
-      {activeSection === "llm" ? <div className="space-y-5"><Panel className="p-5"><div className="flex items-start gap-3"><BarChart3 className="mt-0.5 h-5 w-5 text-[var(--brand-primary)]" /><div><h3 className="text-[17px] font-semibold text-[var(--text-primary)]">Analítica y consumo de LLM</h3><p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">Tokens de entrada y salida, costos, proveedores, modelos, latencia, alertas y consumidores principales desde FinOps.</p></div></div></Panel><FinOpsDashboard /></div> : null}
+      {activeSection === "llm" ? <div className="space-y-5"><Panel className="p-5"><div className="flex items-start gap-3"><BarChart3 className="mt-0.5 h-5 w-5 text-[var(--brand-primary)]" /><div><h3 className="text-[17px] font-semibold text-[var(--text-primary)]">Analítica global y consumo de LLM</h3><p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">Tokens de entrada y salida, costos, proveedores, modelos, latencia, alertas y consumidores principales de toda la plataforma desde FinOps.</p></div></div></Panel><FinOpsDashboard /></div> : null}
       {activeSection === "projects" ? (
         <AdminProjectsSection
           adminPeriod={adminPeriod}
           analyticsState={effectiveAdminAnalyticsState}
-          items={projectItems}
+          items={effectiveProjectItems}
           onPeriodChange={setAdminPeriod}
           onRefresh={() => setAdminRefreshIndex((value) => value + 1)}
         />
@@ -1559,13 +1837,17 @@ export function AdminSettingsConsoleShell({
         <AdminUsersSection
           currentUser={currentUser}
           directoryState={effectiveAdminDirectoryState}
+          globalUsersState={canReadAdminAnalytics ? platformAdminUsersState : { data: null, error: null, status: "unauthorized" }}
           invitationDraft={adminInvitationDraft}
           invitationFeedback={adminDirectoryFeedback}
           invitationPending={adminInvitationPending}
+          isPlatformAdmin={isPlatformAdmin}
           onDraftChange={(patch) => setAdminInvitationDraft((draft) => ({ ...draft, ...patch }))}
           onInviteUser={(payload) => { void handleAdminInvitationCreate(payload); }}
           onRefresh={() => setAdminDirectoryRefreshIndex((value) => value + 1)}
+          onScopeChange={setAdminUsersScope}
           onUpdateUser={(user, payload) => { void handleAdminUserUpdate(user, payload); }}
+          scope={effectiveAdminUsersScope}
           userMutationPendingId={adminUserMutationPendingId}
           workspaceId={workspaceId}
           workspaceName={workspaceName}

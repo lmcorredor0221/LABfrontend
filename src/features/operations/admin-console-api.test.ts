@@ -20,9 +20,11 @@ describe("admin console api", () => {
 
     expect(client.get).toHaveBeenCalledWith(
       "/api/v1/admin/overview?granularity=day&provider_key=openai&started_from=2026-08-01T00%3A00%3A00&started_to=2026-08-31T23%3A59%3A59",
+      { includeWorkspaceId: false },
     );
     expect(client.get).toHaveBeenCalledWith(
       "/api/v1/admin/projects/analytics?stage=ready_for_export&user_id=user-1",
+      { includeWorkspaceId: false },
     );
   });
 

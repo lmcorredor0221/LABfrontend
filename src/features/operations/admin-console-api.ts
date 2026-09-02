@@ -31,10 +31,14 @@ function buildQueryString(params: Record<string, QueryValue>) {
 export function createAdminConsoleApi(client = apiClient) {
   return {
     getOverview(params: AdminAnalyticsQuery = {}) {
-      return client.get<AdminOverviewResponse>(`/api/v1/admin/overview${buildQueryString(params)}`);
+      return client.get<AdminOverviewResponse>(`/api/v1/admin/overview${buildQueryString(params)}`, {
+        includeWorkspaceId: false,
+      });
     },
     getProjectsAnalytics(params: AdminAnalyticsQuery = {}) {
-      return client.get<AdminProjectsAnalytics>(`/api/v1/admin/projects/analytics${buildQueryString(params)}`);
+      return client.get<AdminProjectsAnalytics>(`/api/v1/admin/projects/analytics${buildQueryString(params)}`, {
+        includeWorkspaceId: false,
+      });
     },
     listUsers(params: AdminUsersListQuery = {}) {
       return client.get<AdminUsersListResponse>(`/api/v1/admin/users${buildQueryString(params)}`);

@@ -21,9 +21,11 @@ describe("finops api", () => {
 
     expect(client.get).toHaveBeenCalledWith(
       "/api/v1/finops/llm/usage?provider_key=openai&model_name=gpt-5.5&limit=25&offset=10",
+      { includeWorkspaceId: false },
     );
     expect(client.get).toHaveBeenCalledWith(
       "/api/v1/finops/llm/summary?started_from=2026-08-01T00%3A00%3A00&started_to=2026-08-31T23%3A59%3A59&stage=define",
+      { includeWorkspaceId: false },
     );
   });
 
@@ -37,9 +39,15 @@ describe("finops api", () => {
     await api.getProviderBreakdown({ provider_key: "deepseek" });
     await api.getTimeseries({ granularity: "week", provider_key: "openai" });
 
-    expect(client.get).toHaveBeenCalledWith("/api/v1/finops/llm/top-consumers?dimension=provider_key&limit=5");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/finops/llm/provider-breakdown?provider_key=deepseek");
-    expect(client.get).toHaveBeenCalledWith("/api/v1/finops/llm/timeseries?granularity=week&provider_key=openai");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/finops/llm/top-consumers?dimension=provider_key&limit=5", {
+      includeWorkspaceId: false,
+    });
+    expect(client.get).toHaveBeenCalledWith("/api/v1/finops/llm/provider-breakdown?provider_key=deepseek", {
+      includeWorkspaceId: false,
+    });
+    expect(client.get).toHaveBeenCalledWith("/api/v1/finops/llm/timeseries?granularity=week&provider_key=openai", {
+      includeWorkspaceId: false,
+    });
   });
 
   it("creates and updates budgets with request bodies", async () => {
@@ -88,6 +96,8 @@ describe("finops api", () => {
     expect(client.get).toHaveBeenCalledWith(
       "/api/v1/finops/llm/budgets?include_inactive=true&include_evaluations=false",
     );
-    expect(client.get).toHaveBeenCalledWith("/api/v1/finops/llm/alerts?status=active&sync=false&limit=20");
+    expect(client.get).toHaveBeenCalledWith("/api/v1/finops/llm/alerts?status=active&sync=false&limit=20", {
+      includeWorkspaceId: false,
+    });
   });
 });

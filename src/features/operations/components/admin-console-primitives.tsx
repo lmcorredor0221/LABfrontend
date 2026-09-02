@@ -202,6 +202,7 @@ export function AdminNavigationRail<TKey extends string>({
   onSelectSection,
   onToggle,
   planLabel,
+  scopeEyebrow = "Espacio de Trabajo",
   sections,
   workspaceLabel,
 }: {
@@ -211,6 +212,7 @@ export function AdminNavigationRail<TKey extends string>({
   onSelectSection: (key: TKey) => void;
   onToggle: () => void;
   planLabel?: string;
+  scopeEyebrow?: string;
   sections: readonly AdminSectionDefinition<TKey>[];
   workspaceLabel: string;
 }) {
@@ -231,7 +233,7 @@ export function AdminNavigationRail<TKey extends string>({
           </span>
         ) : (
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Espacio de Trabajo</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-[var(--text-muted)]">{scopeEyebrow}</p>
             <div className="mt-1 flex items-center gap-3">
               <p className="text-[15px] font-bold text-[var(--text-primary)]">{workspaceLabel}</p>
               {planLabel ? <Badge tone="violet">{planLabel}</Badge> : null}
@@ -654,6 +656,7 @@ export function SettingsAdminConsoleFrame<TKey extends string>({
   sectionActions,
   sections,
   shortcutLabel = "⌘K",
+  scopeEyebrow,
   workspaceLabel,
 }: {
   activeSection: TKey;
@@ -672,6 +675,7 @@ export function SettingsAdminConsoleFrame<TKey extends string>({
   sectionActions?: ReactNode;
   sections: readonly AdminSectionDefinition<TKey>[];
   shortcutLabel?: string;
+  scopeEyebrow?: string;
   workspaceLabel: string;
 }) {
   const active = sections.find((item) => item.key === activeSection) ?? sections[0];
@@ -697,6 +701,7 @@ export function SettingsAdminConsoleFrame<TKey extends string>({
                 onSelectSection={onSelectSection}
                 onToggle={onToggleNavigation}
                 planLabel={planLabel}
+                scopeEyebrow={scopeEyebrow}
                 sections={sections}
                 workspaceLabel={workspaceLabel}
               />

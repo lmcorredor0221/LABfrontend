@@ -258,7 +258,7 @@ export function FinOpsDashboard({ api = finOpsApi }: { api?: FinOpsApi }) {
   const [filters, setFilters] = useState<FilterState>({
     agentKey: "",
     modelName: "",
-    period: "month",
+    period: "30d",
     projectId: "",
     providerKey: "",
     stage: "",

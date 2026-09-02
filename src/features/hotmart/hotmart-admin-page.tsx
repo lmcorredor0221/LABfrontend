@@ -25,7 +25,7 @@ import {
   TabList,
   TextField,
 } from "@/components/lean/ui";
-import type { AuthUser, WorkspaceRole } from "@/core/auth/types";
+import { hasPlatformAdminRole, type AuthUser, type WorkspaceRole } from "@/core/auth/types";
 import { useAuth } from "@/core/auth/auth-context";
 import { OperationsModuleShell } from "@/features/operations/operations-module-shell";
 import { formatDateTime, getStatusTone } from "@/features/operations/operations-adapter";
@@ -159,11 +159,11 @@ const HOTMART_TABS = [
   "Sincronizacion",
   "Comunidad",
   "Reconciliacion",
-  "Auditoria",
+  "Readiness",
 ];
 const HOTMART_PLATFORM_TABS = ["Comercial"];
 
-type HotmartDashboardSection = "club" | "links" | "mappings" | "promotions" | "reconciliation" | "sync";
+type HotmartDashboardSection = "club" | "links" | "mappings" | "promotions" | "reconciliation" | "release" | "sync";
 type HotmartSectionLoadState = {
   error: string | null;
   status: "error" | "idle" | "loading" | "ready";
@@ -171,6 +171,7 @@ type HotmartSectionLoadState = {
 type HotmartSectionStates = Record<HotmartDashboardSection, HotmartSectionLoadState>;
 
 const HOTMART_TAB_SECTIONS: Record<string, HotmartDashboardSection[]> = {
+  Readiness: ["release"],
   Comunidad: ["club"],
   "Links de pago": ["mappings", "links"],
   Promociones: ["mappings", "promotions"],
@@ -179,7 +180,7 @@ const HOTMART_TAB_SECTIONS: Record<string, HotmartDashboardSection[]> = {
   "Productos y ofertas": ["mappings"],
 };
 
-const COMMERCIAL_TABS = ["Configuracion", "Balance", "Paquetes", "Deudas"] as const;
+const COMMERCIAL_TABS = ["Planes y cuotas", "Balance", "Paquetes", "Deudas"] as const;
 
 type CommercialTab = (typeof COMMERCIAL_TABS)[number];
 type CommercialDashboardSection = "balance" | "debts" | "packages";
@@ -191,7 +192,7 @@ type CommercialSectionStates = Record<CommercialDashboardSection, CommercialSect
 
 const COMMERCIAL_TAB_SECTIONS: Record<CommercialTab, CommercialDashboardSection[]> = {
   Balance: ["balance"],
-  Configuracion: [],
+  "Planes y cuotas": [],
   Deudas: ["debts"],
   Paquetes: ["packages"],
 };
@@ -203,6 +204,7 @@ function createHotmartSectionStates(): HotmartSectionStates {
     mappings: { error: null, status: "idle" },
     promotions: { error: null, status: "idle" },
     reconciliation: { error: null, status: "idle" },
+    release: { error: null, status: "idle" },
     sync: { error: null, status: "idle" },
   };
 }
@@ -216,24 +218,70 @@ function createCommercialSectionStates(): CommercialSectionStates {
 }
 
 function createHotmartDashboardData(bootstrap: HotmartDashboardBootstrapData): HotmartDashboardData {
+  const releaseReadiness = createPendingReleaseReadiness(bootstrap.status);
   return {
     clubModules: [],
-    clubOverview: bootstrap.clubOverview,
+    clubOverview: createPendingClubOverview(bootstrap.status),
     clubPages: [],
     clubProgress: [],
     clubStudents: [],
     links: [],
     mappings: [],
-    operationalAlerts: bootstrap.releaseReadiness.alerts,
+    operationalAlerts: [],
     products: bootstrap.products,
-    promotionMetrics: bootstrap.promotionMetrics,
+    promotionMetrics: createPendingPromotionMetrics(),
     promotions: [],
     reconciliationIssues: [],
-    releaseReadiness: bootstrap.releaseReadiness,
-    runbook: bootstrap.releaseReadiness.runbook,
+    releaseReadiness,
+    runbook: releaseReadiness.runbook,
     status: bootstrap.status,
     syncCursors: [],
     syncRuns: [],
+  };
+}
+
+function createPendingClubOverview(status: HotmartIntegrationStatusResponse): HotmartClubOverviewResponse {
+  return {
+    contract_version: "hotmart-club-overview.pending.v1",
+    environment: status.environment,
+    last_sync_at: status.last_sync_at ?? null,
+    last_sync_status: status.last_sync_at ? "pending_detail_load" : "not_loaded",
+    modules_count: 0,
+    open_issue_count: 0,
+    pages_count: 0,
+    progress_count: 0,
+    students_count: 0,
+    subdomain: "",
+    workspace_id: status.workspace_id,
+  };
+}
+
+function createPendingPromotionMetrics(): HotmartPromotionMetricsResponse {
+  return {
+    active: 0,
+    contract_version: "hotmart-promotion-metrics.pending.v1",
+    deleted: 0,
+    expired: 0,
+    internal_upgrade_credit_count: 0,
+    provider_coupon_count: 0,
+    scheduled: 0,
+    sync_error: 0,
+    total: 0,
+  };
+}
+
+function createPendingReleaseReadiness(status: HotmartIntegrationStatusResponse): HotmartReleaseReadinessResponse {
+  return {
+    alerts: [],
+    checklist: [],
+    contract_version: "hotmart-release-readiness.pending.v1",
+    environment: status.environment,
+    generated_at: new Date().toISOString(),
+    metrics: {},
+    overall_status: "needs_attention",
+    release_candidate: false,
+    runbook: [],
+    workspace_id: status.workspace_id,
   };
 }
 
@@ -298,7 +346,7 @@ function getHotmartTabLoadingCopy(tab: string) {
   switch (tab) {
     case "Productos y ofertas":
       return {
-        description: "Cargando mappings y productos internos del workspace.",
+        description: "Cargando mappings y productos internos de plataforma.",
         title: "Cargando productos y ofertas",
       };
     case "Links de pago":
@@ -777,8 +825,8 @@ function HotmartAdminRestrictedState({ role }: { role: WorkspaceRole | null }) {
           <Badge tone="orange">Platform Admin</Badge>
           <p className="text-[22px] font-semibold text-[var(--text-primary)]">Modulo Hotmart protegido</p>
           <p className="max-w-3xl text-[14px] leading-7 text-[var(--text-secondary)]">
-            Esta integracion controla credenciales, links de pago, webhooks y acceso comercial del workspace. Por eso solo se muestra a
-            usuarios con rol global de platform admin.
+            Esta integracion controla credenciales, productos, webhooks y reglas comerciales de plataforma. Por eso solo se muestra a usuarios
+            con rol global de platform admin.
           </p>
         </div>
         <KeyValue label="Rol actual" value={role ?? "Sin membresia activa"} hint="La API tambien valida permisos en backend." />
@@ -1244,10 +1292,10 @@ function HotmartPaymentLinksPanel({
         >
           <div>
             <Badge tone="violet">Checkout Hotmart</Badge>
-            <p className="mt-2 text-[20px] font-semibold text-[var(--text-primary)]">Generar link de pago</p>
-            <p className="mt-1 text-[14px] leading-7 text-[var(--text-secondary)]">
-              Crea una orden interna con provider Hotmart y luego solicita el Payment Link.
-            </p>
+          <p className="mt-2 text-[20px] font-semibold text-[var(--text-primary)]">Generar link de pago</p>
+          <p className="mt-1 text-[14px] leading-7 text-[var(--text-secondary)]">
+              Crea una orden interna para el proyecto seleccionado usando la configuracion global Hotmart.
+          </p>
           </div>
 
           <KeyValue
@@ -1285,9 +1333,14 @@ function HotmartPaymentLinksPanel({
           />
           <KeyValue label="Price code interno" value={selectedPriceCode || "Default"} hint="Tomado del catalogo comercial interno." />
 
-          <AppButton disabled={!selectedSession} loading={pending} type="submit" variant="primary">
-            Crear link
-          </AppButton>
+          <div className="flex flex-wrap gap-2">
+            <AppButton disabled={!selectedSession} loading={pending} type="submit" variant="primary">
+              Crear link de prueba
+            </AppButton>
+            <AppButton disabled={!selectedSession} loading={pending} type="submit">
+              Crear link
+            </AppButton>
+          </div>
           {feedback ? (
             <p aria-live="polite" className={cn("text-[13px] font-medium", getFeedbackClass(feedback.tone))}>
               {feedback.message}
@@ -2223,19 +2276,19 @@ function HotmartCommercialAdminPanel({
   const visibleLegacyResolutions = data.legacyPackageResolutions.filter((item) => item.product_key === selectedProductKey);
 
   const detailContent =
-    activeSectionTab === "Configuracion" ? (
+    activeSectionTab === "Planes y cuotas" ? (
       <div className="grid gap-5 xl:grid-cols-2">
         <Panel className="p-6">
           <div className="mb-4 space-y-2">
-            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Config global por producto</p>
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Planes y cuotas por producto</p>
             <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-              Fuente base para nuevos workspaces y para el resolvedor efectivo.
+              Politica global por producto. Aqui defines cuantos Blueprint Pro o ACP gratis recibe cada cliente/workspace antes de exigir checkout.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <TextField label="Display name" onValueChange={(value) => onQuotaDraftChange({ display_name: value })} value={quotaDraft.display_name} />
             <TextField
-              label="Free units iniciales"
+              label="Blueprint/ACP gratis iniciales"
               onValueChange={(value) => onQuotaDraftChange({ initial_free_units: value })}
               value={quotaDraft.initial_free_units}
             />
@@ -2298,7 +2351,7 @@ function HotmartCommercialAdminPanel({
             />
           </div>
           <AppButton className="mt-5" loading={savingQuota} onClick={onSaveQuota} variant="primary">
-            Guardar config global
+            Guardar planes y cuotas
           </AppButton>
         </Panel>
 
@@ -2306,12 +2359,12 @@ function HotmartCommercialAdminPanel({
           <div className="mb-4 space-y-2">
             <p className="text-[20px] font-semibold text-[var(--text-primary)]">Override del workspace</p>
             <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-              Sobrescribe cupo gratis y flags efectivos sin reescribir la historia del ledger.
+              Excepcion puntual para un workspace/cliente. No cambia la configuracion global Hotmart ni reescribe la historia del ledger.
             </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <TextField
-              label="Free units override"
+              label="Gratis override del workspace"
               onValueChange={(value) => onOverrideDraftChange({ free_units_override: value })}
               placeholder="Vacio = heredar"
               value={overrideDraft.free_units_override}
@@ -2581,16 +2634,24 @@ function HotmartCommercialAdminPanel({
           <KeyValue label="Saldo disponible" value={String(data.balanceSnapshot.total_available_units)} hint={selectedProductKey} />
         </Panel>
         <Panel className="p-5">
-          <KeyValue label="Gratis inicial" value={String(data.effectiveConfig.initial_free_units)} hint={data.effectiveConfig.display_name} />
-        </Panel>
-        <Panel className="p-5">
-          <KeyValue label="Deudas abiertas" value={String(data.openDebtCount)} hint="Bloquean autoaprobacion por saldo" />
+          <KeyValue
+            label="Blueprint Pro gratis iniciales"
+            value={selectedProductKey === "blueprint_pro" ? String(data.effectiveConfig.initial_free_units) : "Ver producto"}
+            hint={selectedProductKey === "blueprint_pro" ? data.effectiveConfig.display_name : "Selecciona blueprint_pro"}
+          />
         </Panel>
         <Panel className="p-5">
           <KeyValue
-            label="Paquete sugerido"
-            value={data.recommendation.display_name || "Sin recomendacion"}
-            hint={data.recommendation.recommendation_reason}
+            label="ACP gratis iniciales"
+            value={selectedProductKey === "acp" ? String(data.effectiveConfig.initial_free_units) : "Ver producto"}
+            hint={selectedProductKey === "acp" ? data.effectiveConfig.display_name : "Selecciona acp"}
+          />
+        </Panel>
+        <Panel className="p-5">
+          <KeyValue
+            label="Checkout al llegar a cero"
+            value={data.effectiveConfig.checkout_required_on_zero_balance ? "Activo" : "Inactivo"}
+            hint={`${data.openDebtCount} deudas abiertas · ${data.recommendation.display_name || "sin paquete sugerido"}`}
           />
         </Panel>
       </div>
@@ -2599,7 +2660,7 @@ function HotmartCommercialAdminPanel({
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-2">
             <Badge tone="violet">Platform Admin</Badge>
-            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Motor comercial por workspace</p>
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Motor comercial por cliente/workspace</p>
             <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
               Esta vista se divide por capacidad y solo carga datos detallados cuando entras en cada seccion. Asi evitamos abrir el tablero comercial completo en cada acceso.
             </p>
@@ -2629,10 +2690,8 @@ export function HotmartAdminView({
   onCreateSession,
   onOpenIntegrations,
   onOpenProject,
-  onSessionChange,
   selectedSession,
   sessionOptions,
-  sessionValue,
   isPlatformAdmin = false,
   user,
 }: {
@@ -2644,10 +2703,8 @@ export function HotmartAdminView({
   onCreateSession?: () => void;
   onOpenIntegrations?: () => void;
   onOpenProject?: () => void;
-  onSessionChange?: (sessionId: string) => void;
   selectedSession: HotmartAdminSession | null;
   sessionOptions: Array<{ label: string; value: string }>;
-  sessionValue?: string | null;
   user: AuthUser | null;
 }) {
   const role = getActiveWorkspaceRole(user);
@@ -2682,7 +2739,7 @@ export function HotmartAdminView({
   const [deletePromotionPendingId, setDeletePromotionPendingId] = useState<string | null>(null);
   const [resolvePendingIssueId, setResolvePendingIssueId] = useState<string | null>(null);
   const [commercialProductKey, setCommercialProductKey] = useState("blueprint_pro");
-  const [activeCommercialTab, setActiveCommercialTab] = useState<CommercialTab>("Configuracion");
+  const [activeCommercialTab, setActiveCommercialTab] = useState<CommercialTab>("Planes y cuotas");
   const [commercialState, setCommercialState] = useState<AsyncState<CommercialAdminDashboardData>>(createIdleState);
   const [commercialSectionStates, setCommercialSectionStates] = useState<CommercialSectionStates>(createCommercialSectionStates);
   const [commercialQuotaDraft, setCommercialQuotaDraft] = useState<CommercialQuotaDraft>(createCommercialQuotaDraft());
@@ -2783,6 +2840,14 @@ export function HotmartAdminView({
           return {
             reconciliationIssues: await api.listReconciliationIssues(environment),
           };
+        case "release": {
+          const releaseReadiness = await api.getReleaseReadiness(environment);
+          return {
+            operationalAlerts: releaseReadiness.alerts,
+            releaseReadiness,
+            runbook: releaseReadiness.runbook,
+          };
+        }
         default:
           return {};
       }
@@ -2797,7 +2862,7 @@ export function HotmartAdminView({
     ): Promise<HotmartDashboardData | null> => {
       const pendingSections = options.forceReload
         ? sections
-        : sections.filter((section) => sectionStates[section].status !== "ready");
+        : sections.filter((section) => sectionStates[section].status === "idle");
       if (pendingSections.length === 0) {
         return options.baseData ?? (dashboardState.status === "ready" ? dashboardState.data : null);
       }
@@ -2885,7 +2950,7 @@ export function HotmartAdminView({
       return;
     }
     const sections = getHotmartTabSections(activeTab);
-    if (sections.length === 0 || sections.every((section) => sectionStates[section].status === "ready")) {
+    if (sections.length === 0 || sections.every((section) => sectionStates[section].status !== "idle")) {
       return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- El modulo hidrata la pestaña activa bajo demanda cuando cambia el foco de la vista.
@@ -3958,11 +4023,11 @@ export function HotmartAdminView({
               />,
             )}
 
-            {activeTab === "Auditoria" ? <HotmartAuditPreviewPanel data={dashboardData} /> : null}
+            {activeTab === "Readiness" ? <HotmartAuditPreviewPanel data={dashboardData} /> : null}
 
             {activeTab === "Comercial" ? (
               commercialState.status === "loading" ? (
-                <LoadingState title="Cargando motor comercial" description="Resolviendo cupos, paquetes, ledger y deudas del workspace." />
+                <LoadingState title="Cargando motor comercial" description="Resolviendo cupos, paquetes, ledger y deudas del cliente/workspace." />
               ) : commercialState.status === "error" ? (
                 <ErrorState
                   title="No se pudo cargar la capa comercial"
@@ -4044,7 +4109,7 @@ export function HotmartAdminView({
               <Badge tone="violet">Hotmart</Badge>
               <h3 className="mt-3 text-[20px] font-semibold text-[var(--text-primary)]">Consola Hotmart</h3>
               <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)]">
-                Administra la integracion Hotmart del workspace: credenciales, productos, links, promociones, comunidad, sincronizacion, reconciliacion y auditoria.
+                Administra la integracion Hotmart de plataforma: credenciales, productos, cuotas, webhooks, promociones, comunidad, sincronizacion, reconciliacion y auditoria.
               </p>
             </div>
             <div className="flex flex-wrap items-end gap-3">{shellActions}</div>
@@ -4058,14 +4123,12 @@ export function HotmartAdminView({
   return (
     <OperationsModuleShell
       actions={shellActions}
-      description="Administra la integracion Hotmart del workspace: credenciales, productos, links y superficies reservadas para promociones, comunidad y conciliacion."
+      description="Administra la integracion Hotmart transversal de la plataforma: una configuracion unica para todos los clientes y workspaces."
       eyebrow="Administrador de plataforma"
       moduleLabel="Hotmart"
-      onSessionChange={onSessionChange}
-      selectedSession={selectedSession}
-      sessionDescription="La sesion activa solo se usa para generar ordenes/links de pago asociados a un proyecto."
-      sessionOptions={sessionOptions}
-      sessionValue={sessionValue}
+      sessionOptions={[]}
+      showSessionContext={false}
+      showWorkspaceSelector={false}
       title="Consola Hotmart"
     >
       {content}
@@ -4082,7 +4145,6 @@ export function HotmartAdminPage({ api = hotmartAdminApi }: { api?: HotmartAdmin
     listError,
     listStatus,
     selectedSession,
-    selectOperationalSession,
   } = useOperationalSession({
     requireSnapshot: true,
   });
@@ -4113,10 +4175,9 @@ export function HotmartAdminPage({ api = hotmartAdminApi }: { api?: HotmartAdmin
           router.push(getSessionProjectRoute(selectedSession));
         }
       }}
-      onSessionChange={(value) => void selectOperationalSession(value)}
       selectedSession={selectedSession}
       sessionOptions={sessionOptions}
-      sessionValue={selectedSession?.id ?? null}
+      isPlatformAdmin={hasPlatformAdminRole(user)}
       user={user}
     />
   );

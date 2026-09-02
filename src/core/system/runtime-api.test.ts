@@ -74,22 +74,18 @@ describe("runtime api", () => {
     const client = {
       get: vi.fn().mockResolvedValue([]),
       patch: vi.fn().mockResolvedValue({}),
+      delete: vi.fn().mockResolvedValue({ configured: false }),
+      post: vi.fn().mockResolvedValue({ status: "planned" }),
     };
 
     const api = createRuntimeApi(client as never);
-    await api.listPlatformProviders();
-    await api.getPlatformDefaults();
-    await api.getPlatformAudit(12);
-    await api.updatePlatformProvider("openai", {
-      is_enabled: true,
-    });
-    await api.updatePlatformDefaults({
-      active_provider: "openai",
-      agent_execution_backend: "provider_native",
+    const runtimePayload = {
+      active_provider: "openai" as const,
+      agent_execution_backend: "provider_native" as const,
       codex_local: {
-        auth_mode: "auto",
+        auth_mode: "auto" as const,
         command: "codex",
-        cost_policy: "hybrid",
+        cost_policy: "hybrid" as const,
         fallback_models: [],
         max_concurrency: 1,
         model: "gpt-5-codex",
@@ -106,19 +102,48 @@ describe("runtime api", () => {
         reasoning_effort: "medium",
         reasoning_model: "deepseek-reasoner",
       },
-      knowledge_access_backend: "inline_context",
+      knowledge_access_backend: "inline_context" as const,
       openai: {
         fast_model: "gpt-5-mini",
         reasoning_effort: "high",
         reasoning_model: "gpt-5",
       },
       uses_platform_credentials: true,
+    };
+    await api.listPlatformProviders();
+    await api.getPlatformDefaults();
+    await api.getPlatformSecret("openai");
+    await api.getPlatformAudit(12);
+    await api.updatePlatformProvider("openai", {
+      is_enabled: true,
+    });
+    await api.updatePlatformDefaults(runtimePayload);
+    await api.upsertPlatformSecret("openai", {
+      activate_for_runtime: true,
+      secret_kind: "api_key",
+      secret_ref: "",
+      secret_value: "secret",
+    });
+    await api.rotatePlatformSecret("deepseek", {
+      activate_for_runtime: true,
+      secret_kind: "api_key",
+      secret_ref: "vault://deepseek",
+      secret_value: "",
+    });
+    await api.deletePlatformSecret("openai");
+    await api.propagatePlatformDefaults({
+      dry_run: true,
+      mode: "fallback_only",
+      payload: runtimePayload,
     });
 
     expect(client.get).toHaveBeenCalledWith("/api/v1/platform/runtime/providers", {
       redirectOnUnauthorized: false,
     });
     expect(client.get).toHaveBeenCalledWith("/api/v1/platform/runtime/defaults", {
+      redirectOnUnauthorized: false,
+    });
+    expect(client.get).toHaveBeenCalledWith("/api/v1/platform/runtime/secrets/openai", {
       redirectOnUnauthorized: false,
     });
     expect(client.get).toHaveBeenCalledWith("/api/v1/platform/runtime/audit?limit=12", {
@@ -135,6 +160,35 @@ describe("runtime api", () => {
         active_provider: "openai",
         uses_platform_credentials: true,
       }),
+      redirectOnUnauthorized: false,
+    });
+    expect(client.post).toHaveBeenCalledWith("/api/v1/platform/runtime/secrets/openai", {
+      body: {
+        activate_for_runtime: true,
+        secret_kind: "api_key",
+        secret_ref: "",
+        secret_value: "secret",
+      },
+      redirectOnUnauthorized: false,
+    });
+    expect(client.post).toHaveBeenCalledWith("/api/v1/platform/runtime/secrets/deepseek/rotate", {
+      body: {
+        activate_for_runtime: true,
+        secret_kind: "api_key",
+        secret_ref: "vault://deepseek",
+        secret_value: "",
+      },
+      redirectOnUnauthorized: false,
+    });
+    expect(client.delete).toHaveBeenCalledWith("/api/v1/platform/runtime/secrets/openai", {
+      redirectOnUnauthorized: false,
+    });
+    expect(client.post).toHaveBeenCalledWith("/api/v1/platform/runtime/defaults/propagate", {
+      body: {
+        dry_run: true,
+        mode: "fallback_only",
+        payload: runtimePayload,
+      },
       redirectOnUnauthorized: false,
     });
   });
