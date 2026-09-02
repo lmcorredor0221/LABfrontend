@@ -59,6 +59,7 @@ import type {
   HotmartPromotionResponse,
   HotmartProductMappingResponse,
   HotmartReconciliationIssueResponse,
+  HotmartReleaseReadinessResponse,
   HotmartSyncResource,
   HotmartSyncRunResponse,
   HotmartTestConnectionResponse,

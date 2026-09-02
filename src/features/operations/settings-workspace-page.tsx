@@ -1796,10 +1796,8 @@ export function SettingsWorkspacePage({
               router.push(getSessionProjectRoute(selectedSession));
             }
           }}
-          onSessionChange={(value) => void selectOperationalSession(value)}
           selectedSession={selectedSession}
           sessionOptions={sessionOptions}
-          sessionValue={selectedSession?.id ?? null}
           isPlatformAdmin={isPlatformAdmin}
           user={user}
         />
