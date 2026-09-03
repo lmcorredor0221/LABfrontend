@@ -487,7 +487,6 @@ function renderView(api: HotmartAdminApi, role: "admin" | "viewer" = "admin", pl
             updated_at: "2026-08-14T10:00:00Z",
           }}
           sessionOptions={[{ label: "Proyecto Hotmart", value: "session-1" }]}
-          sessionValue="session-1"
           user={user}
         />
       </AuthProvider>

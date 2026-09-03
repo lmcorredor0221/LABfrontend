@@ -359,7 +359,7 @@ function buildPlatformProviderSecret(providerKey: "antigravity_cli" | "codex_loc
     provider_key: providerKey,
     secret_kind: "api_key",
     secret_source: "platform_managed",
-    status: configured ? "active" : "not_configured",
+    status: configured ? "configured" : "not_configured",
     storage_mode: configured ? "ciphertext" : "none",
     supports_platform_managed_credentials: supports,
     updated_at: configured ? "2026-07-20T16:00:00Z" : null,

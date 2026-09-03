@@ -35,6 +35,7 @@ import type {
   CommercialDebtResponse,
   CommercialPackageRecommendationResponse,
 } from "@/features/hotmart/hotmart-contracts";
+import type { CommercePaymentProviderKey } from "@/features/commerce-providers/provider-contracts";
 
 export type SessionStage =
   | "draft_capture"
@@ -164,7 +165,7 @@ export type CommercialCheckoutSessionRequest = {
   package_code?: string;
   price_code?: string;
   product_key: string;
-  provider?: "sandbox" | "hotmart";
+  provider?: CommercePaymentProviderKey;
   session_id: string;
   success_url?: string;
 };
