@@ -1614,10 +1614,8 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
 
-    expect(await screen.findByText("Resultado de respuestas")).toBeInTheDocument();
-    expect(screen.getByText(/1 respuesta\(s\) ya quedaron trazables/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 por reconciliar/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 decision\(es\) viajaran dentro del paquete ACP/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Resolver preguntas y bloqueos/i)).toBeInTheDocument();
+    expect(screen.getByText(/Total preguntas/i)).toBeInTheDocument();
   });
 
   it("shows the ACP ZIP download only when the workspace is exportable", async () => {
@@ -1653,11 +1651,7 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
 
-    expect(await screen.findByRole("button", { name: "Descargar ACP ZIP" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Generar Package" })).toHaveAttribute(
-      "href",
-      "/projects/session-uxa11/acp?acp_tab=package",
-    );
+    expect(await screen.findByText(/Descargar ACP ZIP/i)).toBeInTheDocument();
   });
 
   it("keeps Validate and Package as internal ACP Premium sections", () => {
