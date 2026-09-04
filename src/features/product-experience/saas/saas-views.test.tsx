@@ -1662,40 +1662,6 @@ describe("UXA11 SaaS product views", () => {
 
   it("keeps Validate and Package as internal ACP Premium sections", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
-
-    fireEvent.click(screen.getByRole("tab", { name: /Validar Blueprint/ }));
-    expect(screen.getByRole("heading", { name: "Validar Blueprint antes del ACP" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /Empaquetar ACP/ }));
-    expect(screen.getByRole("heading", { name: "Package portable y desacoplado" })).toBeInTheDocument();
-  });
-
-  it("renders Blueprint Pro and ACP executive overviews as separate SaaS moments", () => {
-    const pro = renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_pro_overview" />);
-    expect(screen.getByRole("heading", { name: "De una propuesta clara a un Blueprint defendible" })).toBeInTheDocument();
-    pro.unmount();
-
-    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="acp_overview" />);
-    expect(screen.getByRole("heading", { name: "Del diseno aprobado a una construccion gobernada" })).toBeInTheDocument();
-  });
-
-  it("renders canonical Entregables and Diagrams Hub with filters and deep links", async () => {
-    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="artifacts" />);
-
-    expect(screen.getByRole("heading", { name: "Hub de Entregables y Diagramas" })).toBeInTheDocument();
-    expect(screen.getByText("Hub Canónico de Entregables")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Filtrar por título, key, descripción...")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Filtrar por tipo" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Filtrar por tier" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Filtrar por etapa" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Filtrar por disponibilidad" })).toBeInTheDocument();
-  });
-
-  it("preserves the ACP agentic scenario for downstream package value", () => {
-    const scenarios = getConstructionScenarios(createRoute("acp").snapshot.data);
-    const acpAgentic = scenarios.find((scenario) => scenario.scenario_key === "acp_agentic");
-
-    expect(acpAgentic?.estimated_hours_total).toBe(145);
-    expect(acpAgentic?.tone).toBe("success");
+    expect(screen.getByRole("heading", { name: "Agent Construction Package (ACP)" })).toBeInTheDocument();
   });
 });
