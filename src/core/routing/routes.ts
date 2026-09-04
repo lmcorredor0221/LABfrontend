@@ -8,6 +8,11 @@ export const REGISTER_ROUTE = "/register";
 export const MOCKUPS_ROUTE = "/mockups";
 export const PROJECT_ROUTE_PREFIX = "/projects";
 
+export const BLUEPRINT_ROUTE = "/blueprint";
+export const BLUEPRINT_PRO_ROUTE = "/blueprint-pro";
+export const ACP_ROUTE = "/acp";
+export const INSIGHTS_ROUTE = "/insights";
+
 export const PUBLIC_ROUTES = [
   HOME_ROUTE,
   BOOT_ROUTE,
@@ -15,6 +20,10 @@ export const PUBLIC_ROUTES = [
   LOGIN_ROUTE,
   REGISTER_ROUTE,
   MOCKUPS_ROUTE,
+  BLUEPRINT_ROUTE,
+  BLUEPRINT_PRO_ROUTE,
+  ACP_ROUTE,
+  INSIGHTS_ROUTE,
 ] as const;
 
 export const PROJECT_STAGE_ORDER = [
@@ -89,15 +98,20 @@ export function isPublicRoute(pathname: string) {
     return true;
   }
 
+  let cleanPathname = pathname;
   const localizedLanguage = resolveLanguageFromPathname(pathname);
   if (localizedLanguage) {
     const localizedLandingPath = `/${localizedLanguage}`;
     if (pathname === localizedLandingPath || pathname === `${localizedLandingPath}/`) {
       return true;
     }
+    cleanPathname = pathname.substring(localizedLandingPath.length);
+    if (!cleanPathname.startsWith("/")) {
+      cleanPathname = "/" + cleanPathname;
+    }
   }
 
-  return PUBLIC_ROUTES.some((route) => route !== "/" && (pathname === route || pathname.startsWith(`${route}/`)));
+  return PUBLIC_ROUTES.some((route) => route !== "/" && (cleanPathname === route || cleanPathname.startsWith(`${route}/`)));
 }
 
 export function isProjectRouteStage(value: string): value is ProjectRouteStage {

@@ -62,7 +62,7 @@ describe("project routes", () => {
     expect(parseProjectRoute("/monitoring")).toBeNull();
   });
 
-  it("identifies public routes correctly including landing page /", () => {
+  it("identifies public routes correctly including landing page / and product pages", () => {
     expect(isPublicRoute("/")).toBe(true);
     expect(isPublicRoute("/es")).toBe(true);
     expect(isPublicRoute("/en")).toBe(true);
@@ -71,6 +71,15 @@ describe("project routes", () => {
     expect(isPublicRoute("/login")).toBe(true);
     expect(isPublicRoute("/register")).toBe(true);
     expect(isPublicRoute("/boot")).toBe(true);
+    expect(isPublicRoute("/blueprint")).toBe(true);
+    expect(isPublicRoute("/blueprint-pro")).toBe(true);
+    expect(isPublicRoute("/acp")).toBe(true);
+    expect(isPublicRoute("/insights")).toBe(true);
+    expect(isPublicRoute("/es/blueprint")).toBe(true);
+    expect(isPublicRoute("/en/blueprint-pro")).toBe(true);
+    expect(isPublicRoute("/pt/acp")).toBe(true);
+    expect(isPublicRoute("/es/insights")).toBe(true);
+    expect(isPublicRoute("/es/insights/memgpt-memoria-prolongada-agentes-autonomos")).toBe(true);
     expect(isPublicRoute("/en/projects")).toBe(false);
     expect(isPublicRoute("/projects")).toBe(false);
     expect(isPublicRoute("/projects/session-1/work/discover")).toBe(false);
