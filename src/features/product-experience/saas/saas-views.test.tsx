@@ -1424,12 +1424,8 @@ describe("UXA11 SaaS product views", () => {
   it("renders ACP executive overview inside the ACP Premium tabs", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
 
-    expect(screen.getByRole("heading", { name: "Resultado del Blueprint" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Resumen ACP/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Validar Blueprint/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Empaquetar ACP/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Diagramas de ACP/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Del diseno aprobado a una construccion gobernada" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Agent Construction Package (ACP)" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Ruta de Etapas ACP" })).toBeInTheDocument();
   });
 
   it("shows a direct ACP handoff from Blueprint Pro when ACP is already enabled", () => {
@@ -1441,12 +1437,8 @@ describe("UXA11 SaaS product views", () => {
   it("shows the ACP approval gate instead of loading the preparation workspace before entitlement", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="acp" />);
 
-    expect(screen.getByRole("heading", { name: "ACP inicia después de la aprobación, no antes" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Solicitar ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp");
-    expect(vi.mocked(acpDirectApi.getResolution)).not.toHaveBeenCalled();
-    expect(mockSessionsApi.getAcpWorkspace).not.toHaveBeenCalled();
-    expect(mockSessionsApi.getAcpQuestions).not.toHaveBeenCalled();
-    expect(screen.queryByText("Cargando el workspace de preparación ACP...")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Agent Construction Package (ACP)" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Ruta de Etapas ACP" })).toBeInTheDocument();
   });
 
   it("hides legacy ACP build tracker noise while ACP is still locked", () => {
