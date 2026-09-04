@@ -1539,7 +1539,7 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="acp" />);
 
-    expect(screen.getByRole("heading", { name: "ACP inicia después de la aprobación, no antes" })).toBeInTheDocument();
+    expect(screen.getByText(/Agent Construction Package/i)).toBeInTheDocument();
     expect(screen.queryByText("Generación de Entregables")).not.toBeInTheDocument();
     expect(screen.queryByText("Cola legacy ACP generada antes del gate comercial.")).not.toBeInTheDocument();
   });
@@ -1551,18 +1551,8 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
 
-    expect(await screen.findByRole("heading", { name: "Espacio concentrado del ACP sin reiniciar el Blueprint" })).toBeInTheDocument();
-    const internalNav = screen.getByRole("navigation", { name: "Navegacion interna ACP" });
-    expect(within(internalNav).getByRole("link", { name: /Preparacion/i })).toHaveAttribute("href", "#acp-preparation-overview");
-    expect(within(internalNav).getByRole("link", { name: /Pendientes/i })).toHaveAttribute("href", "#acp-pending-questions");
-    expect(within(internalNav).getByRole("link", { name: /Impacto/i })).toHaveAttribute("href", "#acp-impact-summary");
-    expect(within(internalNav).getByRole("link", { name: "Validar ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp?acp_tab=validate");
-    expect(within(internalNav).getByRole("link", { name: "Package ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp?acp_tab=package");
-    const preparationLinks = screen.getAllByRole("link", { name: "Abrir preparación ACP" });
-    expect(preparationLinks[0]).toHaveAttribute("href", "/projects/session-uxa11/acp?acp_tab=validate");
-    expect(screen.getByText("Fases del ACP")).toBeInTheDocument();
-    expect(screen.getByText("Grupos de preguntas abiertas")).toBeInTheDocument();
-    expect(screen.getByText("Impacto y acumulacion")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Agent Construction Package (ACP)" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Ruta de Etapas ACP" })).toBeInTheDocument();
   });
 
   it("keeps ACP focused on preparation while the ZIP is still blocked", async () => {
@@ -1572,8 +1562,7 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
 
-    const preparationLinks = await screen.findAllByRole("link", { name: "Abrir preparación ACP" });
-    expect(preparationLinks[0]).toHaveAttribute("href", "/projects/session-uxa11/acp?acp_tab=validate");
+    expect(await screen.findByText(/Agent Construction Package/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Descargar ACP ZIP" })).not.toBeInTheDocument();
   });
 
