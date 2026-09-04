@@ -7,11 +7,25 @@ export type TRMData = {
   source: string;
 };
 
+export type BasePricesData = {
+  blueprint_free_usd: number;
+  blueprint_pro_usd: number;
+  acp_premium_usd: number;
+  trm_cop: number;
+};
+
 const DEFAULT_TRM: TRMData = {
   unit_usd: 1.0,
   trm_cop: 3171.93,
   date: "2026-08-06",
   source: "Datos Abiertos Colombia / Superfinanciera",
+};
+
+export const DEFAULT_BASE_PRICES: BasePricesData = {
+  blueprint_free_usd: 0.0,
+  blueprint_pro_usd: 49.0,
+  acp_premium_usd: 149.0,
+  trm_cop: 3171.93,
 };
 
 export async function fetchTRM(): Promise<TRMData> {
@@ -32,6 +46,26 @@ export async function fetchTRM(): Promise<TRMData> {
     console.warn("No se pudo obtener TRM del backend, usando fallback:", err);
   }
   return DEFAULT_TRM;
+}
+
+export async function fetchBasePrices(): Promise<BasePricesData> {
+  try {
+    const res = await fetch("/api/v1/commerce/base-prices");
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.blueprint_pro_usd !== undefined) {
+        return {
+          blueprint_free_usd: 0.0,
+          blueprint_pro_usd: Number(data.blueprint_pro_usd ?? 49.0),
+          acp_premium_usd: Number(data.acp_premium_usd ?? 149.0),
+          trm_cop: Number(data.trm_cop ?? 3171.93),
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("No se pudo obtener Precios Base del backend, usando fallback:", err);
+  }
+  return DEFAULT_BASE_PRICES;
 }
 
 export function formatPriceValue(

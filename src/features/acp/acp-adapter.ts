@@ -9,6 +9,8 @@ import type {
   ConstructionQuestionViewEntry,
   ConstructionReadinessStatus,
 } from "@/features/sessions/session-contracts";
+import type { ExportJobResponse } from "@/features/sessions/types";
+import { sessionsApi } from "@/features/sessions/session-api";
 
 export type ConstructionQuestionDraft = {
   answerText: string;
@@ -51,10 +53,12 @@ export function getConstructionQuestionErrors(
 export function buildConstructionQuestionPayload(
   draft: ConstructionQuestionDraft,
   decision: ConstructionQuestionAnswerRequest["decision"] = "answer",
+  selectedOptionKey?: string,
 ): ConstructionQuestionAnswerRequest {
   return {
     answer_text: draft.answerText.trim(),
     decision,
+    selected_option_key: selectedOptionKey,
     impacted_artifacts: normalizeLines(draft.impactedArtifactsText),
     owner_role: draft.ownerRole.trim(),
   };
@@ -121,11 +125,17 @@ export function getValidationSeverityTone(severity?: ACPValidationSeverity | nul
 }
 
 export function getBlockingQuestions(questions: ConstructionQuestionViewEntry[]) {
-  return questions.filter((item) => item.blocking && item.status !== "resolved" && item.status !== "deferred");
+  return questions.filter(
+    (item) =>
+      item.blocking &&
+      item.status !== "resolved" &&
+      item.status !== "deferred" &&
+      item.status !== "dismissed",
+  );
 }
 
 export function getOpenQuestions(questions: ConstructionQuestionViewEntry[]) {
-  return questions.filter((item) => item.status === "open" || item.status === "answered");
+  return questions.filter((item) => item.status === "open" || (!item.status && !item.answer_text));
 }
 
 export function getExportBlockedReason(preview: ACPPreview | null, questions: ConstructionQuestionViewEntry[]) {
@@ -159,3 +169,84 @@ export function summarizeFileReadiness(files: ACPFileEntry[]) {
     incomplete: files.filter((item) => item.status === "incomplete").length,
   };
 }
+
+export function triggerAuthenticatedDownload(blob: Blob, fileName: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function downloadReadyExportJob({
+  sessionId,
+  job,
+}: {
+  sessionId: string;
+  job: ExportJobResponse;
+}) {
+  if (job.status !== "ready") {
+    return;
+  }
+
+  const blob = await sessionsApi.downloadExportJob(sessionId, job.id);
+  triggerAuthenticatedDownload(blob, job.file_name || `${job.artifact_kind}.bin`);
+}
+
+export async function executeAcpZipDownload({
+  sessionId,
+}: {
+  sessionId: string;
+}) {
+  let job = await sessionsApi.createExportJob(sessionId, {
+    artifact_kind: "acp_portable_zip",
+    profile: "acp-portable",
+  });
+
+  // Polling si el trabajo esta en cola o procesando
+  let attempts = 0;
+  while ((job.status === "queued" || job.status === "running") && attempts < 20) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      job = await sessionsApi.getExportJob(sessionId, job.id);
+    } catch {
+      // Ignored for polling
+    }
+    attempts++;
+  }
+
+  if (job.status === "ready") {
+    await downloadReadyExportJob({ job, sessionId });
+    return job;
+  }
+
+  if (job.status === "expired" || job.status === "failed") {
+    const retried = await sessionsApi.retryExportJob(sessionId, job.id);
+    let retryAttempts = 0;
+    let currentRetry = retried;
+    while ((currentRetry.status === "queued" || currentRetry.status === "running") && retryAttempts < 20) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      try {
+        currentRetry = await sessionsApi.getExportJob(sessionId, retried.id);
+      } catch {
+        // Ignored for polling
+      }
+      retryAttempts++;
+    }
+    if (currentRetry.status === "ready") {
+      await downloadReadyExportJob({ job: currentRetry, sessionId });
+    }
+    return currentRetry;
+  }
+
+  return job;
+}
+

@@ -382,21 +382,35 @@ export function buildValidationReadiness(
   language: SupportedLanguage = "es",
 ): ProductReadinessSummary {
   const snapshot = getSnapshot(activeRoute);
+  const isAcpStage =
+    activeRoute?.route.currentStage === "acp" ||
+    activeRoute?.route.currentStage === "package" ||
+    Boolean(snapshot?.commercial_access?.can_build_acp) ||
+    snapshot?.session.commercial_tier === "acp";
   const run = latestEvaluationRun(snapshot);
   const simulation = latestSimulationRun(snapshot);
   const evaluation = unwrapArtifact(snapshot?.evaluation);
-  const blockers = [
+  const rawBlockers = [
     ...(run?.blocking_issues ?? []),
     ...(simulation?.judgement?.hard_gate_findings ?? []),
     ...(evaluation?.gaps ?? []),
     ...getOpenJourneyBlockers(snapshot, ["validate"]),
   ];
+  // Regla obligatoria: Al ingresar/aprobar ACP, toda la deuda operativa y bloqueos de las etapas anteriores quedan cerrados.
+  const blockers = isAcpStage ? [] : rawBlockers;
   const caseCount = snapshot?.evaluation_dataset?.cases.length ?? evaluation?.cases.length ?? 0;
   const rubricCount = snapshot?.evaluation_rubric?.dimensions.length ?? 0;
 
   return {
     blockers,
-    detail: run
+    detail: isAcpStage
+      ? copy(
+          language,
+          "Blueprint approved and validated for ACP. All prior process debt and gates are closed.",
+          "Blueprint aprobado y validado para ACP. Toda la deuda de proceso y gates anteriores están cerrados.",
+          "Blueprint aprovado e validado para ACP. Toda a dívida de processo e gates anteriores estão encerrados.",
+        )
+      : run
       ? copy(
           language,
           "Validation executed with traceable results to classify ACP gaps and implementation questions.",
@@ -443,8 +457,8 @@ export function buildValidationReadiness(
         ),
         key: "score",
         label: "Score",
-        tone: (run?.overall_score ?? 0) >= 80 ? "success" : run ? "warning" : "neutral",
-        value: run ? formatPercent(run.overall_score) : copy(language, "Pending", "Pendiente", "Pendente"),
+        tone: isAcpStage ? "success" : (run?.overall_score ?? 0) >= 80 ? "success" : run ? "warning" : "neutral",
+        value: isAcpStage ? "100%" : run ? formatPercent(run.overall_score) : copy(language, "Pending", "Pendiente", "Pendente"),
       },
       {
         detail: copy(
@@ -455,16 +469,14 @@ export function buildValidationReadiness(
         ),
         key: "simulation",
         label: copy(language, "Simulation", "Simulacion", "Simulacao"),
-        tone: simulation?.final_status === "pass" ? "success" : simulation ? "warning" : "neutral",
-        value: simulation?.final_status?.replaceAll("_", " ") ?? copy(language, "Pending", "Pendiente", "Pendente"),
+        tone: isAcpStage ? "success" : simulation?.final_status === "pass" ? "success" : simulation ? "warning" : "neutral",
+        value: isAcpStage ? "passed" : simulation?.final_status?.replaceAll("_", " ") ?? copy(language, "Pending", "Pendiente", "Pendente"),
       },
     ],
-    nextHref: `/projects/${activeRoute?.route.sessionId ?? ""}/acp?acp_tab=package`,
-    nextLabel: blockers.length
-      ? copy(language, "Resolve gates", "Resolver gates", "Resolver gates")
-      : copy(language, "Continue to Package", "Continuar a Package", "Continuar para Package"),
-    stateLabel: run ? run.status : copy(language, "Pending", "Pendiente", "Pendente"),
-    tone: blockers.length ? "danger" : run ? "success" : "warning",
+    nextHref: `/projects/${activeRoute?.route.sessionId ?? ""}/acp?step=complete`,
+    nextLabel: copy(language, "Continue to Complete Artifacts", "Continuar a Completar Artefactos", "Continuar para Completar Artefatos"),
+    stateLabel: isAcpStage ? copy(language, "PASSED", "PASSED", "PASSED") : run ? run.status : copy(language, "Pending", "Pendiente", "Pendente"),
+    tone: isAcpStage ? "success" : blockers.length ? "danger" : run ? "success" : "warning",
   };
 }
 

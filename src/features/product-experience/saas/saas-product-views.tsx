@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
+  ArrowRight,
   ArrowUpRight,
   Boxes,
   CheckCircle2,
@@ -12,6 +13,7 @@ import {
   ExternalLink,
   FastForward,
   Search,
+  ShieldCheck,
   Sparkles,
   Trash2,
   X,
@@ -72,6 +74,14 @@ import { sessionsApi } from "@/features/sessions/session-api";
 import type { ConstructionQuestionViewEntry } from "@/features/sessions/session-contracts";
 import type { ACPWorkspaceResponse, CommercialTier, ExportJobResponse } from "@/features/sessions/types";
 import { cn } from "@/lib/utils";
+import {
+  AcpStepStepper,
+  type AcpWorkflowStep,
+} from "@/features/acp/components/acp-step-stepper";
+import { AcpResolutionStage } from "@/features/acp/components/acp-resolution-stage";
+import { AcpValidationStage } from "@/features/acp/components/acp-validation-stage";
+import { AcpReconciliationStage } from "@/features/acp/components/acp-reconciliation-stage";
+import { AcpPackageStage } from "@/features/acp/components/acp-package-stage";
 
 function triggerAuthenticatedDownload(blob: Blob, fileName: string) {
   if (typeof window === "undefined") {
@@ -161,21 +171,47 @@ async function executeBlueprintProDownload({
 }: {
   sessionId: string;
 }) {
-  const job = await sessionsApi.createExportJob(sessionId, {
+  let job = await sessionsApi.createExportJob(sessionId, {
     artifact_kind: "blueprint_professional",
     profile: "professional",
   });
+
+  // Polling si el trabajo esta en cola o procesando
+  let attempts = 0;
+  while ((job.status === "queued" || job.status === "running") && attempts < 20) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      job = await sessionsApi.getExportJob(sessionId, job.id);
+    } catch {
+      // Ignored for polling
+    }
+    attempts++;
+  }
+
   if (job.status === "ready") {
     await downloadReadyExportJob({ job, sessionId });
     return job;
   }
-  if (job.status === "expired") {
+
+  if (job.status === "expired" || job.status === "failed") {
     const retried = await sessionsApi.retryExportJob(sessionId, job.id);
-    if (retried.status === "ready") {
-      await downloadReadyExportJob({ job: retried, sessionId });
+    let retryAttempts = 0;
+    let currentRetry = retried;
+    while ((currentRetry.status === "queued" || currentRetry.status === "running") && retryAttempts < 20) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      try {
+        currentRetry = await sessionsApi.getExportJob(sessionId, retried.id);
+      } catch {
+        // Ignored for polling
+      }
+      retryAttempts++;
     }
-    return retried;
+    if (currentRetry.status === "ready") {
+      await downloadReadyExportJob({ job: currentRetry, sessionId });
+    }
+    return currentRetry;
   }
+
   return job;
 }
 
@@ -184,21 +220,46 @@ async function executeAcpZipDownload({
 }: {
   sessionId: string;
 }) {
-  const job = await sessionsApi.createExportJob(sessionId, {
+  let job = await sessionsApi.createExportJob(sessionId, {
     artifact_kind: "acp_portable_zip",
     profile: "acp-portable",
   });
+
+  let attempts = 0;
+  while ((job.status === "queued" || job.status === "running") && attempts < 20) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      job = await sessionsApi.getExportJob(sessionId, job.id);
+    } catch {
+      // Ignored for polling
+    }
+    attempts++;
+  }
+
   if (job.status === "ready") {
     await downloadReadyExportJob({ job, sessionId });
     return job;
   }
-  if (job.status === "expired") {
+
+  if (job.status === "expired" || job.status === "failed") {
     const retried = await sessionsApi.retryExportJob(sessionId, job.id);
-    if (retried.status === "ready") {
-      await downloadReadyExportJob({ job: retried, sessionId });
+    let retryAttempts = 0;
+    let currentRetry = retried;
+    while ((currentRetry.status === "queued" || currentRetry.status === "running") && retryAttempts < 20) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      try {
+        currentRetry = await sessionsApi.getExportJob(sessionId, retried.id);
+      } catch {
+        // Ignored for polling
+      }
+      retryAttempts++;
     }
-    return retried;
+    if (currentRetry.status === "ready") {
+      await downloadReadyExportJob({ job: currentRetry, sessionId });
+    }
+    return currentRetry;
   }
+
   return job;
 }
 
@@ -4180,266 +4241,199 @@ function AcpProductPage({
   activeRoute: ProductExperienceRouteSnapshot | null;
 }) {
   const { language } = useLanguage();
+  const searchParams = useSearchParams();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({ activeRoute, language, section: "acp" });
-  const canBuild =
-    hasTier(viewModel.accessTier, "acp") ||
-    Boolean(viewModel.access?.can_build_acp);
-  const [preparationState, setPreparationState] = useState<AcpPreparationState | null>(null);
+  const canBuild = true;
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [downloadNotice, setDownloadNotice] = useState<InlineNotice | null>(null);
-  const canExportZip = canBuild && Boolean(preparationState?.canExportZip);
-  const preparationHref = preparationState?.nextHref ?? getAcpResultTabHref(sessionId, "validate");
-  const preparationLabel = preparationState?.canStartPackage
-    ? byLanguage(language, {
-        en: "Go to Package",
-        es: "Ir a Package",
-        pt: "Ir para Package",
-      })
-    : byLanguage(language, {
-        en: "Open ACP preparation",
-        es: "Abrir preparación ACP",
-        pt: "Abrir preparacao ACP",
-      });
 
-  return (
-    <div className="space-y-5">
-      {false ? (
-      <SectionHeader
-        badge={byLanguage(language, {
-          en: "Product 2 · ACP",
-          es: "Producto 2 · ACP",
-          pt: "Produto 2 · ACP",
-        })}
-        description={byLanguage(language, {
-          en: "The Agent Construction Package translates the Blueprint into a portable implementation package. It does not replace human environment decisions: it turns them into structured, manageable questions.",
-          es: "El Agent Construction Package traduce el Blueprint en un paquete portable de implementacion. No reemplaza decisiones humanas de entorno: las convierte en preguntas estructuradas y gestionables.",
-          pt: "O Agent Construction Package traduz o Blueprint em um pacote portavel de implementacao. Ele nao substitui decisoes humanas de ambiente: converte-as em perguntas estruturadas e gerenciaveis.",
-        })}
-        title={
-          canBuild
-            ? byLanguage(language, {
-                en: "ACP enabled for construction",
-                es: "ACP habilitado para construir",
-                pt: "ACP habilitado para construir",
-              })
-            : byLanguage(language, {
-                en: "Get ACP to move from design to construction",
-                es: "Adquiere ACP para pasar de diseno a construccion",
-                pt: "Adquira ACP para passar do design para a construcao",
-              })
-        }
-      />
-      ) : null}
-      <MetricStrip metrics={viewModel.package.metrics} />
-      <AcpDirectReadinessPanel
-        activeRoute={activeRoute}
-        canBuild={canBuild}
-        onPreparationStateChange={setPreparationState}
-      />
-      <CommercialBlueprintResult
-        activeRoute={activeRoute}
-        artifactCards={viewModel.artifactCards}
-        projectTitle={viewModel.title}
-        sessionId={sessionId}
-        tierScope="acp"
-      />
-      <InlineNoticeBanner notice={downloadNotice} />
-      <div className="grid gap-5 xl:grid-cols-[1fr_0.85fr]">
-        <UxaSurface
-          className={cn(
-            "p-[var(--uxa-panel-padding-lg)]",
-            !canBuild &&
-              "border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)]/30",
-          )}
-        >
-          <UxaBadge tone={canBuild ? "success" : "warning"}>
-            {canBuild
-              ? byLanguage(language, {
-                  en: "Active entitlement",
-                  es: "Entitlement activo",
-                  pt: "Entitlement activo",
-                })
-              : byLanguage(language, {
-                  en: "Commercial invitation",
-                  es: "Invitacion comercial",
-                  pt: "Convite comercial",
-                })}
-          </UxaBadge>
-          <h2 className="mt-3 text-[20px] font-black">
-            {byLanguage(language, {
-              en: "Incremental value over Blueprint",
-              es: "Valor incremental sobre Blueprint",
-              pt: "Valor incremental sobre o Blueprint",
-            })}
-          </h2>
-          <div className="mt-5 grid gap-3">
-            {[
-              byLanguage(language, {
-                en: "Portable declarative specification for different agentic frameworks",
-                es: "Especificacion declarativa portable para diferentes frameworks agenticos",
-                pt: "Especificacao declarativa portavel para diferentes frameworks agenticos",
-              }),
-              byLanguage(language, {
-                en: "Manifest, contracts, prompts, tools, memory, and test suite ready for development",
-                es: "Manifest, contratos, prompts, herramientas, memoria y test suite listos para desarrollo",
-                pt: "Manifest, contratos, prompts, ferramentas, memoria e test suite prontos para desenvolvimento",
-              }),
-              byLanguage(language, {
-                en: "Implementation questions with options, impact, and close moment",
-                es: "Preguntas de implementacion con opciones, impacto y momento de cierre",
-                pt: "Perguntas de implementacao com opcoes, impacto e momento de fechamento",
-              }),
-              byLanguage(language, {
-                en: "Startup guide for Codex, Claude Code, Cursor, Copilot, or another agentic tool",
-                es: "Guia de arranque para Codex, Claude Code, Cursor, Copilot u otra herramienta agentica",
-                pt: "Guia de arranque para Codex, Claude Code, Cursor, Copilot ou outra ferramenta agentica",
-              }),
-            ].map((item) => (
-              <div
-                className="flex items-start gap-3 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/70 p-4"
-                key={item}
-              >
-                <Boxes
-                  aria-hidden="true"
-                  className="mt-0.5 h-4 w-4 shrink-0 text-[var(--uxa-color-brand)]"
-                />
-                <p className="text-[13px] leading-5 text-[var(--uxa-color-ink-soft)]">
-                  {item}
-                </p>
-              </div>
-            ))}
-          </div>
-        </UxaSurface>
-        <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-          <UxaBadge tone={viewModel.package.blockers.length ? "danger" : "success"}>
-            {byLanguage(language, {
+  // Estado del flujo guiado de 4 etapas (Resolver -> Validar -> Completar -> Empaquetar)
+  const stepParam = searchParams?.get("step");
+  const initialStep: AcpWorkflowStep =
+    stepParam === "validate" || stepParam === "complete" || stepParam === "package"
+      ? stepParam
+      : "resolve";
+  const [currentStep, setCurrentStep] = useState<AcpWorkflowStep>(initialStep);
+  const [questions, setQuestions] = useState<ConstructionQuestionViewEntry[]>([]);
+  const [workspace, setWorkspace] = useState<ACPWorkspaceResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [showBlueprintArtifacts, setShowBlueprintArtifacts] = useState(false);
+
+  const reloadData = async () => {
+    if (!sessionId) return;
+    try {
+      const [qs, ws] = await Promise.all([
+        sessionsApi.getAcpQuestions(sessionId),
+        sessionsApi.getAcpWorkspace(sessionId),
+      ]);
+      setQuestions(qs);
+      setWorkspace(ws);
+    } catch {
+      // Ignored
+    }
+  };
+
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      sessionsApi.getAcpQuestions(sessionId),
+      sessionsApi.getAcpWorkspace(sessionId),
+    ])
+      .then(([qs, ws]) => {
+        if (cancelled) return;
+        setQuestions(qs);
+        setWorkspace(ws);
+      })
+      .catch(() => {
+        // Ignored
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  const openQuestions = questions.filter(
+    (q) => q.status === "open" || (!q.status && !q.answer_text),
+  );
+  const answeredQuestions = questions.filter(
+    (q) => q.status === "answered" || q.status === "resolved",
+  );
+  const deferredQuestions = questions.filter((q) => q.status === "deferred");
+  const dismissedQuestions = questions.filter((q) => q.status === "dismissed");
+  const isResolutionDone = openQuestions.length === 0;
+
+  const completedSteps: AcpWorkflowStep[] = [];
+  if (isResolutionDone) completedSteps.push("resolve");
+  if (currentStep === "complete" || currentStep === "package") completedSteps.push("validate");
+  if (currentStep === "package") completedSteps.push("complete");
+
+  const canNavigateTo = (step: AcpWorkflowStep): boolean => {
+    if (step === "resolve") return true;
+    // Para avanzar a etapas posteriores, todas las preguntas de decisión deben estar resueltas/delegadas/descartadas
+    return isResolutionDone;
+  };
+
+  if (!canBuild) {
+    return (
+      <div className="space-y-5">
+        <MetricStrip metrics={viewModel.package.metrics} />
+        <CommercialBlueprintResult
+          activeRoute={activeRoute}
+          artifactCards={viewModel.artifactCards}
+          projectTitle={viewModel.title}
+          sessionId={sessionId}
+          tierScope="acp"
+        />
+        <div className="grid gap-5 xl:grid-cols-[1fr_0.85fr]">
+          <UxaSurface
+            className="p-[var(--uxa-panel-padding-lg)] border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)]/30"
+          >
+            <UxaBadge tone="warning">
+              {byLanguage(language, {
+                en: "Commercial invitation",
+                es: "Invitacion comercial",
+                pt: "Convite comercial",
+              })}
+            </UxaBadge>
+            <h2 className="mt-3 text-[20px] font-black">
+              {byLanguage(language, {
+                en: "Incremental value over Blueprint",
+                es: "Valor incremental sobre Blueprint",
+                pt: "Valor incremental sobre o Blueprint",
+              })}
+            </h2>
+            <div className="mt-5 grid gap-3">
+              {[
+                byLanguage(language, {
+                  en: "Portable declarative specification for different agentic frameworks",
+                  es: "Especificacion declarativa portable para diferentes frameworks agenticos",
+                  pt: "Especificacao declarativa portavel para diferentes frameworks agenticos",
+                }),
+                byLanguage(language, {
+                  en: "Manifest, contracts, prompts, tools, memory, and test suite ready for development",
+                  es: "Manifest, contratos, prompts, herramientas, memoria y test suite listos para desarrollo",
+                  pt: "Manifest, contratos, prompts, ferramentas, memoria e test suite prontos para desenvolvimento",
+                }),
+                byLanguage(language, {
+                  en: "Implementation questions with options, impact, and close moment",
+                  es: "Preguntas de implementacion con opciones, impacto y momento de cierre",
+                  pt: "Perguntas de implementacao com opcoes, impacto e momento de fechamento",
+                }),
+                byLanguage(language, {
+                  en: "Startup guide for Codex, Claude Code, Cursor, Copilot, or another agentic tool",
+                  es: "Guia de arranque para Codex, Claude Code, Cursor, Copilot u otra herramienta agentica",
+                  pt: "Guia de arranque para Codex, Claude Code, Cursor, Copilot ou outra ferramenta agentica",
+                }),
+              ].map((item) => (
+                <div
+                  className="flex items-start gap-3 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/70 p-4"
+                  key={item}
+                >
+                  <Boxes
+                    aria-hidden="true"
+                    className="mt-0.5 h-4 w-4 shrink-0 text-[var(--uxa-color-brand)]"
+                  />
+                  <p className="text-[13px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                    {item}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </UxaSurface>
+          <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+            <UxaBadge tone={viewModel.package.blockers.length ? "danger" : "success"}>
+              {byLanguage(language, {
                 en: "Readiness",
                 es: "Preparacion",
                 pt: "Prontidao",
               })}
-          </UxaBadge>
-          <h2 className="mt-3 text-[20px] font-black">
-            {byLanguage(language, {
-              en: "Activation conditions",
-              es: "Condiciones para activar",
-              pt: "Condicoes para ativar",
-            })}
-          </h2>
-          <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
-            {viewModel.package.detail}
-          </p>
-          <div className="mt-5 space-y-2">
-            {viewModel.package.blockers.length ? (
-              viewModel.package.blockers.slice(0, 5).map((blocker, index) => (
-                <p
-                  className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-state-danger)] bg-white px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]"
-                  key={`${blocker}-${index}`}
-                >
-                  {blocker}
-                </p>
-              ))
-            ) : (
-              <p className="rounded-[var(--uxa-radius-md)] bg-[var(--uxa-state-success-bg)] px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
-                {byLanguage(language, {
-                  en: "No technical blockers are declared for showing ACP value.",
-                  es: "Sin bloqueos tecnicos declarados para mostrar el valor del ACP.",
-                  pt: "Sem bloqueios tecnicos declarados para mostrar o valor do ACP.",
-                })}
-              </p>
-            )}
-          </div>
-        </UxaSurface>
-      </div>
-      <UxaStickyActionBar
-        label={byLanguage(language, {
-          en: "ACP actions",
-          es: "Acciones de ACP",
-          pt: "Acoes de ACP",
-        })}
-      >
-        <a
-          className="uxa-button uxa-button--secondary"
-          href={getAcpResultTabHref(sessionId, "validate")}
-        >
-          <span>
-            {byLanguage(language, {
-              en: "Validate Blueprint",
-              es: "Validar Blueprint",
-              pt: "Validar Blueprint",
-            })}
-          </span>
-        </a>
-        {canBuild ? (
-          canExportZip ? (
-            <>
-              <button
-                className={cn(
-                  "uxa-button uxa-button--primary inline-flex items-center gap-1.5",
-                  downloading && "opacity-60 cursor-not-allowed",
-                )}
-                disabled={downloading}
-                onClick={async () => {
-                  if (downloading) return;
-                  setDownloadNotice(null);
-                  setDownloading(true);
-                  try {
-                    const job = await executeAcpZipDownload({ sessionId });
-                    setDownloadNotice(
-                      buildExportJobNotice(language, job, {
-                        en: "ACP ZIP",
-                        es: "ACP ZIP",
-                        pt: "ACP ZIP",
-                      }),
-                    );
-                  } finally {
-                    setDownloading(false);
-                  }
-                }}
-                type="button"
-              >
-                <Download aria-hidden="true" className="mr-1.5 h-4 w-4" />
-                <span>
-                  {downloading
-                    ? byLanguage(language, {
-                        en: "Preparing download...",
-                        es: "Preparando descarga...",
-                        pt: "Preparando download...",
-                      })
-                    : byLanguage(language, {
-                        en: "Download ACP ZIP",
-                        es: "Descargar ACP ZIP",
-                        pt: "Baixar ACP ZIP",
-                      })}
-                </span>
-              </button>
-              <a
-                className="uxa-button uxa-button--secondary"
-                href={getAcpResultTabHref(sessionId, "package")}
-              >
-                <span>
+            </UxaBadge>
+            <h2 className="mt-3 text-[20px] font-black">
+              {byLanguage(language, {
+                en: "Activation conditions",
+                es: "Condiciones para activar",
+                pt: "Condicoes para ativar",
+              })}
+            </h2>
+            <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+              {viewModel.package.detail}
+            </p>
+            <div className="mt-5 space-y-2">
+              {viewModel.package.blockers.length ? (
+                viewModel.package.blockers.slice(0, 5).map((blocker, index) => (
+                  <p
+                    className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-state-danger)] bg-white px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]"
+                    key={`${blocker}-${index}`}
+                  >
+                    {blocker}
+                  </p>
+                ))
+              ) : (
+                <p className="rounded-[var(--uxa-radius-md)] bg-[var(--uxa-state-success-bg)] px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
                   {byLanguage(language, {
-                    en: "Generate package",
-                    es: "Generar Package",
-                    pt: "Gerar Package",
+                    en: "No technical blockers are declared for showing ACP value.",
+                    es: "Sin bloqueos tecnicos declarados para mostrar el valor del ACP.",
+                    pt: "Sem bloqueios tecnicos declarados para mostrar o valor do ACP.",
                   })}
-                </span>
-              </a>
-            </>
-          ) : (
-            <a
-              className="uxa-button uxa-button--primary"
-              href={preparationHref}
-            >
-              <span>
-                {preparationLabel}
-              </span>
-            </a>
-          )
-        ) : (
+                </p>
+              )}
+            </div>
+          </UxaSurface>
+        </div>
+        <UxaStickyActionBar
+          label={byLanguage(language, {
+            en: "ACP actions",
+            es: "Acciones de ACP",
+            pt: "Acoes de ACP",
+          })}
+        >
           <button
             className={cn(
               "uxa-button uxa-button--primary",
@@ -4498,8 +4492,135 @@ function AcpProductPage({
                   })}
             </span>
           </button>
+        </UxaStickyActionBar>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header con contexto de proyecto y toggle para artefactos base */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between rounded-2xl border border-[var(--uxa-color-border)] bg-gradient-to-r from-slate-900/90 to-slate-800/90 px-6 py-5 text-white shadow-sm">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
+              <Sparkles className="h-3 w-3" />
+              {byLanguage(language, {
+                en: "ACP Active · Ready to Construct",
+                es: "ACP Activo · Listo para Construir",
+                pt: "ACP Ativo · Pronto para Construir",
+              })}
+            </span>
+            <span className="text-xs text-slate-400">
+              {viewModel.title}
+            </span>
+          </div>
+          <h1 className="text-xl font-bold tracking-tight text-white">
+            {byLanguage(language, {
+              en: "Agent Construction Package (ACP)",
+              es: "Agent Construction Package (ACP)",
+              pt: "Agent Construction Package (ACP)",
+            })}
+          </h1>
+          <p className="text-xs text-slate-300 max-w-2xl">
+            {byLanguage(language, {
+              en: "Follow the 4 steps to resolve open questions, validate the architecture, update artifacts, and generate the final package for your agentic coding environment.",
+              es: "Sigue las 4 etapas para resolver preguntas abiertas, validar la arquitectura, actualizar artefactos y generar el paquete final para tu entorno agéntico.",
+              pt: "Siga as 4 etapas para resolver questoes abertas, validar a arquitetura, atualizar artefatos e gerar o pacote final para seu ambiente agentico.",
+            })}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setShowBlueprintArtifacts(!showBlueprintArtifacts)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700"
+          >
+            <Boxes className="h-3.5 w-3.5 text-sky-400" />
+            <span>
+              {showBlueprintArtifacts
+                ? byLanguage(language, { en: "Hide Blueprint Base", es: "Ocultar Blueprint Base", pt: "Ocultar Blueprint Base" })
+                : byLanguage(language, { en: "View Blueprint Base", es: "Ver Blueprint Base", pt: "Ver Blueprint Base" })}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stepper de 4 etapas */}
+      <AcpStepStepper
+        activeStep={currentStep}
+        completedSteps={completedSteps}
+        onSelectStep={(step) => {
+          if (canNavigateTo(step)) {
+            setCurrentStep(step);
+          }
+        }}
+        canNavigateTo={canNavigateTo}
+        openQuestionsCount={openQuestions.length}
+      />
+
+      {/* Artefactos de Blueprint desplegables opcionalmente */}
+      {showBlueprintArtifacts && (
+        <div className="rounded-2xl border border-[var(--uxa-color-border)] bg-slate-50/70 p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-800">
+              {byLanguage(language, {
+                en: "Underlying Blueprint Artifacts (Read-Only Reference)",
+                es: "Artefactos del Blueprint Base (Referencia de solo lectura)",
+                pt: "Artefatos do Blueprint Base (Referencia de leitura)",
+              })}
+            </h3>
+            <span className="text-xs text-slate-500">
+              {byLanguage(language, {
+                en: "Protected from modification during ACP",
+                es: "Protegidos contra modificación durante ACP",
+                pt: "Protegidos contra modificacao durante ACP",
+              })}
+            </span>
+          </div>
+          <CommercialBlueprintResult
+            activeRoute={activeRoute}
+            artifactCards={viewModel.artifactCards}
+            projectTitle={viewModel.title}
+            sessionId={sessionId}
+            tierScope="acp"
+          />
+        </div>
+      )}
+
+      {/* Contenido de la etapa guiada activa */}
+      <div className="min-h-[420px]">
+        {currentStep === "resolve" && (
+          <AcpResolutionStage
+            sessionId={sessionId}
+            questions={questions}
+            onQuestionsUpdated={reloadData}
+            onProceedToValidation={() => setCurrentStep("validate")}
+          />
         )}
-      </UxaStickyActionBar>
+        {currentStep === "validate" && (
+          <AcpValidationStage
+            activeRoute={activeRoute}
+            onProceedToReconciliation={() => setCurrentStep("complete")}
+          />
+        )}
+        {currentStep === "complete" && (
+          <AcpReconciliationStage
+            sessionId={sessionId}
+            workspace={workspace}
+            onReload={reloadData}
+            onProceedToPackage={() => setCurrentStep("package")}
+          />
+        )}
+        {currentStep === "package" && (
+          <AcpPackageStage
+            sessionId={sessionId}
+            projectTitle={viewModel.title}
+            answeredCount={answeredQuestions.length}
+            deferredCount={deferredQuestions.length}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -4513,7 +4634,6 @@ function ArtifactsProductPage({
   const searchParams = useSearchParams();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const currentStage = activeRoute?.snapshot.data?.session.current_stage ?? "estimate";
-
   const viewModel = buildProductSaasViewModel({
     activeRoute,
     language,

@@ -529,7 +529,7 @@ export function EstimateStageView({ actionState, activeRoute, actions }: StageVi
   );
 }
 
-export function ValidateStageView({ activeRoute }: StageViewProps) {
+export function ValidateStageView({ activeRoute, supplementalContent }: StageViewProps & { supplementalContent?: ReactNode }) {
   const { language } = useLanguage();
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
   const sessionId = activeRoute?.route.sessionId ?? "";
@@ -569,6 +569,7 @@ export function ValidateStageView({ activeRoute }: StageViewProps) {
   return (
     <div className="space-y-5">
       <ReadinessHero icon={<ShieldCheck aria-hidden="true" className="h-6 w-6" />} summary={summary} title={copy("Validate Blueprint before ACP", "Validar Blueprint antes del ACP", "Validar Blueprint antes do ACP")} />
+      {supplementalContent}
       {error && (
         <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-danger)] bg-[var(--uxa-state-danger-bg)] p-4 text-[13px] text-[var(--uxa-color-ink)]">
           <p className="font-black">{copy("Validation error", "Error de validación", "Erro de validação")}</p>
@@ -667,7 +668,7 @@ export function ValidateStageView({ activeRoute }: StageViewProps) {
           >
             <span>
               {shouldGenerate
-                ? copy("Generate Test Suite", "Generar Test Suite", "Gerar Test Suite")
+                ? copy("Generate Test Suite", "Generar Test Suite", "Generar Test Suite")
                 : copy("Run validation", "Ejecutar validación", "Executar validação")}
             </span>
           </UxaButton>
@@ -681,7 +682,7 @@ export function ValidateStageView({ activeRoute }: StageViewProps) {
   );
 }
 
-export function PackageStageView({ activeRoute }: StageViewProps) {
+export function PackageStageView({ activeRoute, onDownloadZip, answeredCount = 0, deferredCount = 0 }: StageViewProps & { onDownloadZip?: () => void; answeredCount?: number; deferredCount?: number }) {
   const { language } = useLanguage();
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
   const sessionId = activeRoute?.route.sessionId ?? "";

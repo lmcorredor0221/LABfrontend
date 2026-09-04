@@ -43,21 +43,20 @@ describe("LabLandingPage Component", () => {
     expect(screen.getByText("Diseño de Asistentes IA")).toBeInTheDocument();
 
     // Hero
-    expect(screen.getByRole("heading", { name: /Diseña agentes de IA para tu empresa antes de programar/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Diseña agentes de IA para tu empresa/i })).toBeInTheDocument();
     expect(screen.getByText(/Evalúa qué procesos automatizar con IA/i)).toBeInTheDocument();
 
-    // Direct product experience (Simulator)
-    expect(screen.getByText("Evaluación Gratuita")).toBeInTheDocument();
-    expect(screen.getByText("Validar mi idea")).toBeInTheDocument();
+    // Direct product experience (Validator)
+    expect(screen.getAllByText("Validar mi idea gratis").length).toBeGreaterThan(0);
     expect(screen.getByPlaceholderText(/Escribe aquí tu problema/i)).toBeInTheDocument();
 
-    // Methodology (4 steps)
-    expect(screen.getByText("Cómo diseñamos un agente de IA paso a paso")).toBeInTheDocument();
-    expect(screen.getByText("El Problema Real")).toBeInTheDocument();
-    expect(screen.getByText("Entrega de Planos")).toBeInTheDocument();
+    // Transformation / Methodology
+    expect(screen.getByText("Cómo LAB transforma tu idea en un sistema real")).toBeInTheDocument();
+    expect(screen.getByText("Validación y Diagnóstico")).toBeInTheDocument();
+    expect(screen.getByText("Diseño del Blueprint")).toBeInTheDocument();
 
     // Deliverables (Blueprint vs ACP)
-    expect(screen.getByText("Blueprints claros para construir tu agente de IA")).toBeInTheDocument();
+    expect(screen.getByText("Blueprints claros y código estructurado para tu agente")).toBeInTheDocument();
     expect(screen.getByText("PLANO ESTRATÉGICO (BLUEPRINT)")).toBeInTheDocument();
     expect(screen.getByText("PAQUETE TÉCNICO (ACP)")).toBeInTheDocument();
 
@@ -65,15 +64,15 @@ describe("LabLandingPage Component", () => {
     expect(screen.getByText("Estimación Transparente")).toBeInTheDocument();
 
     // Commercial plans
-    expect(screen.getByText("Planes para validar y diseñar tu agente de IA")).toBeInTheDocument();
-    expect(screen.getByText("Free")).toBeInTheDocument();
+    expect(screen.getByText("Paga solo por lo que necesitas, cuando lo necesitas")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Blueprint Free" })).toBeInTheDocument();
 
     // Agencies & Factory
     expect(screen.getByText("¿Construyes agentes para clientes?")).toBeInTheDocument();
-    expect(screen.getByText("¿No tienes programadores? Nosotros lo construimos.")).toBeInTheDocument();
+    expect(screen.getByText("¿No tienes programadores?")).toBeInTheDocument();
 
     // FAQs
-    expect(screen.getByText("Preguntas Frecuentes")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Preguntas Frecuentes" })).toBeInTheDocument();
   });
 
   it("interacts with the Impact Calculator buttons", async () => {
@@ -87,7 +86,7 @@ describe("LabLandingPage Component", () => {
     expect(screen.getByText("60 – 90 h")).toBeInTheDocument();
   });
 
-  it("runs AI initiative analysis and displays scorecard inside Interactive Simulator", async () => {
+  it("runs AI initiative analysis and displays scorecard inside Interactive Validator", async () => {
     const user = userEvent.setup();
     const mockResponse: contracts.InitiativeEvaluationResponse = {
       is_viable: true,
@@ -130,12 +129,12 @@ describe("LabLandingPage Component", () => {
     const textarea = screen.getByPlaceholderText(/Escribe aquí tu problema/i) as HTMLTextAreaElement;
     expect(textarea.value).toContain("Tenemos 6 personas revisando facturas");
 
-    const analyzeBtn = screen.getByText("Analizar si la IA puede ayudarme");
+    const analyzeBtn = screen.getByText("Analizar si la IA puede ayudarme ($0 USD)");
     await user.click(analyzeBtn);
 
     await waitFor(() => {
       expect(screen.getByText("¡Sí, la IA puede automatizar esto!")).toBeInTheDocument();
-      expect(screen.getByText("Ver cómo crear mis planos →")).toBeInTheDocument();
+      expect(screen.getByText(/Crear Blueprint Free con este diagnóstico/i)).toBeInTheDocument();
     });
   });
 });

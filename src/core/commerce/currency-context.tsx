@@ -3,14 +3,24 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { apiClient } from "@/core/api";
 import { useAuth } from "@/core/auth/auth-context";
-import { fetchTRM, formatPriceValue, type Currency, type TRMData } from "@/core/commerce/trm-service";
+import {
+  DEFAULT_BASE_PRICES,
+  fetchBasePrices,
+  fetchTRM,
+  formatPriceValue,
+  type BasePricesData,
+  type Currency,
+  type TRMData,
+} from "@/core/commerce/trm-service";
 
 type CurrencyContextType = {
   currency: Currency;
   setCurrency: (c: Currency) => void;
   trm: TRMData;
+  basePrices: BasePricesData;
   formatPrice: (usdAmount: number, fallbackCopAmount?: number) => string;
   refreshTRM: () => Promise<void>;
+  refreshBasePrices: () => Promise<void>;
 };
 
 const DEFAULT_TRM: TRMData = {
@@ -87,19 +97,23 @@ const CurrencyContext = createContext<CurrencyContextType>({
   currency: "COP",
   setCurrency: () => {},
   trm: DEFAULT_TRM,
+  basePrices: DEFAULT_BASE_PRICES,
   formatPrice: (usdAmount: number, fallbackCopAmount?: number) =>
     formatPriceValue(usdAmount, "COP", 3171.93, fallbackCopAmount),
   refreshTRM: async () => {},
+  refreshBasePrices: async () => {},
 });
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const auth = useAuth();
   const [currency, setCurrencyState] = useState<Currency>("COP");
   const [trm, setTrm] = useState<TRMData>(DEFAULT_TRM);
+  const [basePrices, setBasePrices] = useState<BasePricesData>(DEFAULT_BASE_PRICES);
   const migrationInFlightRef = useRef<string | null>(null);
 
   useEffect(() => {
     void loadTRM();
+    void loadBasePrices();
   }, []);
 
   useEffect(() => {
@@ -156,6 +170,11 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     setTrm(data);
   }
 
+  async function loadBasePrices() {
+    const prices = await fetchBasePrices();
+    setBasePrices(prices);
+  }
+
   function setCurrency(c: Currency) {
     const previousCurrency = currency;
     setCurrencyState(c);
@@ -188,8 +207,10 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         currency,
         setCurrency,
         trm,
+        basePrices,
         formatPrice,
         refreshTRM: loadTRM,
+        refreshBasePrices: loadBasePrices,
       }}
     >
       {children}

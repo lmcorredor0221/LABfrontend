@@ -2050,7 +2050,7 @@ export type EstimationErrorMetricEntry = {
 
 export type ACPFileStatus = "complete" | "incomplete" | "needs_review";
 export type ACPValidationSeverity = "info" | "warning" | "error";
-export type ConstructionQuestionStatus = "open" | "answered" | "deferred" | "resolved";
+export type ConstructionQuestionStatus = "open" | "answered" | "deferred" | "resolved" | "dismissed";
 export type ConstructionQuestionImpactKind =
   | "no_material_impact"
   | "localized_impact"
@@ -2156,7 +2156,8 @@ export type ConstructionQuestionViewEntry = {
 
 export type ConstructionQuestionAnswerRequest = {
   answer_text: string;
-  decision?: "answer" | "delegate";
+  decision?: "answer" | "choose_option" | "delegate" | "dismiss";
+  selected_option_key?: string;
   impacted_artifacts: string[];
   owner_role: string;
 };
