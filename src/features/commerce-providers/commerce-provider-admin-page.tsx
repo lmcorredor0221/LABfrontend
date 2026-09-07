@@ -22,6 +22,95 @@ type Props = {
 
 const PROVIDER_TABS = ["Resumen", "Credenciales", "Mappings", "Checkouts", "Webhooks", "Readiness"];
 
+type CredentialsForm = {
+  accountId: string;
+  accessKey: string;
+  apiBaseUrl: string;
+  enabled: boolean;
+  merchantId: string;
+  publicKey: string;
+  secretKey: string;
+  webhookPublicUrl: string;
+  webhookSigningSecret: string;
+  webhookUrlSecret: string;
+};
+
+type MappingForm = {
+  billingMode: string;
+  currency: string;
+  internalProductKey: string;
+  packageCode: string;
+  providerOfferRef: string;
+  providerPaymentLinkId: string;
+  providerPlanId: string;
+  providerPriceId: string;
+  providerProductId: string;
+};
+
+const DEFAULT_CREDENTIAL_LABELS = {
+  accountId: "Account ID",
+  accessKey: "Access key",
+  apiBaseUrl: "API base URL",
+  merchantId: "Merchant ID",
+  publicKey: "Public key",
+  secretKey: "Secret key",
+  webhookPublicUrl: "Webhook público",
+  webhookSigningSecret: "Webhook signing secret",
+  webhookUrlSecret: "Webhook URL secret",
+};
+
+const PROVIDER_CREDENTIAL_LABELS: Record<string, Partial<typeof DEFAULT_CREDENTIAL_LABELS>> = {
+  payu: {
+    accountId: "Account ID",
+    apiBaseUrl: "Payments API URL",
+    merchantId: "Merchant ID",
+    publicKey: "API login",
+    secretKey: "API key",
+    webhookPublicUrl: "Confirmation URL pública",
+    webhookSigningSecret: "HMAC secret opcional",
+    webhookUrlSecret: "URL secret",
+  },
+  rebill: {
+    publicKey: "Public key",
+    secretKey: "Secret key",
+    webhookPublicUrl: "Webhook público",
+    webhookSigningSecret: "Webhook signing secret",
+    webhookUrlSecret: "Webhook URL secret",
+  },
+  rapyd: {
+    accessKey: "Access key",
+    apiBaseUrl: "Rapyd API URL",
+    secretKey: "Secret key",
+    webhookPublicUrl: "Callback URL pública",
+    webhookUrlSecret: "URL secret",
+  },
+};
+
+const DEFAULT_MAPPING_LABELS = {
+  providerOfferRef: "Offer ref",
+  providerPaymentLinkId: "Payment link ID",
+  providerPlanId: "Plan ID",
+  providerPriceId: "Price ID",
+  providerProductId: "Product ID",
+};
+
+const PROVIDER_MAPPING_LABELS: Record<string, Partial<typeof DEFAULT_MAPPING_LABELS>> = {
+  payu: {
+    providerOfferRef: "Template",
+    providerPaymentLinkId: "Método preseleccionado",
+    providerPlanId: "País de pago",
+    providerPriceId: "Métodos de pago",
+    providerProductId: "Account ID override",
+  },
+  rapyd: {
+    providerOfferRef: "Statement descriptor",
+    providerPaymentLinkId: "Métodos excluidos",
+    providerPlanId: "País de pago",
+    providerPriceId: "Métodos incluidos",
+    providerProductId: "Merchant eWallet",
+  },
+};
+
 const emptyStatus: CommerceProviderStatusResponse = {
   api_base_url: "",
   capabilities: [],
@@ -70,8 +159,11 @@ export function CommerceProviderAdminPage({ initialProviderKey = "rebill" }: Pro
   const [savingMapping, setSavingMapping] = useState(false);
 
   const [credentialsForm, setCredentialsForm] = useState({
+    accountId: "",
+    accessKey: "",
     apiBaseUrl: "",
     enabled: true,
+    merchantId: "",
     publicKey: "",
     secretKey: "",
     webhookPublicUrl: "",
@@ -135,9 +227,12 @@ export function CommerceProviderAdminPage({ initialProviderKey = "rebill" }: Pro
     setSavingCredentials(true);
     setMessage("");
     const secrets: Record<string, string> = {};
+    if (credentialsForm.accessKey.trim()) secrets.access_key = credentialsForm.accessKey.trim();
     if (credentialsForm.secretKey.trim()) secrets.secret_key = credentialsForm.secretKey.trim();
-    if (credentialsForm.publicKey.trim()) secrets.public_key = credentialsForm.publicKey.trim();
-    if (credentialsForm.webhookSigningSecret.trim()) {
+    if (providerKey !== "rapyd" && credentialsForm.publicKey.trim()) secrets.public_key = credentialsForm.publicKey.trim();
+    if (credentialsForm.merchantId.trim()) secrets.merchant_id = credentialsForm.merchantId.trim();
+    if (credentialsForm.accountId.trim()) secrets.account_id = credentialsForm.accountId.trim();
+    if (providerKey !== "rapyd" && credentialsForm.webhookSigningSecret.trim()) {
       secrets.webhook_signing_secret = credentialsForm.webhookSigningSecret.trim();
     }
     if (credentialsForm.webhookUrlSecret.trim()) secrets.webhook_url_secret = credentialsForm.webhookUrlSecret.trim();
@@ -153,6 +248,9 @@ export function CommerceProviderAdminPage({ initialProviderKey = "rebill" }: Pro
       setMessage("Credenciales actualizadas.");
       setCredentialsForm((current) => ({
         ...current,
+        accountId: "",
+        accessKey: "",
+        merchantId: "",
         publicKey: "",
         secretKey: "",
         webhookSigningSecret: "",
@@ -262,6 +360,7 @@ export function CommerceProviderAdminPage({ initialProviderKey = "rebill" }: Pro
             {activeTab === "Credenciales" ? (
               <CredentialsPanel
                 form={credentialsForm}
+                providerKey={providerKey}
                 saving={savingCredentials}
                 status={status}
                 updateForm={setCredentialsForm}
@@ -273,6 +372,7 @@ export function CommerceProviderAdminPage({ initialProviderKey = "rebill" }: Pro
               <MappingsPanel
                 form={mappingForm}
                 mappings={mappings}
+                providerKey={providerKey}
                 saving={savingMapping}
                 updateForm={setMappingForm}
                 onSave={() => void handleSaveMapping()}
@@ -318,25 +418,22 @@ function CredentialsPanel({
   form,
   onSave,
   onTest,
+  providerKey,
   saving,
   status,
   updateForm,
 }: {
-  form: {
-    apiBaseUrl: string;
-    enabled: boolean;
-    publicKey: string;
-    secretKey: string;
-    webhookPublicUrl: string;
-    webhookSigningSecret: string;
-    webhookUrlSecret: string;
-  };
+  form: CredentialsForm;
   onSave: () => void;
   onTest: () => void;
+  providerKey: CommercePaymentProviderKey;
   saving: boolean;
   status: CommerceProviderStatusResponse;
   updateForm: (value: typeof form | ((current: typeof form) => typeof form)) => void;
 }) {
+  const labels = credentialLabelsForProvider(providerKey);
+  const isPayUProvider = providerKey === "payu";
+  const isRapydProvider = providerKey === "rapyd";
   return (
     <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -348,22 +445,35 @@ function CredentialsPanel({
           />
           Provider activo
         </label>
-        <TextInput label="API base URL" value={form.apiBaseUrl} onChange={(apiBaseUrl) => updateForm((current) => ({ ...current, apiBaseUrl }))} />
+        <TextInput label={labels.apiBaseUrl} value={form.apiBaseUrl} onChange={(apiBaseUrl) => updateForm((current) => ({ ...current, apiBaseUrl }))} />
         <TextInput
-          label="Webhook público"
+          label={labels.webhookPublicUrl}
           value={form.webhookPublicUrl}
           onChange={(webhookPublicUrl) => updateForm((current) => ({ ...current, webhookPublicUrl }))}
         />
-        <TextInput label="Secret key" type="password" value={form.secretKey} onChange={(secretKey) => updateForm((current) => ({ ...current, secretKey }))} />
-        <TextInput label="Public key" type="password" value={form.publicKey} onChange={(publicKey) => updateForm((current) => ({ ...current, publicKey }))} />
+        {isRapydProvider ? (
+          <TextInput label={labels.accessKey} type="password" value={form.accessKey} onChange={(accessKey) => updateForm((current) => ({ ...current, accessKey }))} />
+        ) : null}
+        <TextInput label={labels.secretKey} type="password" value={form.secretKey} onChange={(secretKey) => updateForm((current) => ({ ...current, secretKey }))} />
+        {!isRapydProvider ? (
+          <TextInput label={labels.publicKey} type="password" value={form.publicKey} onChange={(publicKey) => updateForm((current) => ({ ...current, publicKey }))} />
+        ) : null}
+        {isPayUProvider ? (
+          <>
+            <TextInput label={labels.merchantId} type="password" value={form.merchantId} onChange={(merchantId) => updateForm((current) => ({ ...current, merchantId }))} />
+            <TextInput label={labels.accountId} type="password" value={form.accountId} onChange={(accountId) => updateForm((current) => ({ ...current, accountId }))} />
+          </>
+        ) : null}
+        {!isRapydProvider ? (
+          <TextInput
+            label={labels.webhookSigningSecret}
+            type="password"
+            value={form.webhookSigningSecret}
+            onChange={(webhookSigningSecret) => updateForm((current) => ({ ...current, webhookSigningSecret }))}
+          />
+        ) : null}
         <TextInput
-          label="Webhook signing secret"
-          type="password"
-          value={form.webhookSigningSecret}
-          onChange={(webhookSigningSecret) => updateForm((current) => ({ ...current, webhookSigningSecret }))}
-        />
-        <TextInput
-          label="Webhook URL secret"
+          label={labels.webhookUrlSecret}
           type="password"
           value={form.webhookUrlSecret}
           onChange={(webhookUrlSecret) => updateForm((current) => ({ ...current, webhookUrlSecret }))}
@@ -380,7 +490,7 @@ function CredentialsPanel({
       <div className="space-y-3">
         {status.secret_statuses.map((secret) => (
           <div key={secret.secret_kind} className="flex items-center justify-between rounded-[8px] border border-[var(--border-default)] px-3 py-2">
-            <span className="text-[13px] font-medium text-[var(--text-primary)]">{secret.secret_kind}</span>
+            <span className="text-[13px] font-medium text-[var(--text-primary)]">{secretLabelForProvider(providerKey, secret.secret_kind)}</span>
             <Badge tone={secret.configured ? "green" : "red"}>{secret.storage_mode}</Badge>
           </div>
         ))}
@@ -393,25 +503,18 @@ function MappingsPanel({
   form,
   mappings,
   onSave,
+  providerKey,
   saving,
   updateForm,
 }: {
-  form: {
-    billingMode: string;
-    currency: string;
-    internalProductKey: string;
-    packageCode: string;
-    providerOfferRef: string;
-    providerPaymentLinkId: string;
-    providerPlanId: string;
-    providerPriceId: string;
-    providerProductId: string;
-  };
+  form: MappingForm;
   mappings: CommerceProviderProductMappingResponse[];
   onSave: () => void;
+  providerKey: CommercePaymentProviderKey;
   saving: boolean;
   updateForm: (value: typeof form | ((current: typeof form) => typeof form)) => void;
 }) {
+  const labels = mappingLabelsForProvider(providerKey);
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-3">
@@ -427,15 +530,15 @@ function MappingsPanel({
           ]}
           onChange={(billingMode) => updateForm((current) => ({ ...current, billingMode }))}
         />
-        <TextInput label="Product ID" value={form.providerProductId} onChange={(providerProductId) => updateForm((current) => ({ ...current, providerProductId }))} />
-        <TextInput label="Plan ID" value={form.providerPlanId} onChange={(providerPlanId) => updateForm((current) => ({ ...current, providerPlanId }))} />
-        <TextInput label="Price ID" value={form.providerPriceId} onChange={(providerPriceId) => updateForm((current) => ({ ...current, providerPriceId }))} />
+        <TextInput label={labels.providerProductId} value={form.providerProductId} onChange={(providerProductId) => updateForm((current) => ({ ...current, providerProductId }))} />
+        <TextInput label={labels.providerPlanId} value={form.providerPlanId} onChange={(providerPlanId) => updateForm((current) => ({ ...current, providerPlanId }))} />
+        <TextInput label={labels.providerPriceId} value={form.providerPriceId} onChange={(providerPriceId) => updateForm((current) => ({ ...current, providerPriceId }))} />
         <TextInput
-          label="Payment link ID"
+          label={labels.providerPaymentLinkId}
           value={form.providerPaymentLinkId}
           onChange={(providerPaymentLinkId) => updateForm((current) => ({ ...current, providerPaymentLinkId }))}
         />
-        <TextInput label="Offer ref" value={form.providerOfferRef} onChange={(providerOfferRef) => updateForm((current) => ({ ...current, providerOfferRef }))} />
+        <TextInput label={labels.providerOfferRef} value={form.providerOfferRef} onChange={(providerOfferRef) => updateForm((current) => ({ ...current, providerOfferRef }))} />
       </div>
       <AppButton icon={<Save className="h-4 w-4" />} loading={saving} onClick={onSave} variant="primary">
         Guardar mapping
@@ -502,6 +605,34 @@ function ReadinessPanel({ readiness }: { readiness: CommerceProviderReadinessRes
       ))}
     </div>
   );
+}
+
+function credentialLabelsForProvider(providerKey: CommercePaymentProviderKey) {
+  return {
+    ...DEFAULT_CREDENTIAL_LABELS,
+    ...(PROVIDER_CREDENTIAL_LABELS[providerKey] ?? {}),
+  };
+}
+
+function mappingLabelsForProvider(providerKey: CommercePaymentProviderKey) {
+  return {
+    ...DEFAULT_MAPPING_LABELS,
+    ...(PROVIDER_MAPPING_LABELS[providerKey] ?? {}),
+  };
+}
+
+function secretLabelForProvider(providerKey: CommercePaymentProviderKey, secretKind: string) {
+  const labels = credentialLabelsForProvider(providerKey);
+  const lookup: Record<string, string> = {
+    account_id: labels.accountId,
+    access_key: labels.accessKey,
+    merchant_id: labels.merchantId,
+    public_key: labels.publicKey,
+    secret_key: labels.secretKey,
+    webhook_signing_secret: labels.webhookSigningSecret,
+    webhook_url_secret: labels.webhookUrlSecret,
+  };
+  return lookup[secretKind] ?? secretKind;
 }
 
 function Metric({

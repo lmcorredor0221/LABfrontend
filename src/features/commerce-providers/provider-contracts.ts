@@ -1,4 +1,4 @@
-export type CommercePaymentProviderKey = "sandbox" | "hotmart" | "rebill" | (string & {});
+export type CommercePaymentProviderKey = "sandbox" | "hotmart" | "rebill" | "payu" | "rapyd" | (string & {});
 export type CommerceProviderEnvironment = "sandbox" | "production";
 
 export type CommerceProviderCapability =
