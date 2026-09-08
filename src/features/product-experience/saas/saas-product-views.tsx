@@ -83,6 +83,112 @@ import { AcpValidationStage } from "@/features/acp/components/acp-validation-sta
 import { AcpReconciliationStage } from "@/features/acp/components/acp-reconciliation-stage";
 import { AcpPackageStage } from "@/features/acp/components/acp-package-stage";
 
+type CheckoutMarketCode = "co" | "mx" | "ar";
+
+const CHECKOUT_MARKET_STORAGE_KEY = "lean_checkout_market";
+const CHECKOUT_MARKETS: Array<{
+  code: CheckoutMarketCode;
+  label: Record<SupportedLanguage, string>;
+}> = [
+  { code: "co", label: { en: "Colombia", es: "Colombia", pt: "Colombia" } },
+  { code: "mx", label: { en: "Mexico", es: "Mexico", pt: "Mexico" } },
+  { code: "ar", label: { en: "Argentina", es: "Argentina", pt: "Argentina" } },
+];
+
+function normalizeCheckoutMarket(value: string | null | undefined): CheckoutMarketCode {
+  const candidate = String(value || "").trim().toLowerCase();
+  if (candidate === "mx" || candidate === "mexico" || candidate === "méxico") return "mx";
+  if (candidate === "ar" || candidate === "argentina") return "ar";
+  return "co";
+}
+
+function checkoutMarketPackageCode(productKey: "blueprint_pro" | "acp", market: CheckoutMarketCode) {
+  return `${productKey}_${market}`;
+}
+
+function readStoredCheckoutMarket() {
+  if (
+    typeof window === "undefined" ||
+    typeof window.localStorage?.getItem !== "function"
+  ) {
+    return "";
+  }
+
+  return window.localStorage.getItem(CHECKOUT_MARKET_STORAGE_KEY) ?? "";
+}
+
+function writeStoredCheckoutMarket(market: CheckoutMarketCode) {
+  if (
+    typeof window === "undefined" ||
+    typeof window.localStorage?.setItem !== "function"
+  ) {
+    return;
+  }
+
+  window.localStorage.setItem(CHECKOUT_MARKET_STORAGE_KEY, market);
+}
+
+function useCheckoutMarketSelection() {
+  const searchParams = useSearchParams();
+  const [market, setMarketState] = useState<CheckoutMarketCode>(() =>
+    normalizeCheckoutMarket(searchParams.get("market") || readStoredCheckoutMarket()),
+  );
+
+  function setMarket(nextMarket: CheckoutMarketCode) {
+    setMarketState(nextMarket);
+    writeStoredCheckoutMarket(nextMarket);
+  }
+
+  return { market, setMarket };
+}
+
+function CheckoutMarketSelector({
+  language,
+  market,
+  onMarketChange,
+}: {
+  language: SupportedLanguage;
+  market: CheckoutMarketCode;
+  onMarketChange: (market: CheckoutMarketCode) => void;
+}) {
+  return (
+    <div
+      aria-label={byLanguage(language, {
+        en: "Checkout market",
+        es: "Mercado de checkout",
+        pt: "Mercado de checkout",
+      })}
+      className="flex items-center gap-1 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-1"
+      role="radiogroup"
+    >
+      <span className="px-2 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+        {byLanguage(language, { en: "Market", es: "Mercado", pt: "Mercado" })}
+      </span>
+      {CHECKOUT_MARKETS.map((option) => {
+        const selected = option.code === market;
+        return (
+          <button
+            aria-checked={selected}
+            className={cn(
+              "min-w-9 rounded-[var(--uxa-radius-md)] px-2 py-1 text-[11px] font-black uppercase transition",
+              selected
+                ? "bg-[var(--uxa-color-brand)] text-white shadow-sm"
+                : "text-[var(--uxa-color-ink-soft)] hover:bg-[var(--uxa-color-muted-panel)] hover:text-[var(--uxa-color-ink)]",
+            )}
+            key={option.code}
+            onClick={() => onMarketChange(option.code)}
+            role="radio"
+            title={option.label[language]}
+            type="button"
+          >
+            {option.code}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function triggerAuthenticatedDownload(blob: Blob, fileName: string) {
   if (typeof window === "undefined") {
     return;
@@ -3283,11 +3389,15 @@ function BlueprintProPage({
   const premiumAssetCount = viewModel.artifactCards.filter(
     (artifact) => resolveArtifactTier(artifact) === "blueprint_pro",
   ).length;
+  const canCheckout =
+    viewModel.access?.checkout_state === "available" ||
+    viewModel.access?.checkout_state === "pending";
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadNotice, setDownloadNotice] = useState<InlineNotice | null>(null);
+  const { market: checkoutMarket, setMarket: setCheckoutMarket } = useCheckoutMarketSelection();
 
   return (
     <div className="space-y-5">
@@ -3329,6 +3439,13 @@ function BlueprintProPage({
             })}
           </span>
         </a>
+        {!unlocked && canCheckout ? (
+          <CheckoutMarketSelector
+            language={language}
+            market={checkoutMarket}
+            onMarketChange={setCheckoutMarket}
+          />
+        ) : null}
         {unlocked ? (
           <>
             {canOpenAcp ? (
@@ -3432,6 +3549,7 @@ function BlueprintProPage({
                 ) {
                   await executeProductCheckout({
                     sessionId,
+                    packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
                     productKey: "blueprint_pro",
                   });
                 } else {
@@ -4245,6 +4363,9 @@ function AcpProductPage({
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({ activeRoute, language, section: "acp" });
   const canBuild = true;
+  const canCheckout =
+    viewModel.access?.checkout_state === "available" ||
+    viewModel.access?.checkout_state === "pending";
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
@@ -4260,6 +4381,7 @@ function AcpProductPage({
   const [workspace, setWorkspace] = useState<ACPWorkspaceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [showBlueprintArtifacts, setShowBlueprintArtifacts] = useState(false);
+  const { market: checkoutMarket, setMarket: setCheckoutMarket } = useCheckoutMarketSelection();
 
   const reloadData = async () => {
     if (!sessionId) return;
@@ -4278,7 +4400,11 @@ function AcpProductPage({
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
-    setLoading(true);
+    deferStateUpdate(() => {
+      if (!cancelled) {
+        setLoading(true);
+      }
+    });
     Promise.all([
       sessionsApi.getAcpQuestions(sessionId),
       sessionsApi.getAcpWorkspace(sessionId),
@@ -4434,6 +4560,13 @@ function AcpProductPage({
             pt: "Acoes de ACP",
           })}
         >
+          {canCheckout ? (
+            <CheckoutMarketSelector
+              language={language}
+              market={checkoutMarket}
+              onMarketChange={setCheckoutMarket}
+            />
+          ) : null}
           <button
             className={cn(
               "uxa-button uxa-button--primary",
@@ -4444,12 +4577,10 @@ function AcpProductPage({
               if (purchasing) return;
               setPurchasing(true);
               try {
-                if (
-                  viewModel.access?.checkout_state === "available" ||
-                  viewModel.access?.checkout_state === "pending"
-                ) {
+                if (canCheckout) {
                   await executeProductCheckout({
                     sessionId,
+                    packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
                     productKey: "acp",
                   });
                 } else {
@@ -4478,8 +4609,7 @@ function AcpProductPage({
                     es: "Solicitud enviada",
                     pt: "Solicitacao enviada",
                   })
-                : viewModel.access?.checkout_state === "available" ||
-                  viewModel.access?.checkout_state === "pending"
+                : canCheckout
                 ? byLanguage(language, {
                     en: "Get ACP",
                     es: "Adquirir ACP",

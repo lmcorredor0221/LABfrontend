@@ -1217,6 +1217,42 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.queryByText("Cargando backlog priorizado de enriquecimiento...")).not.toBeInTheDocument();
   });
 
+  it("sends the selected checkout market package when purchasing Blueprint Pro", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("market=mx"));
+    mockSessionsApi.createCheckoutSession.mockResolvedValueOnce({
+      checkout_ref: "rapyd-checkout-1",
+      checkout_url: "",
+      contract_version: "commerce-checkout-session.v1",
+      currency: "USD",
+      entitlement: null,
+      expires_at: null,
+      next_action: "redirect",
+      order_id: "order-rapyd-1",
+      product_key: "blueprint_pro",
+      provider: "rapyd",
+      session_id: "session-uxa11",
+      status: "pending",
+      total_cents: 4900,
+      workspace_id: "workspace-1",
+    });
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_pro" />);
+
+    expect(screen.getByRole("radio", { name: "mx" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Adquirir Blueprint Pro" }));
+
+    await waitFor(() =>
+      expect(mockSessionsApi.createCheckoutSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          package_code: "blueprint_pro_mx",
+          product_key: "blueprint_pro",
+          session_id: "session-uxa11",
+        }),
+      ),
+    );
+    expect(mockSessionsApi.completeSandboxCheckout).not.toHaveBeenCalled();
+  });
+
   it("downloads Blueprint Pro through the authenticated API instead of navigating directly", async () => {
     const createObjectUrl = vi.fn(() => "blob:blueprint-pro");
     const revokeObjectUrl = vi.fn();
