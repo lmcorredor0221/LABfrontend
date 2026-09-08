@@ -38,8 +38,13 @@ type CredentialsForm = {
 type MappingForm = {
   billingMode: string;
   currency: string;
+  entitlementScope: string;
+  grantsTier: "blueprint" | "blueprint_pro" | "acp";
   internalProductKey: string;
+  internalUnitAmountCents: string;
+  isActive: boolean;
   packageCode: string;
+  priceStrategy: string;
   providerOfferRef: string;
   providerPaymentLinkId: string;
   providerPlanId: string;
@@ -143,6 +148,16 @@ function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
+function formatMinorAmount(currency: string, amountCents: number) {
+  if (amountCents <= 0) {
+    return "Orden LAB";
+  }
+  return `${currency || "USD"} ${(amountCents / 100).toLocaleString("es-CO", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  })}`;
+}
+
 export function CommerceProviderAdminPage({ initialProviderKey = "rebill" }: Props) {
   const [providers, setProviders] = useState<CommerceProviderDefinitionResponse[]>([]);
   const [providerKey, setProviderKey] = useState<CommercePaymentProviderKey>(initialProviderKey);
@@ -170,11 +185,16 @@ export function CommerceProviderAdminPage({ initialProviderKey = "rebill" }: Pro
     webhookSigningSecret: "",
     webhookUrlSecret: "",
   });
-  const [mappingForm, setMappingForm] = useState({
+  const [mappingForm, setMappingForm] = useState<MappingForm>({
     billingMode: "one_time",
     currency: "USD",
+    entitlementScope: "project",
+    grantsTier: "blueprint_pro",
     internalProductKey: "blueprint_pro",
+    internalUnitAmountCents: "",
+    isActive: true,
     packageCode: "",
+    priceStrategy: "provider_authoritative",
     providerOfferRef: "",
     providerPaymentLinkId: "",
     providerPlanId: "",
@@ -271,9 +291,14 @@ export function CommerceProviderAdminPage({ initialProviderKey = "rebill" }: Pro
       await commerceProviderAdminApi.upsertMapping(providerKey, {
         billing_mode: mappingForm.billingMode as "one_time" | "subscription",
         currency: mappingForm.currency,
+        entitlement_scope: mappingForm.entitlementScope,
         environment,
+        grants_tier: mappingForm.grantsTier,
         internal_product_key: mappingForm.internalProductKey,
+        internal_unit_amount_usd_cents: Number.parseInt(mappingForm.internalUnitAmountCents.replace(/\D/g, ""), 10) || 0,
+        is_active: mappingForm.isActive,
         package_code: mappingForm.packageCode,
+        price_strategy: mappingForm.priceStrategy,
         provider_offer_ref: mappingForm.providerOfferRef,
         provider_payment_link_id: mappingForm.providerPaymentLinkId,
         provider_plan_id: mappingForm.providerPlanId,
@@ -521,6 +546,11 @@ function MappingsPanel({
         <TextInput label="Producto LAB" value={form.internalProductKey} onChange={(internalProductKey) => updateForm((current) => ({ ...current, internalProductKey }))} />
         <TextInput label="Package code" value={form.packageCode} onChange={(packageCode) => updateForm((current) => ({ ...current, packageCode }))} />
         <TextInput label="Moneda" value={form.currency} onChange={(currency) => updateForm((current) => ({ ...current, currency }))} />
+        <TextInput
+          label="Monto checkout en centavos"
+          value={form.internalUnitAmountCents}
+          onChange={(internalUnitAmountCents) => updateForm((current) => ({ ...current, internalUnitAmountCents }))}
+        />
         <SelectInput
           label="Modo"
           value={form.billingMode}
@@ -530,6 +560,34 @@ function MappingsPanel({
           ]}
           onChange={(billingMode) => updateForm((current) => ({ ...current, billingMode }))}
         />
+        <SelectInput
+          label="Tier otorgado"
+          value={form.grantsTier}
+          options={[
+            ["blueprint", "Blueprint"],
+            ["blueprint_pro", "Blueprint Pro"],
+            ["acp", "ACP"],
+          ]}
+          onChange={(grantsTier) => updateForm((current) => ({ ...current, grantsTier: grantsTier as MappingForm["grantsTier"] }))}
+        />
+        <SelectInput
+          label="Estrategia de precio"
+          value={form.priceStrategy}
+          options={[
+            ["provider_authoritative", "Provider authoritative"],
+            ["internal_authoritative", "Internal authoritative"],
+          ]}
+          onChange={(priceStrategy) => updateForm((current) => ({ ...current, priceStrategy }))}
+        />
+        <TextInput label="Scope entitlement" value={form.entitlementScope} onChange={(entitlementScope) => updateForm((current) => ({ ...current, entitlementScope }))} />
+        <label className="flex items-center gap-2 text-[13px] font-medium text-[var(--text-primary)]">
+          <input
+            checked={form.isActive}
+            onChange={(event) => updateForm((current) => ({ ...current, isActive: event.target.checked }))}
+            type="checkbox"
+          />
+          Mapping activo
+        </label>
         <TextInput label={labels.providerProductId} value={form.providerProductId} onChange={(providerProductId) => updateForm((current) => ({ ...current, providerProductId }))} />
         <TextInput label={labels.providerPlanId} value={form.providerPlanId} onChange={(providerPlanId) => updateForm((current) => ({ ...current, providerPlanId }))} />
         <TextInput label={labels.providerPriceId} value={form.providerPriceId} onChange={(providerPriceId) => updateForm((current) => ({ ...current, providerPriceId }))} />
@@ -544,12 +602,12 @@ function MappingsPanel({
         Guardar mapping
       </AppButton>
       <DataTable
-        columns={["Producto", "Paquete", "Modo", "Moneda", "Provider IDs", "Estado"]}
+        columns={["Producto", "Paquete", "Modo", "Monto", "Provider IDs", "Estado"]}
         rows={mappings.map((mapping) => [
           mapping.internal_product_key,
           mapping.package_code || "default",
           mapping.billing_mode,
-          mapping.currency,
+          formatMinorAmount(mapping.currency, mapping.internal_unit_amount_usd_cents),
           [mapping.provider_product_id, mapping.provider_plan_id, mapping.provider_price_id, mapping.provider_payment_link_id].filter(Boolean).join(" · ") || "sin ID",
           mapping.is_active ? "activo" : "inactivo",
         ])}
@@ -663,11 +721,13 @@ function Metric({
 }
 
 function TextInput({
+  autoComplete,
   label,
   onChange,
   type = "text",
   value,
 }: {
+  autoComplete?: string;
   label: string;
   onChange: (value: string) => void;
   type?: string;
@@ -677,8 +737,10 @@ function TextInput({
     <label className="block text-[12px] font-semibold text-[var(--text-secondary)]">
       {label}
       <input
+        autoComplete={autoComplete || (type === "password" ? "new-password" : "off")}
         className="mt-1 h-10 w-full rounded-[8px] border border-[var(--border-default)] bg-white px-3 text-[14px] text-[var(--text-primary)] outline-none"
         onChange={(event) => onChange(event.target.value)}
+        spellCheck={false}
         type={type}
         value={value}
       />
