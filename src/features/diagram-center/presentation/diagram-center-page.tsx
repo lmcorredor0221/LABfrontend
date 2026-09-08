@@ -64,7 +64,8 @@ const DIAGRAM_COPY: Record<
     title: string;
     engine: string;
     inCatalog: string;
-    availableCount: string;
+    generatedCount: string;
+    pendingCount: string;
     lockedCount: string;
     retry: string;
     search: string;
@@ -110,7 +111,8 @@ const DIAGRAM_COPY: Record<
     title: "Diagramas de la solución",
     engine: "Motor gobernado",
     inCatalog: "En catálogo",
-    availableCount: "Disponibles",
+    generatedCount: "Generados",
+    pendingCount: "Por generar",
     lockedCount: "Por desbloquear",
     retry: "Reintentar",
     search: "Buscar diagramas",
@@ -155,7 +157,8 @@ const DIAGRAM_COPY: Record<
     title: "Solution diagrams",
     engine: "Governed engine",
     inCatalog: "In catalog",
-    availableCount: "Available",
+    generatedCount: "Generated",
+    pendingCount: "To generate",
     lockedCount: "Locked",
     retry: "Retry",
     search: "Search diagrams",
@@ -200,7 +203,8 @@ const DIAGRAM_COPY: Record<
     title: "Diagramas da solução",
     engine: "Motor governado",
     inCatalog: "No catálogo",
-    availableCount: "Disponíveis",
+    generatedCount: "Gerados",
+    pendingCount: "Por gerar",
     lockedCount: "Bloqueados",
     retry: "Tentar novamente",
     search: "Buscar diagramas",
@@ -256,6 +260,7 @@ function formatDate(value: string | null, language: SupportedLanguage) {
 function statusClass(item: DiagramCatalogItem) {
   if (["queued", "generating", "updating"].includes(item.generation_state)) return styles.statusWorking;
   if (item.generation_state === "error") return styles.statusError;
+  if (item.generation_state === "pending" && item.access.can_generate) return styles.statusPreview;
   if (item.access.access_state === "available") return styles.statusAvailable;
   if (item.access.access_state === "preview") return styles.statusPreview;
   if (item.access.access_state === "stage_locked") return styles.statusStage;
@@ -264,16 +269,19 @@ function statusClass(item: DiagramCatalogItem) {
 
 function ItemStatus({ item, language }: { item: DiagramCatalogItem; language: SupportedLanguage }) {
   const working = ["queued", "generating", "updating"].includes(item.generation_state);
+  const readyToGenerate = item.generation_state === "pending" && item.access.can_generate;
   const Icon = working
     ? LoaderCircle
     : item.generation_state === "error"
       ? AlertTriangle
-      : item.access.access_state === "available"
+      : readyToGenerate
+        ? Sparkles
+        : item.access.access_state === "available"
         ? CheckCircle2
         : item.access.access_state === "stage_locked"
           ? Clock3
           : LockKeyhole;
-  const label = working || item.generation_state === "error"
+  const label = working || item.generation_state === "error" || readyToGenerate
     ? GENERATION_LABELS[language][item.generation_state]
     : ACCESS_LABELS[language][item.access.access_state];
   return (
@@ -420,8 +428,9 @@ export function DiagramCenterPage({
   );
   const summary = useMemo(
     () => ({
-      available: entries.filter((item) => item.access.access_state === "available").length,
+      generated: entries.filter((item) => item.generation_state === "available").length,
       locked: entries.filter((item) => ["disabled", "locked", "stage_locked"].includes(item.access.access_state)).length,
+      pending: entries.filter((item) => item.generation_state === "pending" && item.access.can_generate).length,
       total: entries.length,
     }),
     [entries],
@@ -484,7 +493,8 @@ export function DiagramCenterPage({
         </div>
         <div aria-label="Resumen del catálogo" className={styles.summary}>
           <div className={styles.summaryItem}><strong>{catalogStatus === "loading" && !catalog ? "—" : summary.total}</strong><span>{copy.inCatalog}</span></div>
-          <div className={styles.summaryItem}><strong>{catalogStatus === "loading" && !catalog ? "—" : summary.available}</strong><span>{copy.availableCount}</span></div>
+          <div className={styles.summaryItem}><strong>{catalogStatus === "loading" && !catalog ? "—" : summary.generated}</strong><span>{copy.generatedCount}</span></div>
+          <div className={styles.summaryItem}><strong>{catalogStatus === "loading" && !catalog ? "—" : summary.pending}</strong><span>{copy.pendingCount}</span></div>
           <div className={styles.summaryItem}><strong>{catalogStatus === "loading" && !catalog ? "—" : summary.locked}</strong><span>{copy.lockedCount}</span></div>
         </div>
       </header>

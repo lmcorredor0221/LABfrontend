@@ -9,7 +9,7 @@ const generate = vi.fn();
 const setSelectedKey = vi.fn();
 
 const catalog: DiagramCatalog = {
-  available_count: 1,
+  available_count: 2,
   contract_version: "diagram-catalog.v3",
   current_stage: "design",
   entries: [
@@ -57,6 +57,39 @@ const catalog: DiagramCatalog = {
     },
     {
       access: {
+        access_state: "available",
+        can_compare: true,
+        can_download: true,
+        can_generate: true,
+        can_regenerate: false,
+        can_view: true,
+        cta_label: "",
+        reason: "Disponible por plan y etapa.",
+        reason_code: "entitled",
+        required_tier: "blueprint_pro",
+        visible: true,
+      },
+      available_actions: ["generate"],
+      benefit: "Permite validar separación de responsabilidades.",
+      category: "architecture",
+      complexity: "advanced",
+      current_version: null,
+      description: "Capas lógicas, servicios y responsabilidades.",
+      family: "architecture",
+      generation_state: "pending",
+      key: "logical_architecture",
+      layout_upgrade_reason: "",
+      needs_layout_upgrade: false,
+      notation: "flowchart",
+      products: ["blueprint", "acp"],
+      required_tier: "blueprint_pro",
+      stage: "design",
+      title: "Arquitectura lógica",
+      type: "logical_architecture",
+      updated_at: null,
+    },
+    {
+      access: {
         access_state: "locked",
         can_compare: false,
         can_download: false,
@@ -94,7 +127,7 @@ const catalog: DiagramCatalog = {
   project_id: "project-1",
   provider_key: "deepseek",
   tier: "blueprint",
-  total_count: 2,
+  total_count: 3,
   workspace_id: "workspace-1",
 };
 
@@ -160,6 +193,7 @@ describe("DiagramCenterPage", () => {
 
     expect(screen.getByRole("heading", { name: /diagramas de la soluci/i })).toBeInTheDocument();
     expect(screen.getAllByText("Arquitectura de solución").length).toBeGreaterThan(0);
+    expect(screen.getByText("Arquitectura lógica")).toBeInTheDocument();
     expect(screen.getByText("Diagrama de despliegue")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Diagrama Arquitectura de solución" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Vista desplazable de Arquitectura de solución" })).toHaveAttribute(
@@ -167,6 +201,19 @@ describe("DiagramCenterPage", () => {
       "0",
     );
     expect(screen.getByText("Proveedor: Deepseek")).toBeInTheDocument();
+  });
+
+  it("separates generated diagrams from entitled diagrams still pending generation", () => {
+    renderPage();
+
+    const summary = screen.getByLabelText("Resumen del catálogo");
+
+    expect(within(summary).getByText("En catálogo")).toBeInTheDocument();
+    expect(within(summary).getByText("Generados")).toBeInTheDocument();
+    expect(within(summary).getByText("Por generar")).toBeInTheDocument();
+    expect(within(summary).getByText("Por desbloquear")).toBeInTheDocument();
+    expect(screen.getByText("Pendiente")).toBeInTheDocument();
+    expect(screen.queryByText("Disponibles")).not.toBeInTheDocument();
   });
 
   it("filters by search and keeps the locked value discoverable", async () => {
