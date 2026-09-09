@@ -7,12 +7,18 @@ import { HotmartAdminView } from "@/features/hotmart/hotmart-admin-page";
 import type { HotmartAdminApi } from "@/features/hotmart/hotmart-api";
 import type { CommercialAdminBootstrapData, HotmartDashboardData } from "@/features/hotmart/hotmart-contracts";
 
+const platformAdminWorkspacesMock = vi.hoisted(() => vi.fn());
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/settings/hotmart",
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),
   }),
+}));
+
+vi.mock("@/features/platform-admin/platform-admin-api", () => ({
+  getPlatformAdminWorkspaces: platformAdminWorkspacesMock,
 }));
 
 const dashboard: HotmartDashboardData = {
@@ -250,6 +256,37 @@ const dashboardBootstrap = {
   products: dashboard.products,
   status: dashboard.status,
 };
+
+const platformWorkspaces = [
+  {
+    active_runtime_provider: "openai",
+    created_at: "2026-08-14T10:00:00Z",
+    hotmart_enabled: true,
+    hotmart_status: "connected",
+    id: "workspace-1",
+    member_count: 1,
+    name: "Workspace principal",
+    owner_emails: ["admin@example.com"],
+    project_count: 1,
+    slug: "workspace-principal",
+    updated_at: "2026-08-14T10:00:00Z",
+    uses_platform_credentials: true,
+  },
+  {
+    active_runtime_provider: "openai",
+    created_at: "2026-08-14T10:00:00Z",
+    hotmart_enabled: true,
+    hotmart_status: "connected",
+    id: "workspace-customer",
+    member_count: 1,
+    name: "Cliente ACP",
+    owner_emails: ["cliente@example.com"],
+    project_count: 1,
+    slug: "cliente-acp",
+    updated_at: "2026-08-14T10:00:00Z",
+    uses_platform_credentials: true,
+  },
+];
 
 const commercialBootstrap: CommercialAdminBootstrapData = {
   balanceSnapshot: {
@@ -536,6 +573,11 @@ function renderView(api: HotmartAdminApi, role: "admin" | "viewer" = "admin", pl
 
 describe("HotmartAdminView", () => {
   beforeEach(() => {
+    platformAdminWorkspacesMock.mockReset();
+    platformAdminWorkspacesMock.mockResolvedValue({
+      total: platformWorkspaces.length,
+      workspaces: platformWorkspaces,
+    });
     Object.defineProperty(window, "localStorage", {
       configurable: true,
       value: {
@@ -799,24 +841,46 @@ describe("HotmartAdminView", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Comercial" }));
 
-    expect(await screen.findByText("Motor comercial por cliente/workspace")).toBeInTheDocument();
-    expect(api.getCommercialBootstrap).toHaveBeenCalledWith({ productKey: "blueprint_pro" });
+    expect(await screen.findByText("Motor comercial por producto y workspace")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Workspace observado")).toBeInTheDocument();
+    expect(api.getCommercialBootstrap).toHaveBeenCalledWith({ productKey: "blueprint_pro", workspaceId: "workspace-1" });
     expect(api.listCommercialBalanceLedger).not.toHaveBeenCalled();
     expect(api.listCommercialPackageCatalog).not.toHaveBeenCalled();
     expect(api.listCommercialDebts).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Balance" }));
     expect(await screen.findByText("Ledger reciente")).toBeInTheDocument();
-    expect(api.listCommercialBalanceLedger).toHaveBeenCalledWith("blueprint_pro");
+    expect(api.listCommercialBalanceLedger).toHaveBeenCalledWith("blueprint_pro", "workspace-1");
 
     fireEvent.click(screen.getByRole("button", { name: "Paquetes" }));
     expect(await screen.findByText("Catalogo de paquetes")).toBeInTheDocument();
     expect(api.listCommercialPackageCatalog).toHaveBeenCalledWith("", true);
-    expect(api.listCommercialLegacyPackageResolutions).toHaveBeenCalledWith({ productKey: "blueprint_pro" });
+    expect(api.listCommercialLegacyPackageResolutions).toHaveBeenCalledWith({ productKey: "blueprint_pro", workspaceId: "workspace-1" });
 
     fireEvent.click(screen.getByRole("button", { name: "Deudas" }));
     expect((await screen.findAllByText("Deudas abiertas")).length).toBeGreaterThan(0);
-    expect(api.listCommercialDebts).toHaveBeenCalledWith({ productKey: "blueprint_pro", status: "open" });
+    expect(api.listCommercialDebts).toHaveBeenCalledWith({ productKey: "blueprint_pro", status: "open", workspaceId: "workspace-1" });
+  });
+
+  it("reloads commercial workspace metrics when the platform admin changes the observed workspace", async () => {
+    const api = createMockApi();
+
+    renderView(api);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Comercial" }));
+
+    const workspaceSelect = await screen.findByLabelText("Workspace observado");
+    expect(await screen.findByRole("option", { name: "Cliente ACP" })).toHaveValue("workspace-customer");
+    expect(await screen.findByText("Saldo workspace observado")).toBeInTheDocument();
+
+    fireEvent.change(workspaceSelect, { target: { value: "workspace-customer" } });
+
+    await waitFor(() => {
+      expect(api.getCommercialBootstrap).toHaveBeenCalledWith({
+        productKey: "blueprint_pro",
+        workspaceId: "workspace-customer",
+      });
+    });
   });
 
   it("shows ACP as a configurable commercial quota product even when the public catalog bootstrap omits it", async () => {
@@ -833,7 +897,7 @@ describe("HotmartAdminView", () => {
     fireEvent.change(productSelect, { target: { value: "acp" } });
 
     await waitFor(() => {
-      expect(api.getCommercialBootstrap).toHaveBeenCalledWith({ productKey: "acp" });
+      expect(api.getCommercialBootstrap).toHaveBeenCalledWith({ productKey: "acp", workspaceId: "workspace-1" });
     });
     expect(await screen.findByLabelText("ACP gratis iniciales")).toBeInTheDocument();
   });

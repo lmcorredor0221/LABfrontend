@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
   ExternalLink,
@@ -30,6 +30,10 @@ import { useAuth } from "@/core/auth/auth-context";
 import { OperationsModuleShell } from "@/features/operations/operations-module-shell";
 import { formatDateTime, getStatusTone } from "@/features/operations/operations-adapter";
 import { useOperationalSession } from "@/features/operations/use-operational-session";
+import {
+  getPlatformAdminWorkspaces,
+  type PlatformAdminWorkspaceSummary,
+} from "@/features/platform-admin/platform-admin-api";
 import { getSessionProjectRoute } from "@/features/sessions/session-routes";
 import type { ProductCatalogResponse, SessionStage } from "@/features/sessions/types";
 import { EmptyState, ErrorState, LoadingState } from "@/shared/states/runtime-states";
@@ -73,6 +77,12 @@ type AsyncState<TData> =
 type FeedbackState = {
   message: string;
   tone: "error" | "info" | "success";
+};
+
+type SelectOption = {
+  disabled?: boolean;
+  label: string;
+  value: string;
 };
 
 type HotmartAdminSession = {
@@ -655,6 +665,7 @@ const COMMERCIAL_PRODUCT_LABELS: Record<string, string> = {
   blueprint: "Blueprint",
   blueprint_pro: "Blueprint Pro",
 };
+const EMPTY_PLATFORM_WORKSPACES: PlatformAdminWorkspaceSummary[] = [];
 
 function getProductOptions(
   products: ProductCatalogResponse[],
@@ -701,6 +712,63 @@ function getProductLabel(
     COMMERCIAL_PRODUCT_LABELS[productKey] ??
     productKey
   );
+}
+
+function shortenWorkspaceId(workspaceId: string) {
+  return workspaceId.length > 12 ? `${workspaceId.slice(0, 8)}...` : workspaceId;
+}
+
+function getUserWorkspaceLabel(user: AuthUser | null, workspaceId: string) {
+  const membership = user?.workspaces.find((workspace) => workspace.workspace_id === workspaceId);
+  return membership?.workspace_name || membership?.workspace_slug || "";
+}
+
+function getCommercialWorkspaceLabel(
+  workspaces: PlatformAdminWorkspaceSummary[],
+  workspaceId: string,
+  user: AuthUser | null,
+) {
+  const workspace = workspaces.find((item) => item.id === workspaceId);
+  return workspace?.name || workspace?.slug || getUserWorkspaceLabel(user, workspaceId) || `Workspace ${shortenWorkspaceId(workspaceId)}`;
+}
+
+function getCommercialWorkspaceOptions(
+  workspaces: PlatformAdminWorkspaceSummary[],
+  selectedWorkspaceId: string,
+  user: AuthUser | null,
+): SelectOption[] {
+  const options = workspaces.map((workspace) => ({
+    label: workspace.name || workspace.slug || `Workspace ${shortenWorkspaceId(workspace.id)}`,
+    value: workspace.id,
+  }));
+  if (selectedWorkspaceId && !options.some((option) => option.value === selectedWorkspaceId)) {
+    options.unshift({
+      label: getCommercialWorkspaceLabel(workspaces, selectedWorkspaceId, user),
+      value: selectedWorkspaceId,
+    });
+  }
+  return options.length > 0
+    ? options
+    : [
+        {
+          disabled: true,
+          label: "Sin workspaces disponibles",
+          value: "",
+        },
+      ];
+}
+
+function getCommercialWorkspaceHint(workspacesState: AsyncState<PlatformAdminWorkspaceSummary[]>, selectedWorkspaceId: string) {
+  if (workspacesState.status === "loading") {
+    return "Cargando workspaces de plataforma.";
+  }
+  if (workspacesState.status === "error") {
+    return workspacesState.error;
+  }
+  if (!selectedWorkspaceId) {
+    return "Selecciona un workspace para observar saldos, ledger y deudas.";
+  }
+  return "Balance, ledger, deudas y overrides se filtran por este workspace.";
 }
 
 function getProductPriceCode(products: ProductCatalogResponse[], productKey: string) {
@@ -2253,6 +2321,7 @@ function HotmartCommercialAdminPanel({
   onPackageDraftChange,
   onLegacyPackageDraftChange,
   onProductChange,
+  onWorkspaceChange,
   onQuotaDraftChange,
   onReloadSection,
   onOverrideDraftChange,
@@ -2271,6 +2340,10 @@ function HotmartCommercialAdminPanel({
   savingOverride,
   sectionLoadState,
   selectedProductKey,
+  selectedWorkspaceId,
+  workspaceOptions,
+  workspaceSelectorDisabled,
+  workspaceSelectorHint,
 }: {
   activeSectionTab: CommercialTab;
   data: CommercialAdminDashboardData;
@@ -2281,6 +2354,7 @@ function HotmartCommercialAdminPanel({
   onPackageDraftChange: (patch: Partial<CommercialPackageDraft>) => void;
   onLegacyPackageDraftChange: (orderId: string, packageCode: string) => void;
   onProductChange: (productKey: string) => void;
+  onWorkspaceChange: (workspaceId: string) => void;
   onQuotaDraftChange: (patch: Partial<CommercialQuotaDraft>) => void;
   onReloadSection: () => void;
   onOverrideDraftChange: (patch: Partial<CommercialOverrideDraft>) => void;
@@ -2299,6 +2373,10 @@ function HotmartCommercialAdminPanel({
   savingOverride: boolean;
   sectionLoadState: CommercialSectionLoadState | null;
   selectedProductKey: string;
+  selectedWorkspaceId: string;
+  workspaceOptions: SelectOption[];
+  workspaceSelectorDisabled: boolean;
+  workspaceSelectorHint: string;
 }) {
   const productOptions = getCommercialQuotaProductOptions(data.quotaConfigs).map((item) => ({
     label: item.label,
@@ -2666,7 +2744,11 @@ function HotmartCommercialAdminPanel({
     <div className="space-y-5">
       <div className="grid gap-4 xl:grid-cols-4">
         <Panel className="p-5">
-          <KeyValue label="Saldo disponible" value={String(data.balanceSnapshot.total_available_units)} hint={selectedProductKey} />
+          <KeyValue
+            label="Saldo workspace observado"
+            value={String(data.balanceSnapshot.total_available_units)}
+            hint={`${selectedProductKey} · ${shortenWorkspaceId(data.balanceSnapshot.workspace_id || selectedWorkspaceId)}`}
+          />
         </Panel>
         <Panel className="p-5">
           <KeyValue
@@ -2694,13 +2776,23 @@ function HotmartCommercialAdminPanel({
       <Panel className="p-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl space-y-2">
-            <Badge tone="violet">Platform Admin</Badge>
-            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Motor comercial por cliente/workspace</p>
+            <Badge tone="violet">Consola global</Badge>
+            <p className="text-[20px] font-semibold text-[var(--text-primary)]">Motor comercial por producto y workspace</p>
             <p className="text-[14px] leading-7 text-[var(--text-secondary)]">
-              Esta vista se divide por capacidad y solo carga datos detallados cuando entras en cada seccion. Asi evitamos abrir el tablero comercial completo en cada acceso.
+              Planes y cuotas son globales por producto; saldos, ledger, deudas y overrides se calculan para el workspace observado.
             </p>
           </div>
-          <SelectField label="Producto" onValueChange={onProductChange} options={productOptions} value={selectedProductKey} />
+          <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[560px]">
+            <SelectField
+              disabled={workspaceSelectorDisabled}
+              label="Workspace observado"
+              onValueChange={onWorkspaceChange}
+              options={workspaceOptions}
+              value={selectedWorkspaceId}
+              hint={workspaceSelectorHint}
+            />
+            <SelectField label="Producto" onValueChange={onProductChange} options={productOptions} value={selectedProductKey} />
+          </div>
         </div>
         <div className="mt-4">
           <TabList active={activeSectionTab} onChange={(value) => onSectionChange(value as CommercialTab)} tabs={[...COMMERCIAL_TABS]} />
@@ -2787,6 +2879,9 @@ export function HotmartAdminView({
   const [commercialOverridePending, setCommercialOverridePending] = useState(false);
   const [commercialDebtPendingId, setCommercialDebtPendingId] = useState<string | null>(null);
   const [commercialLegacyResolutionPendingId, setCommercialLegacyResolutionPendingId] = useState<string | null>(null);
+  const [commercialWorkspaceId, setCommercialWorkspaceId] = useState(user?.active_workspace_id ?? "");
+  const [platformWorkspacesState, setPlatformWorkspacesState] = useState<AsyncState<PlatformAdminWorkspaceSummary[]>>(createIdleState);
+  const platformWorkspacesRequestIdRef = useRef(0);
   const hotmartTabs = useMemo(
     () => (isPlatformAdmin ? [...HOTMART_TABS, ...HOTMART_PLATFORM_TABS] : HOTMART_TABS),
     [isPlatformAdmin],
@@ -2978,7 +3073,17 @@ export function HotmartAdminView({
 
   const dashboardData = dashboardState.status === "ready" ? dashboardState.data : null;
   const commercialData = commercialState.status === "ready" ? commercialState.data : null;
+  const commercialTargetWorkspaceId = commercialWorkspaceId || user?.active_workspace_id || "";
   const activeTabLoadState = useMemo(() => getHotmartTabLoadState(activeTab, sectionStates), [activeTab, sectionStates]);
+  const platformWorkspaces = platformWorkspacesState.status === "ready" ? platformWorkspacesState.data : EMPTY_PLATFORM_WORKSPACES;
+  const commercialWorkspaceOptions = useMemo(
+    () => getCommercialWorkspaceOptions(platformWorkspaces, commercialTargetWorkspaceId, user),
+    [commercialTargetWorkspaceId, platformWorkspaces, user],
+  );
+  const commercialWorkspaceSelectorHint = useMemo(
+    () => getCommercialWorkspaceHint(platformWorkspacesState, commercialTargetWorkspaceId),
+    [commercialTargetWorkspaceId, platformWorkspacesState],
+  );
 
   useEffect(() => {
     if (!dashboardData || activeTab === "Comercial") {
@@ -2991,6 +3096,56 @@ export function HotmartAdminView({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- El modulo hidrata la pestaña activa bajo demanda cuando cambia el foco de la vista.
     void ensureDashboardSections(sections);
   }, [activeTab, dashboardData, ensureDashboardSections, sectionStates]);
+
+  useEffect(() => {
+    if (commercialWorkspaceId || !user?.active_workspace_id) {
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- La consola comercial necesita un workspace observado inicial para consultar saldos.
+    setCommercialWorkspaceId(user.active_workspace_id);
+  }, [commercialWorkspaceId, user?.active_workspace_id]);
+
+  useEffect(() => {
+    if (!isPlatformAdmin || activeTab !== "Comercial" || platformWorkspacesState.status !== "idle") {
+      return;
+    }
+    const requestId = platformWorkspacesRequestIdRef.current + 1;
+    platformWorkspacesRequestIdRef.current = requestId;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- El selector de workspace se hidrata bajo demanda al entrar a Comercial.
+    setPlatformWorkspacesState({ data: null, error: null, status: "loading" });
+    void getPlatformAdminWorkspaces(100)
+      .then((response) => {
+        if (platformWorkspacesRequestIdRef.current !== requestId) {
+          return;
+        }
+        setPlatformWorkspacesState({ data: response.workspaces, error: null, status: "ready" });
+        setCommercialWorkspaceId((current) => {
+          if (current && response.workspaces.some((workspace) => workspace.id === current)) {
+            return current;
+          }
+          if (user?.active_workspace_id && response.workspaces.some((workspace) => workspace.id === user.active_workspace_id)) {
+            return user.active_workspace_id;
+          }
+          return response.workspaces[0]?.id ?? current;
+        });
+      })
+      .catch((error) => {
+        if (platformWorkspacesRequestIdRef.current !== requestId) {
+          return;
+        }
+        setPlatformWorkspacesState({
+          data: null,
+          error: getErrorMessage(error, "No se pudo cargar la lista global de workspaces."),
+          status: "error",
+        });
+      });
+  }, [activeTab, isPlatformAdmin, platformWorkspacesState.status, user?.active_workspace_id]);
+
+  useEffect(() => {
+    return () => {
+      platformWorkspacesRequestIdRef.current += 1;
+    };
+  }, []);
 
   useEffect(() => {
     if (!dashboardData) {
@@ -3011,12 +3166,12 @@ export function HotmartAdminView({
       switch (section) {
         case "balance":
           return {
-            balanceLedger: await api.listCommercialBalanceLedger(commercialProductKey),
+            balanceLedger: await api.listCommercialBalanceLedger(commercialProductKey, commercialTargetWorkspaceId),
           };
         case "packages": {
           const [packageCatalog, legacyPackageResolutions] = await Promise.all([
             api.listCommercialPackageCatalog("", true),
-            api.listCommercialLegacyPackageResolutions({ productKey: commercialProductKey }),
+            api.listCommercialLegacyPackageResolutions({ productKey: commercialProductKey, workspaceId: commercialTargetWorkspaceId }),
           ]);
           const packageCandidate =
             packageCatalog.find((item) => item.product_key === commercialProductKey) ??
@@ -3030,7 +3185,11 @@ export function HotmartAdminView({
           };
         }
         case "debts": {
-          const debts = await api.listCommercialDebts({ productKey: commercialProductKey, status: "open" });
+          const debts = await api.listCommercialDebts({
+            productKey: commercialProductKey,
+            status: "open",
+            workspaceId: commercialTargetWorkspaceId,
+          });
           return {
             debts,
             openDebtCount: debts.length,
@@ -3040,7 +3199,7 @@ export function HotmartAdminView({
           return {};
       }
     },
-    [api, commercialProductKey],
+    [api, commercialProductKey, commercialTargetWorkspaceId],
   );
 
   const ensureCommercialSections = useCallback(
@@ -3086,10 +3245,21 @@ export function HotmartAdminView({
     if (!canManage || !isPlatformAdmin) {
       return;
     }
+    if (!commercialTargetWorkspaceId) {
+      setCommercialState({
+        data: null,
+        error: "Selecciona un workspace observado para cargar saldos, ledger y deudas.",
+        status: "error",
+      });
+      return;
+    }
     setCommercialState({ data: null, error: null, status: "loading" });
     setCommercialSectionStates(createCommercialSectionStates());
     try {
-      const bootstrap = await api.getCommercialBootstrap({ productKey: commercialProductKey });
+      const bootstrap = await api.getCommercialBootstrap({
+        productKey: commercialProductKey,
+        workspaceId: commercialTargetWorkspaceId,
+      });
       let nextData = createCommercialAdminDashboardData(bootstrap);
       const initialSections = getCommercialTabSections(activeCommercialTab);
       if (initialSections.length > 0) {
@@ -3129,15 +3299,24 @@ export function HotmartAdminView({
         status: "error",
       });
     }
-  }, [activeCommercialTab, api, canManage, commercialProductKey, isPlatformAdmin, loadCommercialSection, updateCommercialSectionStates]);
+  }, [
+    activeCommercialTab,
+    api,
+    canManage,
+    commercialProductKey,
+    commercialTargetWorkspaceId,
+    isPlatformAdmin,
+    loadCommercialSection,
+    updateCommercialSectionStates,
+  ]);
 
   useEffect(() => {
-    if (activeTab !== "Comercial" || !isPlatformAdmin) {
+    if (activeTab !== "Comercial" || !isPlatformAdmin || !commercialTargetWorkspaceId) {
       return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- La vista comercial se carga solo al entrar a la pestaña correspondiente.
     void loadCommercialDashboard();
-  }, [activeTab, isPlatformAdmin, loadCommercialDashboard]);
+  }, [activeTab, commercialTargetWorkspaceId, isPlatformAdmin, loadCommercialDashboard]);
 
   const activeCommercialTabLoadState = useMemo(
     () => getCommercialTabLoadState(activeCommercialTab, commercialSectionStates),
@@ -3733,9 +3912,9 @@ export function HotmartAdminView({
   }
 
   async function handleSaveCommercialOverride() {
-    const workspaceId = dashboardData?.status.workspace_id ?? user?.active_workspace_id;
+    const workspaceId = commercialTargetWorkspaceId;
     if (!workspaceId) {
-      setCommercialFeedback({ message: "No se pudo resolver el workspace activo para guardar el override.", tone: "error" });
+      setCommercialFeedback({ message: "Selecciona el workspace observado antes de guardar el override.", tone: "error" });
       return;
     }
     setCommercialOverridePending(true);
@@ -3810,15 +3989,23 @@ export function HotmartAdminView({
     if (remaining <= 0) {
       return;
     }
+    if (!commercialTargetWorkspaceId) {
+      setCommercialFeedback({ message: "Selecciona el workspace observado antes de liquidar la deuda.", tone: "error" });
+      return;
+    }
     setCommercialDebtPendingId(debt.id);
     setCommercialFeedback(null);
     try {
-      await api.settleCommercialDebt(debt.id, {
-        amount_cents: remaining,
-        currency: debt.currency,
-        resolution_note: "Liquidacion total desde consola Hotmart.",
-        settlement_kind: "manual",
-      });
+      await api.settleCommercialDebt(
+        debt.id,
+        {
+          amount_cents: remaining,
+          currency: debt.currency,
+          resolution_note: "Liquidacion total desde consola Hotmart.",
+          settlement_kind: "manual",
+        },
+        commercialTargetWorkspaceId,
+      );
       setCommercialFeedback({ message: "Deuda liquidada y auditada.", tone: "success" });
       await loadCommercialDashboard();
     } catch (error) {
@@ -3832,11 +4019,11 @@ export function HotmartAdminView({
   }
 
   async function handleResolveCommercialLegacyPackageResolution(resolution: CommercialLegacyPackageResolutionResponse) {
-    const workspaceId = dashboardData?.status.workspace_id ?? user?.active_workspace_id;
+    const workspaceId = commercialTargetWorkspaceId;
     const selectedPackageCode =
       commercialLegacyResolutionDrafts[resolution.order_id] || resolution.candidate_packages[0]?.package_code || "";
     if (!workspaceId) {
-      setCommercialFeedback({ message: "No se pudo resolver el workspace activo para cerrar la orden legacy.", tone: "error" });
+      setCommercialFeedback({ message: "Selecciona el workspace observado antes de cerrar la orden legacy.", tone: "error" });
       return;
     }
     if (!selectedPackageCode) {
@@ -4091,6 +4278,7 @@ export function HotmartAdminView({
                   }
                   onPackageDraftChange={(patch) => setCommercialPackageDraft((current) => ({ ...current, ...patch }))}
                   onProductChange={setCommercialProductKey}
+                  onWorkspaceChange={setCommercialWorkspaceId}
                   onQuotaDraftChange={(patch) => setCommercialQuotaDraft((current) => ({ ...current, ...patch, product_key: commercialProductKey }))}
                   onReloadSection={() =>
                     void ensureCommercialSections(getCommercialTabSections(activeCommercialTab), { forceReload: true })
@@ -4111,6 +4299,10 @@ export function HotmartAdminView({
                   savingOverride={commercialOverridePending}
                   sectionLoadState={activeCommercialTabLoadState}
                   selectedProductKey={commercialProductKey}
+                  selectedWorkspaceId={commercialTargetWorkspaceId}
+                  workspaceOptions={commercialWorkspaceOptions}
+                  workspaceSelectorDisabled={commercialWorkspaceOptions.every((option) => option.disabled)}
+                  workspaceSelectorHint={commercialWorkspaceSelectorHint}
                 />
               ) : null
             ) : null}

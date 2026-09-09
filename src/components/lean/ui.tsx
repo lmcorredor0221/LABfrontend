@@ -511,6 +511,7 @@ export function SelectField({
   defaultValue,
   error,
   hint,
+  id,
   label,
   onChange,
   onValueChange,
@@ -518,8 +519,17 @@ export function SelectField({
   placeholder,
   required,
   value,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
   ...props
 }: SelectFieldProps) {
+  const generatedId = useId();
+  const selectId = id ?? generatedId;
+  const hintId = hint ? `${selectId}-hint` : undefined;
+  const errorId = error ? `${selectId}-error` : undefined;
+  const describedBy = [ariaDescribedBy, hintId, errorId]
+    .filter(Boolean)
+    .join(" ");
   const selectedValue = Array.isArray(value)
     ? value[0]
     : value !== undefined
@@ -539,16 +549,16 @@ export function SelectField({
   const isControlled = value !== undefined && (onChange || onValueChange);
 
   return (
-    <label
+    <div
       className={cn(
         "flex flex-col gap-2 text-[14px] font-medium text-[var(--text-primary)]",
         className,
       )}
     >
-      <span>
+      <label htmlFor={selectId}>
         {label}
         {required ? <span className="ml-1 text-[var(--danger)]">*</span> : null}
-      </span>
+      </label>
       <div
         className={cn(
           "relative flex h-12 items-center rounded-[14px] border bg-white text-[14px] text-[var(--text-primary)] transition focus-within:border-[var(--border-focus)]",
@@ -558,12 +568,15 @@ export function SelectField({
         )}
       >
         <select
+          aria-describedby={describedBy || undefined}
+          aria-invalid={error ? true : ariaInvalid}
           className="h-full w-full appearance-none bg-transparent px-4 pr-10 outline-none"
           defaultValue={
             !isControlled
               ? (uncontrolledValue ?? resolvedOptions[0]?.value)
               : undefined
           }
+          id={selectId}
           onChange={(event) => {
             onChange?.(event);
             onValueChange?.(event.target.value, event);
@@ -585,12 +598,12 @@ export function SelectField({
         <ChevronDown className="pointer-events-none absolute right-4 h-4 w-4 text-[var(--text-muted)]" />
       </div>
       {hint ? (
-        <p className="text-[12px] font-normal text-[var(--text-secondary)]">
+        <p className="text-[12px] font-normal text-[var(--text-secondary)]" id={hintId}>
           {hint}
         </p>
       ) : null}
-      {error ? <InlineFieldError>{error}</InlineFieldError> : null}
-    </label>
+      {error ? <InlineFieldError id={errorId}>{error}</InlineFieldError> : null}
+    </div>
   );
 }
 
