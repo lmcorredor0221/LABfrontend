@@ -815,5 +815,6 @@ describe("HotmartAdminView", () => {
     await waitFor(() => {
       expect(api.getCommercialBootstrap).toHaveBeenCalledWith({ productKey: "acp" });
     });
+    expect(await screen.findByLabelText("ACP gratis iniciales")).toBeInTheDocument();
   });
 });

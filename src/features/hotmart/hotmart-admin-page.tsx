@@ -2291,6 +2291,7 @@ function HotmartCommercialAdminPanel({
     label: item.label,
     value: item.value,
   }));
+  const selectedProductLabel = getProductLabel(products, selectedProductKey, data.quotaConfigs);
   const visiblePackages = data.packageCatalog.filter(
     (item) => item.product_key === selectedProductKey || item.package_type === "bundle_subscription",
   );
@@ -2309,7 +2310,7 @@ function HotmartCommercialAdminPanel({
           <div className="grid gap-4 md:grid-cols-2">
             <TextField label="Display name" onValueChange={(value) => onQuotaDraftChange({ display_name: value })} value={quotaDraft.display_name} />
             <TextField
-              label="Blueprint/ACP gratis iniciales"
+              label={`${selectedProductLabel} gratis iniciales`}
               onValueChange={(value) => onQuotaDraftChange({ initial_free_units: value })}
               value={quotaDraft.initial_free_units}
             />
@@ -2982,12 +2983,15 @@ export function HotmartAdminView({
     if (!dashboardData) {
       return;
     }
+    if (activeTab === "Comercial" && commercialState.status !== "ready") {
+      return;
+    }
     const availableProducts = getProductOptions(dashboardData.products, [], commercialData?.quotaConfigs ?? []).map((item) => item.value);
     if (!availableProducts.includes(commercialProductKey)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- El selector comercial debe caer al primer producto disponible cuando cambia el bootstrap.
       setCommercialProductKey(availableProducts[0] ?? "blueprint_pro");
     }
-  }, [commercialData?.quotaConfigs, commercialProductKey, dashboardData]);
+  }, [activeTab, commercialData?.quotaConfigs, commercialProductKey, commercialState.status, dashboardData]);
 
   const loadCommercialSection = useCallback(
     async (section: CommercialDashboardSection): Promise<Partial<CommercialAdminDashboardData>> => {
