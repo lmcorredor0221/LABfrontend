@@ -290,6 +290,27 @@ const commercialBootstrap: CommercialAdminBootstrapData = {
       sync_retry_limit: 5,
       updated_at: "2026-08-14T10:00:00Z",
     },
+    {
+      allow_courtesy: true,
+      allow_debt_pending: true,
+      allow_manual_override_without_charge: true,
+      catalog_priority_strategy: "minimum_sufficient",
+      checkout_required_on_zero_balance: true,
+      consumption_priority: ["free", "subscription", "one_time"],
+      contract_version: "commercial-quota-product-config.v1",
+      debt_enabled: true,
+      default_blocked_request_ttl_hours: 72,
+      default_checkout_ttl_minutes: 30,
+      display_name: "ACP",
+      duplicate_conflict_visibility: "platform_admin_only",
+      enabled: true,
+      fifo_auto_approval_enabled: true,
+      id: "quota-acp",
+      initial_free_units: 0,
+      product_key: "acp",
+      sync_retry_limit: 5,
+      updated_at: "2026-08-14T10:00:00Z",
+    },
   ],
   recommendation: {
     contract_version: "commercial-package-recommendation.v1",
@@ -777,5 +798,22 @@ describe("HotmartAdminView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Deudas" }));
     expect((await screen.findAllByText("Deudas abiertas")).length).toBeGreaterThan(0);
     expect(api.listCommercialDebts).toHaveBeenCalledWith({ productKey: "blueprint_pro", status: "open" });
+  });
+
+  it("shows ACP as a configurable commercial quota product even when the public catalog bootstrap omits it", async () => {
+    const api = createMockApi();
+
+    renderView(api);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Comercial" }));
+
+    const productSelect = await screen.findByLabelText("Producto");
+    expect(screen.getByRole("option", { name: "ACP" })).toHaveValue("acp");
+
+    fireEvent.change(productSelect, { target: { value: "acp" } });
+
+    await waitFor(() => {
+      expect(api.getCommercialBootstrap).toHaveBeenCalledWith({ productKey: "acp" });
+    });
   });
 });

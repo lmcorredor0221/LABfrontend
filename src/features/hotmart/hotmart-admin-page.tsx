@@ -650,10 +650,21 @@ function canManageHotmart(user: AuthUser | null, isPlatformAdmin: boolean) {
   return isPlatformAdmin;
 }
 
-function getProductOptions(products: ProductCatalogResponse[], mappings: HotmartProductMappingResponse[] = []) {
+const COMMERCIAL_PRODUCT_LABELS: Record<string, string> = {
+  acp: "Agent Construction Package (ACP)",
+  blueprint: "Blueprint",
+  blueprint_pro: "Blueprint Pro",
+};
+
+function getProductOptions(
+  products: ProductCatalogResponse[],
+  mappings: HotmartProductMappingResponse[] = [],
+  quotaConfigs: CommercialQuotaProductConfigResponse[] = [],
+) {
   const productKeys = new Set<string>();
   products.forEach((product) => productKeys.add(product.product_key));
   mappings.forEach((mapping) => productKeys.add(mapping.internal_product_key));
+  quotaConfigs.forEach((config) => productKeys.add(config.product_key));
 
   if (productKeys.size === 0) {
     productKeys.add("blueprint_pro");
@@ -661,13 +672,22 @@ function getProductOptions(products: ProductCatalogResponse[], mappings: Hotmart
   }
 
   return Array.from(productKeys).map((productKey) => ({
-    label: getProductLabel(products, productKey),
+    label: getProductLabel(products, productKey, quotaConfigs),
     value: productKey,
   }));
 }
 
-function getProductLabel(products: ProductCatalogResponse[], productKey: string) {
-  return products.find((product) => product.product_key === productKey)?.name ?? productKey;
+function getProductLabel(
+  products: ProductCatalogResponse[],
+  productKey: string,
+  quotaConfigs: CommercialQuotaProductConfigResponse[] = [],
+) {
+  return (
+    products.find((product) => product.product_key === productKey)?.name ??
+    quotaConfigs.find((config) => config.product_key === productKey)?.display_name ??
+    COMMERCIAL_PRODUCT_LABELS[productKey] ??
+    productKey
+  );
 }
 
 function getProductPriceCode(products: ProductCatalogResponse[], productKey: string) {
@@ -2267,7 +2287,7 @@ function HotmartCommercialAdminPanel({
   sectionLoadState: CommercialSectionLoadState | null;
   selectedProductKey: string;
 }) {
-  const productOptions = getProductOptions(products).map((item) => ({
+  const productOptions = getProductOptions(products, [], data.quotaConfigs).map((item) => ({
     label: item.label,
     value: item.value,
   }));
@@ -2962,12 +2982,12 @@ export function HotmartAdminView({
     if (!dashboardData) {
       return;
     }
-    const availableProducts = getProductOptions(dashboardData.products).map((item) => item.value);
+    const availableProducts = getProductOptions(dashboardData.products, [], commercialData?.quotaConfigs ?? []).map((item) => item.value);
     if (!availableProducts.includes(commercialProductKey)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- El selector comercial debe caer al primer producto disponible cuando cambia el bootstrap.
       setCommercialProductKey(availableProducts[0] ?? "blueprint_pro");
     }
-  }, [commercialProductKey, dashboardData]);
+  }, [commercialData?.quotaConfigs, commercialProductKey, dashboardData]);
 
   const loadCommercialSection = useCallback(
     async (section: CommercialDashboardSection): Promise<Partial<CommercialAdminDashboardData>> => {
@@ -3673,7 +3693,9 @@ export function HotmartAdminView({
         debt_enabled: commercialQuotaDraft.debt_enabled,
         default_blocked_request_ttl_hours: normalizeIntegerInput(commercialQuotaDraft.default_blocked_request_ttl_hours, 72),
         default_checkout_ttl_minutes: normalizeIntegerInput(commercialQuotaDraft.default_checkout_ttl_minutes, 30),
-        display_name: commercialQuotaDraft.display_name || getProductLabel(dashboardData?.products ?? [], commercialProductKey),
+        display_name:
+          commercialQuotaDraft.display_name ||
+          getProductLabel(dashboardData?.products ?? [], commercialProductKey, commercialData?.quotaConfigs ?? []),
         duplicate_conflict_visibility: commercialQuotaDraft.duplicate_conflict_visibility,
         enabled: commercialQuotaDraft.enabled,
         fifo_auto_approval_enabled: commercialQuotaDraft.fifo_auto_approval_enabled,
