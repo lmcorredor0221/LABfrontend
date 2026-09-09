@@ -677,6 +677,19 @@ function getProductOptions(
   }));
 }
 
+function getCommercialQuotaProductOptions(quotaConfigs: CommercialQuotaProductConfigResponse[]) {
+  const configs = quotaConfigs.length
+    ? quotaConfigs
+    : [
+        { display_name: COMMERCIAL_PRODUCT_LABELS.blueprint_pro, product_key: "blueprint_pro" },
+        { display_name: COMMERCIAL_PRODUCT_LABELS.acp, product_key: "acp" },
+      ];
+  return configs.map((config) => ({
+    label: config.display_name || COMMERCIAL_PRODUCT_LABELS[config.product_key] || config.product_key,
+    value: config.product_key,
+  }));
+}
+
 function getProductLabel(
   products: ProductCatalogResponse[],
   productKey: string,
@@ -2287,7 +2300,7 @@ function HotmartCommercialAdminPanel({
   sectionLoadState: CommercialSectionLoadState | null;
   selectedProductKey: string;
 }) {
-  const productOptions = getProductOptions(products, [], data.quotaConfigs).map((item) => ({
+  const productOptions = getCommercialQuotaProductOptions(data.quotaConfigs).map((item) => ({
     label: item.label,
     value: item.value,
   }));
@@ -2986,7 +2999,7 @@ export function HotmartAdminView({
     if (activeTab === "Comercial" && commercialState.status !== "ready") {
       return;
     }
-    const availableProducts = getProductOptions(dashboardData.products, [], commercialData?.quotaConfigs ?? []).map((item) => item.value);
+    const availableProducts = getCommercialQuotaProductOptions(commercialData?.quotaConfigs ?? []).map((item) => item.value);
     if (!availableProducts.includes(commercialProductKey)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- El selector comercial debe caer al primer producto disponible cuando cambia el bootstrap.
       setCommercialProductKey(availableProducts[0] ?? "blueprint_pro");

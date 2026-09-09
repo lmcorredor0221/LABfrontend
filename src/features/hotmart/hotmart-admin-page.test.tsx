@@ -102,6 +102,25 @@ const dashboard: HotmartDashboardData = {
     {
       benefits: [],
       capabilities: [],
+      description: "Blueprint gratuito",
+      exclusions: [],
+      name: "Blueprint",
+      price: {
+        billing_period: "one_time",
+        currency: "USD",
+        price_code: "blueprint_free",
+        unit_amount_cents: 0,
+        version: 1,
+      },
+      product_key: "blueprint",
+      product_type: "blueprint",
+      scope: "project",
+      tier: "blueprint",
+      version: 1,
+    },
+    {
+      benefits: [],
+      capabilities: [],
       description: "Blueprint profesional",
       exclusions: [],
       name: "Blueprint Pro",
@@ -808,6 +827,7 @@ describe("HotmartAdminView", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Comercial" }));
 
     const productSelect = await screen.findByLabelText("Producto");
+    expect(screen.queryByRole("option", { name: "Blueprint" })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: "ACP" })).toHaveValue("acp");
 
     fireEvent.change(productSelect, { target: { value: "acp" } });
