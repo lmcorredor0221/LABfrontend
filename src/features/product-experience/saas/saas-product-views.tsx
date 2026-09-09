@@ -3383,6 +3383,7 @@ function BlueprintProPage({
   const canOpenAcp =
     hasTier(viewModel.accessTier, "acp") ||
     Boolean(viewModel.access?.can_build_acp);
+  const canAcquireAcp = unlocked && !canOpenAcp;
   const blueprintProProgress =
     viewModel.products.find((product) => product.key === "blueprint_pro")?.progress ??
     (unlocked ? 75 : 20);
@@ -3439,7 +3440,7 @@ function BlueprintProPage({
             })}
           </span>
         </a>
-        {!unlocked && canCheckout ? (
+        {canCheckout && (!unlocked || canAcquireAcp) ? (
           <CheckoutMarketSelector
             language={language}
             market={checkoutMarket}
@@ -3461,7 +3462,63 @@ function BlueprintProPage({
                   })}
                 </span>
               </a>
-            ) : null}
+            ) : (
+              <button
+                className={cn(
+                  "uxa-button uxa-button--primary",
+                  purchasing && "opacity-60 cursor-not-allowed",
+                )}
+                disabled={purchasing}
+                onClick={async () => {
+                  if (purchasing) return;
+                  setPurchasing(true);
+                  try {
+                    if (canCheckout) {
+                      await executeProductCheckout({
+                        sessionId,
+                        packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
+                        productKey: "acp",
+                      });
+                    } else {
+                      await executeAccessRequest({
+                        sessionId,
+                        productKey: "acp",
+                      });
+                      setRequestSent(true);
+                    }
+                  } finally {
+                    setPurchasing(false);
+                  }
+                }}
+                type="button"
+              >
+                <span>
+                  {purchasing
+                    ? byLanguage(language, {
+                        en: "Processing...",
+                        es: "Procesando...",
+                        pt: "Processando...",
+                      })
+                    : requestSent
+                    ? byLanguage(language, {
+                        en: "Request sent",
+                        es: "Solicitud enviada",
+                        pt: "Solicitacao enviada",
+                      })
+                    : canCheckout
+                    ? byLanguage(language, {
+                        en: "Get ACP",
+                        es: "Adquirir ACP",
+                        pt: "Adquirir ACP",
+                      })
+                    : byLanguage(language, {
+                        en: "Request ACP",
+                        es: "Solicitar ACP",
+                        pt: "Solicitar ACP",
+                      })}
+                </span>
+              </button>
+            )}
             <a
               className="uxa-button uxa-button--secondary"
               href={`/projects/${sessionId}/artifacts`}
@@ -4362,7 +4419,9 @@ function AcpProductPage({
   const searchParams = useSearchParams();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({ activeRoute, language, section: "acp" });
-  const canBuild = true;
+  const canBuild =
+    hasTier(viewModel.accessTier, "acp") ||
+    Boolean(viewModel.access?.can_build_acp);
   const canCheckout =
     viewModel.access?.checkout_state === "available" ||
     viewModel.access?.checkout_state === "pending";
@@ -4384,7 +4443,7 @@ function AcpProductPage({
   const { market: checkoutMarket, setMarket: setCheckoutMarket } = useCheckoutMarketSelection();
 
   const reloadData = async () => {
-    if (!sessionId) return;
+    if (!sessionId || !canBuild) return;
     try {
       const [qs, ws] = await Promise.all([
         sessionsApi.getAcpQuestions(sessionId),
@@ -4398,7 +4457,7 @@ function AcpProductPage({
   };
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || !canBuild) return;
     let cancelled = false;
     deferStateUpdate(() => {
       if (!cancelled) {
@@ -4423,7 +4482,7 @@ function AcpProductPage({
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [canBuild, sessionId]);
 
   const openQuestions = questions.filter(
     (q) => q.status === "open" || (!q.status && !q.answer_text),

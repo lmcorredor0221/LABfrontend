@@ -1470,11 +1470,50 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("link", { name: "Continuar con ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp");
   });
 
+  it("offers ACP acquisition from Blueprint Pro when Blueprint Pro is active but ACP is not", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("market=ar"));
+    mockSessionsApi.createCheckoutSession.mockResolvedValueOnce({
+      checkout_ref: "rapyd-checkout-acp-1",
+      checkout_url: "",
+      contract_version: "commerce-checkout-session.v1",
+      currency: "USD",
+      entitlement: null,
+      expires_at: null,
+      next_action: "redirect",
+      order_id: "order-rapyd-acp-1",
+      product_key: "acp",
+      provider: "rapyd",
+      session_id: "session-uxa11",
+      status: "pending",
+      total_cents: 14900,
+      workspace_id: "workspace-1",
+    });
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
+
+    expect(screen.getByRole("radio", { name: "ar" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Adquirir ACP" }));
+
+    await waitFor(() =>
+      expect(mockSessionsApi.createCheckoutSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          package_code: "acp_ar",
+          product_key: "acp",
+          session_id: "session-uxa11",
+        }),
+      ),
+    );
+  });
+
   it("shows the ACP approval gate instead of loading the preparation workspace before entitlement", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="acp" />);
 
-    expect(screen.getByRole("heading", { name: "Agent Construction Package (ACP)" })).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Ruta de Etapas ACP" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Valor incremental sobre Blueprint" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Condiciones para activar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Adquirir ACP" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Ruta de Etapas ACP" })).not.toBeInTheDocument();
+    expect(mockSessionsApi.getAcpQuestions).not.toHaveBeenCalled();
+    expect(mockSessionsApi.getAcpWorkspace).not.toHaveBeenCalled();
   });
 
   it("hides legacy ACP build tracker noise while ACP is still locked", () => {
@@ -1567,7 +1606,7 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="acp" />);
 
-    expect(screen.getByText(/Agent Construction Package/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Valor incremental sobre Blueprint" })).toBeInTheDocument();
     expect(screen.queryByText("Generación de Entregables")).not.toBeInTheDocument();
     expect(screen.queryByText("Cola legacy ACP generada antes del gate comercial.")).not.toBeInTheDocument();
   });
