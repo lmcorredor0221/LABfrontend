@@ -13,7 +13,6 @@ type SettingsActionTranslationKey =
 
 type SettingsWorkspaceActionsProps = {
   activeScope: SettingsScope;
-  isHotmartConfigActive: boolean;
   isPlatformPanelVisible: boolean;
   onCreateSession: () => void;
   onOpenSelectedProject: (session: SessionSummary) => void;
@@ -25,7 +24,6 @@ type SettingsWorkspaceActionsProps = {
 
 export function SettingsWorkspaceActions({
   activeScope,
-  isHotmartConfigActive,
   isPlatformPanelVisible,
   onCreateSession,
   onOpenSelectedProject,
@@ -50,7 +48,7 @@ export function SettingsWorkspaceActions({
           {t("settings.refreshWorkspaceTop", "Refrescar workspace")}
         </AppButton>
       ) : null}
-      {!isHotmartConfigActive && activeScope === "platform" && isPlatformPanelVisible ? (
+      {activeScope === "platform" && isPlatformPanelVisible ? (
         <AppButton onClick={onRefreshPlatform} icon={<ServerCog className="h-4 w-4" />}>
           {t("settings.refreshPlatform", "Refrescar plataforma")}
         </AppButton>

@@ -154,6 +154,7 @@ export const CONFIG_TABS: Array<AdminConfigTabDefinitionWithScope<AdminConfigTab
 export const SETTINGS_CONFIG_SUB_TABS: Record<AdminConfigTabKey, Array<AdminSubTabDefinition<string>>> = {
   commerce: [
     { key: "prices", label: "Precios", description: "Precios base, defaults comerciales y costos por modelo." },
+    { key: "commercial", label: "Comercial", description: "Cuotas gratis, paquetes, saldo por workspace y deudas comerciales." },
     { key: "budgets", label: "Presupuestos", description: "Budgets, umbrales y controles FinOps del workspace." },
     { key: "alerts", label: "Alertas", description: "Señales de consumo, límites y riesgo operativo." },
   ],

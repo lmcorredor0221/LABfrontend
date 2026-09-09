@@ -36,9 +36,6 @@ import {
 } from "@/features/operations/components/settings-admin-console-shell";
 import { SettingsWorkspaceActions } from "@/features/operations/settings-workspace-actions";
 import {
-  buildSettingsHref,
-} from "@/features/operations/settings-admin-routing";
-import {
   type AdminConfigTabKey,
   type AdminSettingsSectionKey,
   type ProductGovernanceTabKey,
@@ -474,8 +471,6 @@ export function SettingsWorkspacePage({
     configSubTabs,
     handleConfigSubTabChange,
     handleConfigTabChange,
-    setActiveConfigSubTabs,
-    setActiveConfigTab,
   } = useSettingsConfigNavigation({
     initialConfigSubTab,
     initialConfigTab: resolvedInitialConfigTab,
@@ -1132,7 +1127,6 @@ export function SettingsWorkspacePage({
   const getFieldOriginLabel = (fieldPath: string) => (runtime ? getRuntimeFieldOriginLabel(runtime, fieldPath, t) : "");
   const getSecretLabel = (source: string) => getSecretSourceLabel(source, t);
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
-  const isHotmartConfigActive = activeConfigTab === "commerce" && activeConfigSubTab === "hotmart";
   const showWorkspaceRuntimePanel = activeConfigTab === "llmRuntime" && activeConfigSubTab === "runtime";
   const showWorkspaceProviderPanels = activeConfigTab === "llmRuntime" && activeConfigSubTab === "providers";
   const showWorkspaceBackendsPanel =
@@ -1143,6 +1137,7 @@ export function SettingsWorkspacePage({
   const showWorkspaceDiagnosticsPanel = activeConfigTab === "llmRuntime" && activeConfigSubTab === "diagnostics";
   const showPlatformGeneralPanel = activeConfigTab === "general" && activeConfigSubTab === "workspace";
   const showPlatformBasePricesPanel = activeConfigTab === "commerce" && activeConfigSubTab === "prices";
+  const showPlatformCommercialPanel = activeConfigTab === "commerce" && activeConfigSubTab === "commercial";
   const showPlatformRegistryPanel = activeConfigTab === "governance" && activeConfigSubTab === "registry";
   const showPlatformRuntimeAuditPanel = activeConfigTab === "governance" && activeConfigSubTab === "runtimeAudit";
 
@@ -1640,7 +1635,6 @@ export function SettingsWorkspacePage({
   const settingsActions = (
     <SettingsWorkspaceActions
       activeScope={activeScope}
-      isHotmartConfigActive={isHotmartConfigActive}
       isPlatformPanelVisible={isPlatformPanelVisible}
       onCreateSession={() => void handleCreateSession()}
       onOpenSelectedProject={(session) => router.push(getSessionProjectRoute(session))}
@@ -1774,36 +1768,7 @@ export function SettingsWorkspacePage({
       >
         <div className="settings-center space-y-5">
 
-      {isHotmartConfigActive ? (
-        <SettingsHotmartPanel
-          listError={listError}
-          listStatus={listStatus}
-          onCreateSession={() => void handleCreateSession()}
-          onOpenIntegrations={() => {
-            setActiveConfigTab("commerce");
-            setActiveConfigSubTabs((current) => ({ ...current, commerce: "prices" }));
-            router.replace(
-              buildSettingsHref({
-                configSubTab: "prices",
-                configTab: "commerce",
-                section: "configuration",
-              }),
-              { scroll: false },
-            );
-          }}
-          onOpenProject={() => {
-            if (selectedSession) {
-              router.push(getSessionProjectRoute(selectedSession));
-            }
-          }}
-          selectedSession={selectedSession}
-          sessionOptions={sessionOptions}
-          isPlatformAdmin={isPlatformAdmin}
-          user={user}
-        />
-      ) : null}
-
-      {!isHotmartConfigActive && activeScope === "personal" ? (
+      {activeScope === "personal" ? (
         <section aria-label={copy("Account and access", "Cuenta y acceso", "Conta e acesso")} className="space-y-5" id="settings-panel-personal" role="tabpanel">
           <SettingsScopeHeader
             accessLabel={t("settings.personalScopeLabel", "Ámbito personal")}
@@ -1874,7 +1839,7 @@ export function SettingsWorkspacePage({
         </section>
       ) : null}
 
-      {!isHotmartConfigActive && activeScope === "workspace" && !canManageWorkspaceRuntime ? (
+      {activeScope === "workspace" && !canManageWorkspaceRuntime ? (
         <section aria-label={copy("Restricted workspace administration", "Administracion del workspace restringida", "Administracao restrita do workspace")} className="space-y-5" id="settings-panel-workspace" role="tabpanel">
           <SettingsScopeHeader
             accessLabel={t("settings.workspaceScopeRestrictedLabel", "Admin")}
@@ -1900,7 +1865,7 @@ export function SettingsWorkspacePage({
         </section>
       ) : null}
 
-      {!isHotmartConfigActive && activeScope === "workspace" && canManageWorkspaceRuntime ? (
+      {activeScope === "workspace" && canManageWorkspaceRuntime ? (
         <section aria-label={copy("Workspace administration", "Administracion del workspace", "Administracao do workspace")} className="space-y-5" id="settings-panel-workspace" role="tabpanel">
           <SettingsScopeHeader
             accessLabel={t("settings.workspaceScopeLabel", "Admin")}
@@ -3066,6 +3031,23 @@ export function SettingsWorkspacePage({
 
           {showPlatformBasePricesPanel ? <PlatformBasePricesAdminPanel /> : null}
 
+          {showPlatformCommercialPanel ? (
+            <SettingsHotmartPanel
+              listError={listError}
+              listStatus={listStatus}
+              onCreateSession={() => void handleCreateSession()}
+              onOpenProject={() => {
+                if (selectedSession) {
+                  router.push(getSessionProjectRoute(selectedSession));
+                }
+              }}
+              selectedSession={selectedSession}
+              sessionOptions={sessionOptions}
+              isPlatformAdmin={isPlatformAdmin}
+              user={user}
+            />
+          ) : null}
+
           {showPlatformRegistryPanel ? (
           <Panel className="p-6">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -3679,7 +3661,7 @@ export function SettingsWorkspacePage({
         </section>
       ) : null}
 
-      {!isHotmartConfigActive && activeScope === "workspace" && listStatus === "error" ? (
+      {activeScope === "workspace" && listStatus === "error" ? (
         <Panel className="p-5">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 text-[var(--warning)]" />

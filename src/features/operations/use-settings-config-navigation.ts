@@ -23,7 +23,7 @@ function resolveScope(tab: AdminConfigTabKey, subTab: string, isPlatformPanelVis
     return "personal";
   }
   if (tab === "commerce") {
-    return subTab === "prices" && isPlatformPanelVisible ? "platform" : "workspace";
+    return (subTab === "prices" || subTab === "commercial") && isPlatformPanelVisible ? "platform" : "workspace";
   }
   if (tab === "governance") {
     return (subTab === "registry" || subTab === "runtimeAudit") && isPlatformPanelVisible ? "platform" : "workspace";

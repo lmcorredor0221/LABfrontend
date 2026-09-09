@@ -172,7 +172,7 @@ const HOTMART_TABS = [
   "Reconciliacion",
   "Readiness",
 ];
-const HOTMART_PLATFORM_TABS = ["Comercial"];
+type HotmartAdminViewMode = "commercial" | "full";
 
 type HotmartDashboardSection = "club" | "links" | "mappings" | "promotions" | "reconciliation" | "release" | "sync";
 type HotmartSectionLoadState = {
@@ -2820,6 +2820,7 @@ export function HotmartAdminView({
   selectedSession,
   sessionOptions,
   isPlatformAdmin = false,
+  mode = "full",
   user,
 }: {
   api?: HotmartAdminApi;
@@ -2832,12 +2833,14 @@ export function HotmartAdminView({
   onOpenProject?: () => void;
   selectedSession: HotmartAdminSession | null;
   sessionOptions: Array<{ label: string; value: string }>;
+  mode?: HotmartAdminViewMode;
   user: AuthUser | null;
 }) {
   const role = getActiveWorkspaceRole(user);
   const canManage = canManageHotmart(user, isPlatformAdmin);
+  const isCommercialOnly = mode === "commercial";
   const [environment, setEnvironment] = useState<HotmartEnvironment>("sandbox");
-  const [activeTab, setActiveTab] = useState("Resumen");
+  const [activeTab, setActiveTab] = useState(isCommercialOnly ? "Comercial" : "Resumen");
   const [dashboardState, setDashboardState] = useState<AsyncState<HotmartDashboardData>>(createIdleState);
   const [sectionStates, setSectionStates] = useState<HotmartSectionStates>(createHotmartSectionStates);
   const [credentialDraft, setCredentialDraft] = useState<CredentialDraft>(createCredentialDraft);
@@ -2882,10 +2885,7 @@ export function HotmartAdminView({
   const [commercialWorkspaceId, setCommercialWorkspaceId] = useState(user?.active_workspace_id ?? "");
   const [platformWorkspacesState, setPlatformWorkspacesState] = useState<AsyncState<PlatformAdminWorkspaceSummary[]>>(createIdleState);
   const platformWorkspacesRequestIdRef = useRef(0);
-  const hotmartTabs = useMemo(
-    () => (isPlatformAdmin ? [...HOTMART_TABS, ...HOTMART_PLATFORM_TABS] : HOTMART_TABS),
-    [isPlatformAdmin],
-  );
+  const hotmartTabs = HOTMART_TABS;
 
   const updateSectionStates = useCallback(
     (sections: HotmartDashboardSection[], status: HotmartSectionLoadState["status"], error: string | null = null) => {
@@ -3025,7 +3025,7 @@ export function HotmartAdminView({
   );
 
   const loadDashboard = useCallback(async () => {
-    if (!canManage) {
+    if (!canManage || isCommercialOnly) {
       return;
     }
     setDashboardState({ data: null, error: null, status: "loading" });
@@ -3064,7 +3064,15 @@ export function HotmartAdminView({
         status: "error",
       });
     }
-  }, [activeTab, api, canManage, environment, loadDashboardSection, updateSectionStates]);
+  }, [activeTab, api, canManage, environment, isCommercialOnly, loadDashboardSection, updateSectionStates]);
+
+  useEffect(() => {
+    if (!isCommercialOnly || activeTab === "Comercial") {
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- El modo embebido de Settings siempre representa la capa comercial.
+    setActiveTab("Comercial");
+  }, [activeTab, isCommercialOnly]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- La consola debe sincronizar su estado inicial con el backend al cambiar ambiente o permisos.
@@ -3086,7 +3094,7 @@ export function HotmartAdminView({
   );
 
   useEffect(() => {
-    if (!dashboardData || activeTab === "Comercial") {
+    if (!dashboardData || activeTab === "Comercial" || isCommercialOnly) {
       return;
     }
     const sections = getHotmartTabSections(activeTab);
@@ -3095,7 +3103,7 @@ export function HotmartAdminView({
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- El modulo hidrata la pestaña activa bajo demanda cuando cambia el foco de la vista.
     void ensureDashboardSections(sections);
-  }, [activeTab, dashboardData, ensureDashboardSections, sectionStates]);
+  }, [activeTab, dashboardData, ensureDashboardSections, isCommercialOnly, sectionStates]);
 
   useEffect(() => {
     if (commercialWorkspaceId || !user?.active_workspace_id) {
@@ -3148,7 +3156,7 @@ export function HotmartAdminView({
   }, []);
 
   useEffect(() => {
-    if (!dashboardData) {
+    if (activeTab !== "Comercial" && !dashboardData) {
       return;
     }
     if (activeTab === "Comercial" && commercialState.status !== "ready") {
@@ -4103,15 +4111,71 @@ export function HotmartAdminView({
     </>
   );
 
+  const commercialPanelContent =
+    activeTab === "Comercial" ? (
+      commercialState.status === "idle" || commercialState.status === "loading" ? (
+        <LoadingState title="Cargando motor comercial" description="Resolviendo cupos, paquetes, ledger y deudas del cliente/workspace." />
+      ) : commercialState.status === "error" ? (
+        <ErrorState
+          title="No se pudo cargar la capa comercial"
+          description={commercialState.error}
+          action={
+            <AppButton onClick={() => void loadCommercialDashboard()} variant="primary">
+              Reintentar
+            </AppButton>
+          }
+        />
+      ) : commercialData ? (
+        <HotmartCommercialAdminPanel
+          activeSectionTab={activeCommercialTab}
+          data={commercialData}
+          debtPendingId={commercialDebtPendingId}
+          feedback={commercialFeedback}
+          legacyResolutionDrafts={commercialLegacyResolutionDrafts}
+          legacyResolutionPendingId={commercialLegacyResolutionPendingId}
+          onLegacyPackageDraftChange={(orderId, packageCode) =>
+            setCommercialLegacyResolutionDrafts((current) => ({ ...current, [orderId]: packageCode }))
+          }
+          onPackageDraftChange={(patch) => setCommercialPackageDraft((current) => ({ ...current, ...patch }))}
+          onProductChange={setCommercialProductKey}
+          onWorkspaceChange={setCommercialWorkspaceId}
+          onQuotaDraftChange={(patch) => setCommercialQuotaDraft((current) => ({ ...current, ...patch, product_key: commercialProductKey }))}
+          onReloadSection={() =>
+            void ensureCommercialSections(getCommercialTabSections(activeCommercialTab), { forceReload: true })
+          }
+          onOverrideDraftChange={(patch) => setCommercialOverrideDraft((current) => ({ ...current, ...patch }))}
+          onSavePackage={() => void handleSaveCommercialPackage()}
+          onSaveQuota={() => void handleSaveCommercialQuota()}
+          onSaveOverride={() => void handleSaveCommercialOverride()}
+          onSectionChange={setActiveCommercialTab}
+          onResolveLegacyPackageResolution={(resolution) => void handleResolveCommercialLegacyPackageResolution(resolution)}
+          onSettleDebt={(debt) => void handleSettleCommercialDebt(debt)}
+          overrideDraft={commercialOverrideDraft}
+          packageDraft={commercialPackageDraft}
+          products={dashboardData?.products ?? []}
+          quotaDraft={commercialQuotaDraft}
+          savingPackage={commercialPackagePending}
+          savingQuota={commercialQuotaPending}
+          savingOverride={commercialOverridePending}
+          sectionLoadState={activeCommercialTabLoadState}
+          selectedProductKey={commercialProductKey}
+          selectedWorkspaceId={commercialTargetWorkspaceId}
+          workspaceOptions={commercialWorkspaceOptions}
+          workspaceSelectorDisabled={commercialWorkspaceOptions.every((option) => option.disabled)}
+          workspaceSelectorHint={commercialWorkspaceSelectorHint}
+        />
+      ) : null
+    ) : null;
+
   const content = (
       <HotmartAdminErrorBoundary>
         {!canManage ? <HotmartAdminRestrictedState role={role} /> : null}
 
-        {canManage && listStatus === "loading" && sessionOptions.length === 0 ? (
+        {canManage && !isCommercialOnly && listStatus === "loading" && sessionOptions.length === 0 ? (
           <LoadingState title="Cargando contexto operativo" description="Recuperando sesiones para asociar links de pago." />
         ) : null}
 
-        {canManage && listStatus === "error" && sessionOptions.length === 0 ? (
+        {canManage && !isCommercialOnly && listStatus === "error" && sessionOptions.length === 0 ? (
           <ErrorState
             title="No se pudieron cargar las sesiones"
             description={listError?.message ?? "Hotmart se puede configurar, pero no hay contexto para generar links por proyecto."}
@@ -4123,11 +4187,11 @@ export function HotmartAdminView({
           />
         ) : null}
 
-        {canManage && dashboardState.status === "loading" ? (
+        {canManage && !isCommercialOnly && dashboardState.status === "loading" ? (
           <LoadingState title="Cargando Hotmart" description="Consultando el bootstrap minimo y el resumen operativo del modulo." />
         ) : null}
 
-        {canManage && dashboardState.status === "error" ? (
+        {canManage && !isCommercialOnly && dashboardState.status === "error" ? (
           <ErrorState
             title="No se pudo abrir Hotmart"
             description={dashboardState.error}
@@ -4139,7 +4203,9 @@ export function HotmartAdminView({
           />
         ) : null}
 
-        {dashboardData ? (
+        {isCommercialOnly ? <div className="space-y-5">{commercialPanelContent}</div> : null}
+
+        {dashboardData && !isCommercialOnly ? (
           <div className="space-y-5">
             <Panel className="p-5">
               <TabList active={activeTab} onChange={setActiveTab} tabs={hotmartTabs} />
@@ -4252,61 +4318,6 @@ export function HotmartAdminView({
 
             {activeTab === "Readiness" ? <HotmartAuditPreviewPanel data={dashboardData} /> : null}
 
-            {activeTab === "Comercial" ? (
-              commercialState.status === "loading" ? (
-                <LoadingState title="Cargando motor comercial" description="Resolviendo cupos, paquetes, ledger y deudas del cliente/workspace." />
-              ) : commercialState.status === "error" ? (
-                <ErrorState
-                  title="No se pudo cargar la capa comercial"
-                  description={commercialState.error}
-                  action={
-                    <AppButton onClick={() => void loadCommercialDashboard()} variant="primary">
-                      Reintentar
-                    </AppButton>
-                  }
-                />
-              ) : commercialData ? (
-                <HotmartCommercialAdminPanel
-                  activeSectionTab={activeCommercialTab}
-                  data={commercialData}
-                  debtPendingId={commercialDebtPendingId}
-                  feedback={commercialFeedback}
-                  legacyResolutionDrafts={commercialLegacyResolutionDrafts}
-                  legacyResolutionPendingId={commercialLegacyResolutionPendingId}
-                  onLegacyPackageDraftChange={(orderId, packageCode) =>
-                    setCommercialLegacyResolutionDrafts((current) => ({ ...current, [orderId]: packageCode }))
-                  }
-                  onPackageDraftChange={(patch) => setCommercialPackageDraft((current) => ({ ...current, ...patch }))}
-                  onProductChange={setCommercialProductKey}
-                  onWorkspaceChange={setCommercialWorkspaceId}
-                  onQuotaDraftChange={(patch) => setCommercialQuotaDraft((current) => ({ ...current, ...patch, product_key: commercialProductKey }))}
-                  onReloadSection={() =>
-                    void ensureCommercialSections(getCommercialTabSections(activeCommercialTab), { forceReload: true })
-                  }
-                  onOverrideDraftChange={(patch) => setCommercialOverrideDraft((current) => ({ ...current, ...patch }))}
-                  onSavePackage={() => void handleSaveCommercialPackage()}
-                  onSaveQuota={() => void handleSaveCommercialQuota()}
-                  onSaveOverride={() => void handleSaveCommercialOverride()}
-                  onSectionChange={setActiveCommercialTab}
-                  onResolveLegacyPackageResolution={(resolution) => void handleResolveCommercialLegacyPackageResolution(resolution)}
-                  onSettleDebt={(debt) => void handleSettleCommercialDebt(debt)}
-                  overrideDraft={commercialOverrideDraft}
-                  packageDraft={commercialPackageDraft}
-                  products={dashboardData.products}
-                  quotaDraft={commercialQuotaDraft}
-                  savingPackage={commercialPackagePending}
-                  savingQuota={commercialQuotaPending}
-                  savingOverride={commercialOverridePending}
-                  sectionLoadState={activeCommercialTabLoadState}
-                  selectedProductKey={commercialProductKey}
-                  selectedWorkspaceId={commercialTargetWorkspaceId}
-                  workspaceOptions={commercialWorkspaceOptions}
-                  workspaceSelectorDisabled={commercialWorkspaceOptions.every((option) => option.disabled)}
-                  workspaceSelectorHint={commercialWorkspaceSelectorHint}
-                />
-              ) : null
-            ) : null}
-
             <Panel className="p-5">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="space-y-1">
@@ -4331,6 +4342,10 @@ export function HotmartAdminView({
         ) : null}
       </HotmartAdminErrorBoundary>
   );
+
+  if (embedded && isCommercialOnly) {
+    return <div className="space-y-5">{content}</div>;
+  }
 
   if (embedded) {
     return (

@@ -534,7 +534,12 @@ function createUser(role: "admin" | "viewer", platformAdmin = false): AuthUser {
   };
 }
 
-function renderView(api: HotmartAdminApi, role: "admin" | "viewer" = "admin", platformAdmin = true) {
+function renderView(
+  api: HotmartAdminApi,
+  role: "admin" | "viewer" = "admin",
+  platformAdmin = true,
+  mode: "commercial" | "full" = "full",
+) {
   const user = createUser(role, platformAdmin);
   const authStore = createAuthStore({
     api: {
@@ -564,6 +569,7 @@ function renderView(api: HotmartAdminApi, role: "admin" | "viewer" = "admin", pl
             updated_at: "2026-08-14T10:00:00Z",
           }}
           sessionOptions={[{ label: "Proyecto Hotmart", value: "session-1" }]}
+          mode={mode}
           user={user}
         />
       </AuthProvider>
@@ -603,6 +609,17 @@ describe("HotmartAdminView", () => {
     expect(api.getClubOverview).not.toHaveBeenCalled();
     expect(api.getPromotionMetrics).not.toHaveBeenCalled();
     expect(api.getReleaseReadiness).not.toHaveBeenCalled();
+  });
+
+  it("keeps commercial quota controls out of the standalone Hotmart console", async () => {
+    const api = createMockApi();
+
+    renderView(api, "admin", true);
+
+    expect(await screen.findByText("Consola Hotmart")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Comercial" })).not.toBeInTheDocument();
+    expect(api.getDashboardBootstrap).toHaveBeenCalledWith("sandbox");
+    expect(api.getCommercialBootstrap).not.toHaveBeenCalled();
   });
 
   it("protects the module for non-platform-admin users", async () => {
@@ -837,9 +854,7 @@ describe("HotmartAdminView", () => {
   it("loads comercial slices only when the platform admin opens each subview", async () => {
     const api = createMockApi();
 
-    renderView(api);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Comercial" }));
+    renderView(api, "admin", true, "commercial");
 
     expect(await screen.findByText("Motor comercial por producto y workspace")).toBeInTheDocument();
     expect(await screen.findByLabelText("Workspace observado")).toBeInTheDocument();
@@ -865,9 +880,7 @@ describe("HotmartAdminView", () => {
   it("reloads commercial workspace metrics when the platform admin changes the observed workspace", async () => {
     const api = createMockApi();
 
-    renderView(api);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Comercial" }));
+    renderView(api, "admin", true, "commercial");
 
     const workspaceSelect = await screen.findByLabelText("Workspace observado");
     expect(await screen.findByRole("option", { name: "Cliente ACP" })).toHaveValue("workspace-customer");
@@ -886,9 +899,7 @@ describe("HotmartAdminView", () => {
   it("shows ACP as a configurable commercial quota product even when the public catalog bootstrap omits it", async () => {
     const api = createMockApi();
 
-    renderView(api);
-
-    fireEvent.click(await screen.findByRole("button", { name: "Comercial" }));
+    renderView(api, "admin", true, "commercial");
 
     const productSelect = await screen.findByLabelText("Producto");
     expect(screen.queryByRole("option", { name: "Blueprint" })).not.toBeInTheDocument();

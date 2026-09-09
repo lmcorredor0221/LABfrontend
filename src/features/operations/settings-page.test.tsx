@@ -68,8 +68,8 @@ const {
   getPlatformAdminWorkspacesMock: vi.fn(),
   getPlanAccessMock: vi.fn(),
   getRuntimeSettingsMock: vi.fn(),
-  hotmartAdminViewMock: vi.fn(({ embedded }: { embedded?: boolean }) => (
-    <div data-testid="hotmart-admin-view">{embedded ? "Hotmart embebido" : "Hotmart standalone"}</div>
+  hotmartAdminViewMock: vi.fn(({ embedded, mode }: { embedded?: boolean; mode?: string }) => (
+    <div data-testid="hotmart-admin-view">{embedded ? `Hotmart embebido ${mode ?? "full"}` : "Hotmart standalone"}</div>
   )),
   patchFeatureFlagMock: vi.fn(),
   patchRuntimeSettingsMock: vi.fn(),
@@ -962,24 +962,46 @@ describe("SettingsWorkspacePage", () => {
     expect(screen.queryByText("Administracion de plataforma")).not.toBeInTheDocument();
   });
 
-  it("mantiene Hotmart fuera de Comercial y costos en Settings", async () => {
+  it("mueve Comercial de Hotmart a Comercial y costos en Settings", async () => {
     getRuntimeSettingsMock.mockResolvedValue(buildRuntimeSettings("openai", "workspace-a"));
     runtimeApiMock.getWorkspaceRuntimeHealth.mockResolvedValue(buildWorkspaceHealth("workspace-a", "openai"));
-    runtimeApiMock.status.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.listPlatformProviders.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.getPlatformDefaults.mockRejectedValue(buildForbiddenError());
-    runtimeApiMock.getPlatformAudit.mockRejectedValue(buildForbiddenError());
+    runtimeApiMock.status.mockResolvedValue({
+      auth_detected: true,
+      auth_mode: "chatgpt_session",
+      configured_fallback_models: { default: [] },
+      configured_models: { default: "gpt-5.5" },
+      executable: "codex",
+      implementation_backend: "codex_exec_wrapper",
+      last_known_result: {},
+      max_concurrency: 1,
+      provider: "codex_local",
+      runner_id: "local",
+      smoke_blocking_reasons: [],
+      smoke_command: "python backend/scripts/run_codex_runtime_smoke.py",
+      smoke_ready: true,
+      timeout_ms: 150000,
+      version: "codex-cli 0.0-test",
+    });
+    runtimeApiMock.listPlatformProviders.mockResolvedValue(buildPlatformProviders());
+    runtimeApiMock.getPlatformDefaults.mockResolvedValue(buildRuntimeSettings("openai", "workspace-a"));
+    runtimeApiMock.getPlatformAudit.mockResolvedValue({ items: [] });
 
     renderSettingsPage({
-      initialConfigSubTab: "hotmart",
+      initialConfigSubTab: "commercial",
       initialConfigTab: "commerce",
       initialSection: "configuration",
     });
 
-    expect(await screen.findByRole("tab", { name: "Precios" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.queryByTestId("hotmart-admin-view")).not.toBeInTheDocument();
-    expect(hotmartAdminViewMock).not.toHaveBeenCalled();
-    expect(screen.queryByRole("tab", { name: "Hotmart" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Comercial" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByTestId("hotmart-admin-view")).toHaveTextContent("Hotmart embebido commercial");
+    expect(hotmartAdminViewMock).toHaveBeenCalled();
+    expect(hotmartAdminViewMock.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        embedded: true,
+        isPlatformAdmin: true,
+        mode: "commercial",
+      }),
+    );
   });
 
   it("sincroniza la URL canonica al navegar tabs y sub-tabs de Settings", async () => {
