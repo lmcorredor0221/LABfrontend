@@ -1381,39 +1381,6 @@
   max-width: 640px;
 }
 
-.uxa-stage-helper-text {
-  color: var(--uxa-color-ink-muted);
-  font-size: var(--uxa-font-size-micro);
-  line-height: 1.4;
-  margin: 0;
-}
-
-.uxa-stage-metric-chip {
-  align-items: center;
-  background: var(--uxa-color-muted-panel);
-  border: 1px solid var(--uxa-color-border-soft);
-  border-radius: var(--uxa-radius-lg);
-  display: flex;
-  gap: var(--uxa-space-3);
-  min-height: 38px;
-  padding: 0 var(--uxa-space-3);
-}
-
-.uxa-stage-metric-label {
-  color: var(--uxa-color-ink-muted);
-  font-family: var(--uxa-font-mono);
-  font-size: var(--uxa-font-size-micro);
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.uxa-stage-metric-value {
-  color: var(--uxa-color-ink);
-  font-size: var(--uxa-font-size-card-title);
-  font-weight: 900;
-}
-
 [data-visual-theme="enterprise-corporate"] .uxa-foundation-root :is(h1, h2, h3, h4) {
   letter-spacing: 0;
 }
@@ -1455,11 +1422,6 @@
 [data-visual-theme="enterprise-corporate"] .uxa-foundation-root .uxa-stage-action-title {
   font-size: var(--uxa-font-size-card-title);
   line-height: 1.22;
-}
-
-.uxa-stage-metric-chip .uxa-processing-strip {
-  height: 5px;
-  min-width: 110px;
 }
 
 .uxa-stage-action-row {
@@ -1539,7 +1501,6 @@
     width: 100%;
   }
 
-  .uxa-stage-metric-chip,
   .uxa-stage-action-row,
   .uxa-stage-action-strip {
     align-items: stretch;
@@ -1575,13 +1536,6 @@
     flex-wrap: wrap;
   }
 
-  .uxa-stage-metric-chip {
-    align-items: flex-start;
-  }
-
-  .uxa-stage-metric-chip .uxa-processing-strip {
-    min-width: 100%;
-  }
 }
 
 @media (pointer: coarse) {

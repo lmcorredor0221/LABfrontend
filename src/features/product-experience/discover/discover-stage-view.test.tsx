@@ -161,7 +161,7 @@ describe("DiscoverStageView UXA7", () => {
     expect(mockRouterPush).toHaveBeenCalledWith("/projects/session-uxa7/work/define");
   });
 
-  it("separates quality, evidence, and delegated pending items in the generated deliverable", async () => {
+  it("keeps traceable pending items while hiding generated deliverable metric cards", async () => {
     const actions = createActions();
     renderWithLanguage(
       <DiscoverStageView
@@ -173,9 +173,9 @@ describe("DiscoverStageView UXA7", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: /Entrega generada/i }));
 
-    expect(await screen.findByText("Calidad")).toBeInTheDocument();
-    expect(screen.getByText("Evidencia")).toBeInTheDocument();
-    expect(screen.getByText("Pendientes delegados")).toBeInTheDocument();
+    expect(await screen.findByText("Entrega de Descubrir")).toBeInTheDocument();
+    expect(screen.queryByText("Calidad")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pendientes delegados")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: /Evidencia y trazabilidad/i }));
     expect(await screen.findByText(/Aclaraciones diferidas con trazabilidad/i)).toBeInTheDocument();

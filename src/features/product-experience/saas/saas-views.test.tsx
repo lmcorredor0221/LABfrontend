@@ -999,6 +999,87 @@ function createAcpWorkspace(
   };
 }
 
+function createAcpWorkspaceReadyForReconciliation() {
+  const workspace = createAcpWorkspace({
+    next_action: "Actualizar artefactos afectados.",
+    readiness: {
+      assumptions_count: 0,
+      blocking_gaps: 0,
+      can_start_build: true,
+      gaps: [],
+      next_recommended_action: "Actualizar artefactos afectados.",
+      open_questions: 0,
+      overall_status: "ready",
+    },
+    validation: {
+      can_export_zip: false,
+      completeness_percent: 100,
+      issues: [],
+      overall_status: "ready",
+    },
+  });
+
+  return {
+    ...workspace,
+    phases: workspace.phases.map((phase) =>
+      phase.phase_order < 6
+        ? {
+            ...phase,
+            attempt_count: Math.max(1, phase.attempt_count),
+            completed_at: phase.completed_at ?? "2026-08-26T18:12:00Z",
+            status: "completed" as const,
+          }
+        : phase,
+    ),
+    run: {
+      ...workspace.run,
+      current_phase_key: "acp_artifact_reconciliation",
+      progress_percent: 63,
+      status: "running" as const,
+    },
+  };
+}
+
+function createAcpWorkspaceReadyForPackage() {
+  const workspace = createAcpWorkspaceReadyForReconciliation();
+
+  return {
+    ...workspace,
+    next_action: "Generar package y exportar.",
+    phases: workspace.phases.map((phase) =>
+      phase.phase_order <= 6
+        ? {
+            ...phase,
+            attempt_count: Math.max(1, phase.attempt_count),
+            completed_at: phase.completed_at ?? "2026-08-26T18:13:00Z",
+            status: "completed" as const,
+          }
+        : phase,
+    ),
+    readiness: {
+      assumptions_count: 0,
+      blocking_gaps: 0,
+      can_start_build: true,
+      gaps: [],
+      next_recommended_action: "Exportar package.",
+      open_questions: 0,
+      overall_status: "ready",
+    },
+    run: {
+      ...workspace.run,
+      current_phase_key: "acp_package_build",
+      progress_percent: 75,
+      status: "running" as const,
+    },
+    validation: {
+      can_export_zip: true,
+      completeness_percent: 100,
+      issues: [],
+      overall_status: "ready",
+    },
+  };
+}
+
 function createAcpQuestions() {
   return [
     {
@@ -1649,11 +1730,23 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("button", { name: /Continuar a Validación/i })).toBeDisabled();
   });
 
+  it("keeps artifact reconciliation locked until ACP validation phases are complete", async () => {
+    mockUseSearchParams.mockReturnValueOnce(new URLSearchParams({ step: "complete" }));
+    mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspace());
+    mockSessionsApi.getAcpQuestions.mockResolvedValueOnce([]);
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    expect(await screen.findByRole("button", { name: /Generar pruebas ACP y continuar/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Actualizar artefactos/i })).not.toBeInTheDocument();
+    expect(mockSessionsApi.runAcpWorkspacePhase).not.toHaveBeenCalled();
+  });
+
   it("reprocesses ACP deliverables through the workspace phase instead of legacy generation", async () => {
     mockUseSearchParams.mockReturnValueOnce(new URLSearchParams({ step: "complete" }));
-    mockSessionsApi.getAcpWorkspace.mockResolvedValue(createAcpWorkspace());
+    mockSessionsApi.getAcpWorkspace.mockResolvedValue(createAcpWorkspaceReadyForReconciliation());
     mockSessionsApi.getAcpQuestions.mockResolvedValue([]);
-    mockSessionsApi.runAcpWorkspacePhase.mockResolvedValueOnce(createAcpWorkspace());
+    mockSessionsApi.runAcpWorkspacePhase.mockResolvedValueOnce(createAcpWorkspaceReadyForReconciliation());
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
 
@@ -1714,26 +1807,7 @@ describe("UXA11 SaaS product views", () => {
 
   it("shows the ACP ZIP download only when the workspace is exportable", async () => {
     mockUseSearchParams.mockReturnValueOnce(new URLSearchParams({ step: "package" }));
-    mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(
-      createAcpWorkspace({
-        next_action: "Generar package y exportar.",
-        readiness: {
-          assumptions_count: 0,
-          blocking_gaps: 0,
-          can_start_build: true,
-          gaps: [],
-          next_recommended_action: "Exportar package.",
-          open_questions: 0,
-          overall_status: "ready",
-        },
-        validation: {
-          can_export_zip: true,
-          completeness_percent: 100,
-          issues: [],
-          overall_status: "ready",
-        },
-      }),
-    );
+    mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspaceReadyForPackage());
     mockSessionsApi.getAcpQuestions.mockResolvedValueOnce([]);
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);

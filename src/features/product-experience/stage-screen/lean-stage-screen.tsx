@@ -6,7 +6,6 @@ import { ArrowRight, FileText, GitBranch, Lock, MessageCircle, Sparkles } from "
 import { useLanguage } from "@/core/i18n/language-context";
 import {
   UxaBadge,
-  UxaProcessingStrip,
   UxaSurface,
   type UxaTone,
 } from "@/features/product-experience/design-system";
@@ -52,14 +51,6 @@ type LeanGeneratedDeliverableProps = {
 
 const tabOrder: LeanStageTabKey[] = ["task", "result", "evidence"];
 
-function clampProgress(value?: number) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return undefined;
-  }
-
-  return Math.min(100, Math.max(0, Math.round(value)));
-}
-
 function resultIcon(type: LeanStageLinkedResult["type"]) {
   if (type === "diagram") {
     return GitBranch;
@@ -75,7 +66,6 @@ function resultIcon(type: LeanStageLinkedResult["type"]) {
 
 export function LeanGeneratedDeliverable({
   badge,
-  metrics = [],
   nextUse,
   sections = [],
   summary,
@@ -86,33 +76,14 @@ export function LeanGeneratedDeliverable({
   return (
     <div className="space-y-4">
       <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.38fr)]">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <UxaBadge tone={badge?.tone ?? "info"}>
-                {badge?.label ?? byLanguage(language, { en: "Generated deliverable", es: "Entrega generada", pt: "Entrega gerada" })}
-              </UxaBadge>
-            </div>
-            <h3 className="mt-3 text-[20px] font-black text-[var(--uxa-color-ink)]">{title}</h3>
-            <p className="mt-2 max-w-[78ch] text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{summary}</p>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <UxaBadge tone={badge?.tone ?? "info"}>
+              {badge?.label ?? byLanguage(language, { en: "Generated deliverable", es: "Entrega generada", pt: "Entrega gerada" })}
+            </UxaBadge>
           </div>
-
-          {metrics.length ? (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-              {metrics.map((metric) => (
-                <div
-                  className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] p-3"
-                  key={`${metric.label}-${metric.value}`}
-                >
-                  <UxaBadge tone={metric.tone ?? "neutral"}>{metric.label}</UxaBadge>
-                  <p className="mt-2 text-[18px] font-black text-[var(--uxa-color-ink)]">{metric.value}</p>
-                  {metric.helper ? (
-                    <p className="mt-1 text-[11px] leading-4 text-[var(--uxa-color-ink-soft)]">{metric.helper}</p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <h3 className="mt-3 text-[20px] font-black text-[var(--uxa-color-ink)]">{title}</h3>
+          <p className="mt-2 max-w-[78ch] text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{summary}</p>
         </div>
       </UxaSurface>
 
@@ -158,7 +129,6 @@ function StagePrimaryActionPanel({
   message,
 }: LeanStageScreenProps) {
   const { t } = useLanguage();
-  const progress = clampProgress(contract.metric.progress);
 
   return (
     <UxaSurface className="uxa-stage-hero">
@@ -175,19 +145,6 @@ function StagePrimaryActionPanel({
             <p className="uxa-stage-description">
               {contract.stage.description}
             </p>
-          </div>
-          <div className="uxa-stage-metric-chip shrink-0">
-            <span className="uxa-stage-metric-label">
-              {contract.metric.label}
-            </span>
-            <strong className="uxa-stage-metric-value">
-              {contract.metric.value}
-            </strong>
-            {progress !== undefined ? (
-              <div className="min-w-[120px] flex-1">
-                <UxaProcessingStrip label={contract.metric.label} value={progress} />
-              </div>
-            ) : null}
           </div>
         </div>
         <div className="uxa-stage-action-row">
@@ -213,11 +170,6 @@ function StagePrimaryActionPanel({
             {actionArea}
           </div>
         </div>
-        {contract.metric.helper ? (
-          <p className="uxa-stage-helper-text">
-            {contract.metric.helper}
-          </p>
-        ) : null}
       </div>
     </UxaSurface>
   );

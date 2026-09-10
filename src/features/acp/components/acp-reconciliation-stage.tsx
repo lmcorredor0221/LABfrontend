@@ -18,12 +18,64 @@ import {
 import type { ACPWorkspaceResponse } from "@/features/sessions/types";
 import { sessionsApi } from "@/features/sessions/session-api";
 
+const COMPLETED_PHASE_STATUSES = new Set(["completed", "completed_with_observations"]);
+const RECONCILIATION_PHASE_KEY = "acp_artifact_reconciliation";
+
+type BlockingPhase = {
+  phase_key: string;
+  phase_label: string;
+  phase_order: number;
+  status: string;
+};
+
 export type AcpReconciliationStageProps = {
   sessionId: string;
   workspace: ACPWorkspaceResponse | null;
   onProceedToPackage: () => void;
   onReload: () => Promise<void> | void;
 };
+
+function isCompletedPhase(status?: string | null) {
+  return COMPLETED_PHASE_STATUSES.has(String(status ?? ""));
+}
+
+function formatPhaseStatus(status?: string | null) {
+  return String(status || "not_started").replaceAll("_", " ");
+}
+
+function findBlockingPreviousPhase(
+  workspace: ACPWorkspaceResponse | null,
+  targetPhaseKey: string,
+): BlockingPhase | null {
+  if (!workspace) {
+    return null;
+  }
+
+  const targetPhase = workspace.phases.find((phase) => phase.phase_key === targetPhaseKey);
+  const targetDefinition = workspace.phase_definitions.find((phase) => phase.key === targetPhaseKey);
+  const targetOrder = targetPhase?.phase_order ?? targetDefinition?.order;
+  if (!targetOrder || targetOrder <= 1) {
+    return null;
+  }
+
+  const definitionsByOrder = workspace.phase_definitions
+    .filter((phase) => phase.order < targetOrder)
+    .sort((left, right) => left.order - right.order);
+
+  for (const definition of definitionsByOrder) {
+    const phase = workspace.phases.find((candidate) => candidate.phase_key === definition.key);
+    if (!phase || !isCompletedPhase(phase.status)) {
+      return {
+        phase_key: definition.key,
+        phase_label: phase?.phase_label ?? definition.label,
+        phase_order: definition.order,
+        status: phase?.status ?? "not_started",
+      };
+    }
+  }
+
+  return null;
+}
 
 export function AcpReconciliationStage({
   sessionId,
@@ -38,11 +90,13 @@ export function AcpReconciliationStage({
   const workspaceStatus = workspace?.run.status ?? workspace?.readiness.overall_status ?? "pending";
   const workspacePhases = workspace?.phases ?? [];
   const completedPhaseCount = workspacePhases.filter((phase) =>
-    phase.status === "completed" || phase.status === "completed_with_observations",
+    isCompletedPhase(phase.status),
   ).length;
-  const reconciliationPhase = workspacePhases.find((phase) => phase.phase_key === "acp_artifact_reconciliation");
-  const reconciliationIsComplete =
-    reconciliationPhase?.status === "completed" || reconciliationPhase?.status === "completed_with_observations";
+  const reconciliationPhase = workspacePhases.find((phase) => phase.phase_key === RECONCILIATION_PHASE_KEY);
+  const reconciliationIsComplete = isCompletedPhase(reconciliationPhase?.status);
+  const blockingPreviousPhase = findBlockingPreviousPhase(workspace, RECONCILIATION_PHASE_KEY);
+  const canRunReconciliation = Boolean(workspace) && !blockingPreviousPhase;
+  const canProceedToPackage = reconciliationIsComplete || reconciled;
   const consistencyTone = reconciliationIsComplete ? "success" : reconciliationPhase?.status === "failed" || error ? "danger" : "warning";
   const consistencyLabel = workspacePhases.length
     ? `${completedPhaseCount}/${workspacePhases.length} ${byLanguage(language, {
@@ -160,7 +214,8 @@ export function AcpReconciliationStage({
 
           <div className="flex flex-wrap items-center gap-3">
             <UxaButton
-              disabled={reconciling}
+              aria-describedby={blockingPreviousPhase ? "acp-reconciliation-prerequisite" : undefined}
+              disabled={reconciling || !canRunReconciliation}
               isLoading={reconciling}
               onClick={() => void handleReconcile()}
               size="md"
@@ -175,6 +230,7 @@ export function AcpReconciliationStage({
             </UxaButton>
 
             <UxaButton
+              disabled={!canProceedToPackage}
               onClick={onProceedToPackage}
               size="md"
               variant="primary"
@@ -190,6 +246,32 @@ export function AcpReconciliationStage({
             </UxaButton>
           </div>
         </div>
+
+        {blockingPreviousPhase ? (
+          <div
+            className="mt-5 flex items-start gap-3 rounded-xl border border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)] p-4 text-[12px] text-[var(--uxa-color-ink)]"
+            id="acp-reconciliation-prerequisite"
+            role="status"
+          >
+            <AlertCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[var(--uxa-state-warning)]" />
+            <div>
+              <p className="font-bold">
+                {byLanguage(language, {
+                  en: `Complete ${blockingPreviousPhase.phase_label} before updating artifacts.`,
+                  es: `Completa ${blockingPreviousPhase.phase_label} antes de actualizar artefactos.`,
+                  pt: `Complete ${blockingPreviousPhase.phase_label} antes de atualizar artefatos.`,
+                })}
+              </p>
+              <p className="mt-0.5 leading-5 text-[var(--uxa-color-ink-soft)]">
+                {byLanguage(language, {
+                  en: `Current status: ${formatPhaseStatus(blockingPreviousPhase.status)}. Run ACP validation first so the state machine can advance without a conflict.`,
+                  es: `Estado actual: ${formatPhaseStatus(blockingPreviousPhase.status)}. Ejecuta primero la validacion ACP para que la maquina de estados avance sin conflicto.`,
+                  pt: `Estado atual: ${formatPhaseStatus(blockingPreviousPhase.status)}. Execute primeiro a validacao ACP para que a maquina de estados avance sem conflito.`,
+                })}
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         {/* Banner de Protección de Estabilidad */}
         <div className="mt-5 flex items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50/70 p-4 text-[12px] text-emerald-950">

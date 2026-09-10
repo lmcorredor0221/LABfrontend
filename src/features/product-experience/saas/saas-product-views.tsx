@@ -3561,19 +3561,44 @@ function AcpProductPage({
   const deferredQuestions = questions.filter((q) => q.status === "deferred");
   const isQuestionDataReady = questionLoadStatus === "ready";
   const isResolutionDone = isQuestionDataReady && openQuestions.length === 0;
+  const completedAcpPhaseKeys = new Set(
+    (workspace?.phases ?? [])
+      .filter((phase) => phase.status === "completed" || phase.status === "completed_with_observations")
+      .map((phase) => phase.phase_key),
+  );
+  const isValidationDone = [
+    "acp_input_readiness",
+    "acp_questions_resolution",
+    "acp_test_suite",
+    "acp_graphic_simulation",
+    "acp_quality_gates",
+  ].every((phaseKey) => completedAcpPhaseKeys.has(phaseKey));
+  const isReconciliationDone = completedAcpPhaseKeys.has("acp_artifact_reconciliation");
+  const isPackageDone =
+    completedAcpPhaseKeys.has("acp_package_build") &&
+    completedAcpPhaseKeys.has("acp_download_ready");
 
   const completedSteps: AcpWorkflowStep[] = [];
   if (isResolutionDone) completedSteps.push("resolve");
-  if (isResolutionDone && (currentStep === "complete" || currentStep === "package")) completedSteps.push("validate");
-  if (isResolutionDone && currentStep === "package") completedSteps.push("complete");
+  if (isValidationDone) completedSteps.push("validate");
+  if (isReconciliationDone) completedSteps.push("complete");
+  if (isPackageDone) completedSteps.push("package");
 
   const canNavigateTo = (step: AcpWorkflowStep): boolean => {
     if (step === "resolve") return true;
     // Para avanzar a etapas posteriores, todas las preguntas de decisión deben estar resueltas/delegadas/descartadas
-    return isResolutionDone;
+    if (step === "validate") return isResolutionDone;
+    if (step === "complete") return isResolutionDone && isValidationDone;
+    return isResolutionDone && isValidationDone && isReconciliationDone;
   };
-  const displayedStep =
-    currentStep === "resolve" || canNavigateTo(currentStep) ? currentStep : "resolve";
+  const nextAcpStep: AcpWorkflowStep = !isResolutionDone
+    ? "resolve"
+    : !isValidationDone
+      ? "validate"
+      : !isReconciliationDone
+        ? "complete"
+        : "package";
+  const displayedStep = currentStep === "resolve" || canNavigateTo(currentStep) ? currentStep : nextAcpStep;
 
   if (!canBuild) {
     return (
