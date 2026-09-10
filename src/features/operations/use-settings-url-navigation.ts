@@ -41,10 +41,6 @@ export function useSettingsUrlNavigation({
   }
 
   function handleSectionChange(sectionKey: AdminSettingsSectionKey) {
-    if (sectionKey === "hotmart") {
-      router.push("/admin/hotmart");
-      return;
-    }
     onSectionChange(sectionKey);
     replaceSettingsUrl(
       buildSettingsHref({

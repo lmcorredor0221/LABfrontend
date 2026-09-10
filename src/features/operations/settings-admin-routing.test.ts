@@ -22,7 +22,13 @@ describe("settings admin routing", () => {
 
   it("supports legacy aliases without exposing duplicate navigation", () => {
     expect(parseSettingsRouteState({ configTab: "commerce", configSubTab: "hotmart", section: "config" })).toEqual({
-      configSubTab: undefined,
+      configSubTab: "commercial",
+      configTab: "commerce",
+      productGovernanceTab: undefined,
+      section: "configuration",
+    });
+    expect(parseSettingsRouteState({ section: "hotmart" })).toEqual({
+      configSubTab: "commercial",
       configTab: "commerce",
       productGovernanceTab: undefined,
       section: "configuration",

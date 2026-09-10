@@ -3,7 +3,6 @@ import {
   BarChart3,
   Boxes,
   CircleDollarSign,
-  CreditCard,
   FileText,
   FolderKanban,
   Gauge,
@@ -21,7 +20,6 @@ import type {
 
 export type AdminSettingsSectionKey =
   | "configuration"
-  | "hotmart"
   | "llm"
   | "overview"
   | "productGovernance"
@@ -93,13 +91,6 @@ export const ADMIN_SECTIONS: AdminSectionDefinition[] = [
     icon: SlidersHorizontal,
     key: "configuration",
     label: "Configuración",
-  },
-  {
-    description: "Checkout, webhooks, activaciones, sincronización y conciliación bajo demanda.",
-    group: "Sistema",
-    icon: CreditCard,
-    key: "hotmart",
-    label: "Hotmart",
   },
 ];
 

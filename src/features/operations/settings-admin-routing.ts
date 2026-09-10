@@ -61,9 +61,14 @@ export function parseSettingsRouteState(params: SettingsSearchParams): ParsedSet
   const rawConfig = firstParam(params, "config") ?? firstParam(params, "configTab");
   const rawSubTab = firstParam(params, "subtab") ?? firstParam(params, "configSubTab");
 
-  if (rawSection === "integrations" || (rawConfig && LEGACY_HOTMART_CONFIG_KEYS.has(rawConfig))) {
+  if (
+    rawSection === "hotmart" ||
+    rawSection === "integrations" ||
+    (rawConfig && LEGACY_HOTMART_CONFIG_KEYS.has(rawConfig)) ||
+    (rawSubTab && LEGACY_HOTMART_CONFIG_KEYS.has(rawSubTab))
+  ) {
     return {
-      configSubTab: "prices",
+      configSubTab: "commercial",
       configTab: "commerce",
       productGovernanceTab: undefined,
       section: "configuration",

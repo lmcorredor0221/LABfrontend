@@ -1,7 +1,5 @@
-"use client";
-
-import { HotmartAdminPage } from "@/features/hotmart/hotmart-admin-page";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <HotmartAdminPage />;
+  redirect("/settings?section=configuration&config=commerce&subtab=commercial");
 }
