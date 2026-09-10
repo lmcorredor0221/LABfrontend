@@ -75,6 +75,14 @@ const PROVIDER_CREDENTIAL_LABELS: Record<string, Partial<typeof DEFAULT_CREDENTI
     webhookSigningSecret: "HMAC secret opcional",
     webhookUrlSecret: "URL secret",
   },
+  mercadopago: {
+    apiBaseUrl: "Mercado Pago API URL",
+    publicKey: "Public key",
+    secretKey: "Access token",
+    webhookPublicUrl: "Webhook público",
+    webhookSigningSecret: "Webhook signing secret",
+    webhookUrlSecret: "URL secret",
+  },
   rebill: {
     publicKey: "Public key",
     secretKey: "Secret key",
@@ -106,6 +114,13 @@ const PROVIDER_MAPPING_LABELS: Record<string, Partial<typeof DEFAULT_MAPPING_LAB
     providerPlanId: "País de pago",
     providerPriceId: "Métodos de pago",
     providerProductId: "Account ID override",
+  },
+  mercadopago: {
+    providerOfferRef: "Descripción factura",
+    providerPaymentLinkId: "Métodos excluidos",
+    providerPlanId: "Tipos excluidos",
+    providerPriceId: "Tipo predeterminado",
+    providerProductId: "Category ID",
   },
   rapyd: {
     providerOfferRef: "Statement descriptor",
