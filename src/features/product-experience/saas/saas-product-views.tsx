@@ -3201,7 +3201,9 @@ function BlueprintProPage({
     viewModel.access?.checkout_state === "pending";
 
   const [purchasing, setPurchasing] = useState(false);
-  const [requestSent, setRequestSent] = useState(false);
+  const [requestSentProduct, setRequestSentProduct] = useState<"blueprint_pro" | "acp" | null>(null);
+  const blueprintProRequestSent = requestSentProduct === "blueprint_pro" && !unlocked;
+  const acpRequestSent = requestSentProduct === "acp" && !canOpenAcp;
   const [downloading, setDownloading] = useState(false);
   const [downloadNotice, setDownloadNotice] = useState<InlineNotice | null>(null);
   const { market: checkoutMarket, setMarket: setCheckoutMarket } = useCheckoutMarketSelection();
@@ -3215,7 +3217,7 @@ function BlueprintProPage({
         premiumAssetCount={premiumAssetCount}
         productProgress={blueprintProProgress}
         purchasing={purchasing}
-        requestSent={requestSent}
+        requestSent={blueprintProRequestSent}
         unlocked={unlocked}
       />
       <CommercialBlueprintResult
@@ -3290,7 +3292,7 @@ function BlueprintProPage({
                         sessionId,
                         productKey: "acp",
                       });
-                      setRequestSent(true);
+                      setRequestSentProduct("acp");
                     }
                   } finally {
                     setPurchasing(false);
@@ -3305,7 +3307,7 @@ function BlueprintProPage({
                         es: "Procesando...",
                         pt: "Processando...",
                       })
-                    : requestSent
+                    : acpRequestSent
                     ? byLanguage(language, {
                         en: "Request sent",
                         es: "Solicitud enviada",
@@ -3420,7 +3422,7 @@ function BlueprintProPage({
                     sessionId,
                     productKey: "blueprint_pro",
                   });
-                  setRequestSent(true);
+                  setRequestSentProduct("blueprint_pro");
                 }
               } finally {
                 setPurchasing(false);
@@ -3435,7 +3437,7 @@ function BlueprintProPage({
                     es: "Procesando...",
                     pt: "Processando...",
                   })
-                : requestSent
+                : blueprintProRequestSent
                 ? byLanguage(language, {
                     en: "Request sent",
                     es: "Solicitud enviada",

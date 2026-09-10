@@ -1328,6 +1328,32 @@ describe("UXA11 SaaS product views", () => {
     expect(mockSessionsApi.completeSandboxCheckout).not.toHaveBeenCalled();
   });
 
+  it("does not keep a stale Blueprint Pro request label after the entitlement unlocks", async () => {
+    const lockedRoute = createRoute("blueprint");
+    lockedRoute.snapshot.data!.commercial_access = {
+      ...lockedRoute.snapshot.data!.commercial_access!,
+      checkout_state: "not_started",
+    };
+    const { rerender } = renderWithLanguage(
+      <ProductSaasView activeRoute={lockedRoute} section="blueprint_pro" />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Solicitar acceso" }));
+
+    await waitFor(() => expect(mockSessionsApi.createAccessRequest).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("button", { name: "Solicitud enviada" })).toBeInTheDocument();
+
+    rerender(
+      <LanguageProvider>
+        <ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />
+      </LanguageProvider>,
+    );
+
+    expect(screen.queryByRole("button", { name: "Solicitud enviada" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Adquirir ACP" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Descargar Blueprint Pro" })).toBeInTheDocument();
+  });
+
   it("downloads Blueprint Pro through the authenticated API instead of navigating directly", async () => {
     const createObjectUrl = vi.fn(() => "blob:blueprint-pro");
     const revokeObjectUrl = vi.fn();
