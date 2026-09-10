@@ -1,9 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
 import { LanguageProvider } from "@/core/i18n/language-context";
 import { deliverableCatalogApi } from "@/features/deliverables/infrastructure/deliverable-catalog-api";
-import { getConstructionScenarios } from "@/features/product-experience/saas/saas-product-model";
 import {
   premiumEnrichmentApi,
   type PremiumEnrichmentWorkspace,
@@ -1590,6 +1589,28 @@ describe("UXA11 SaaS product views", () => {
 
     expect(await screen.findByText(/Agent Construction Package/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Descargar ACP ZIP" })).not.toBeInTheDocument();
+  });
+
+  it("does not show the legacy Blueprint test-suite action inside ACP validation", async () => {
+    mockUseSearchParams.mockReturnValueOnce(new URLSearchParams({ step: "validate" }));
+    mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspace());
+    mockSessionsApi.getAcpQuestions.mockResolvedValueOnce([]);
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    expect(await screen.findByRole("button", { name: /Generar pruebas ACP y continuar/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Generar Test Suite/i })).not.toBeInTheDocument();
+  });
+
+  it("does not mark the ACP question gate as passed when question loading fails", async () => {
+    mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspace());
+    mockSessionsApi.getAcpQuestions.mockRejectedValueOnce(new Error("timeout al cargar preguntas ACP"));
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    expect(await screen.findByText(/No se pudo cargar la zona de preguntas ACP/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Gate superado/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continuar a Validación/i })).toBeDisabled();
   });
 
   it("reprocesses ACP deliverables through the workspace phase instead of legacy generation", async () => {

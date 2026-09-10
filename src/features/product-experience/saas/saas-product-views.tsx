@@ -29,6 +29,7 @@ import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 import {
   UxaBadge,
+  UxaButton,
   UxaMetricCard,
   UxaProcessingStrip,
   UxaProductHero,
@@ -71,6 +72,7 @@ import { AcpReconciliationStage } from "@/features/acp/components/acp-reconcilia
 import { AcpPackageStage } from "@/features/acp/components/acp-package-stage";
 
 type CheckoutMarketCode = "co" | "mx" | "ar";
+type AcpLoadStatus = "idle" | "loading" | "ready" | "error";
 
 const CHECKOUT_MARKET_STORAGE_KEY = "lean_checkout_market";
 const CHECKOUT_MARKETS: Array<{
@@ -91,6 +93,10 @@ function normalizeCheckoutMarket(value: string | null | undefined): CheckoutMark
 
 function checkoutMarketPackageCode(productKey: "blueprint_pro" | "acp", market: CheckoutMarketCode) {
   return `${productKey}_${market}`;
+}
+
+function getAcpLoadErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error || "Error desconocido");
 }
 
 function readStoredCheckoutMarket() {
@@ -3484,49 +3490,66 @@ function AcpProductPage({
   const [questions, setQuestions] = useState<ConstructionQuestionViewEntry[]>([]);
   const [workspace, setWorkspace] = useState<ACPWorkspaceResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [questionLoadStatus, setQuestionLoadStatus] = useState<AcpLoadStatus>("idle");
+  const [questionLoadError, setQuestionLoadError] = useState<string | null>(null);
+  const [workspaceLoadError, setWorkspaceLoadError] = useState<string | null>(null);
   const [showBlueprintArtifacts, setShowBlueprintArtifacts] = useState(false);
   const { market: checkoutMarket, setMarket: setCheckoutMarket } = useCheckoutMarketSelection();
 
-  const reloadData = async () => {
+  async function loadAcpPreparationData(options: { cancelled?: () => boolean } = {}) {
     if (!sessionId || !canBuild) return;
     try {
-      const [qs, ws] = await Promise.all([
+      setLoading(true);
+      setQuestionLoadStatus("loading");
+      setQuestionLoadError(null);
+      setWorkspaceLoadError(null);
+
+      const [questionsResult, workspaceResult] = await Promise.allSettled([
         sessionsApi.getAcpQuestions(sessionId),
         sessionsApi.getAcpWorkspace(sessionId),
       ]);
-      setQuestions(qs);
-      setWorkspace(ws);
-    } catch {
-      // Ignored
+
+      if (options.cancelled?.()) return;
+
+      if (questionsResult.status === "fulfilled") {
+        setQuestions(questionsResult.value);
+        setQuestionLoadStatus("ready");
+      } else {
+        setQuestionLoadStatus("error");
+        setQuestionLoadError(getAcpLoadErrorMessage(questionsResult.reason));
+      }
+
+      if (workspaceResult.status === "fulfilled") {
+        setWorkspace(workspaceResult.value);
+      } else {
+        setWorkspaceLoadError(getAcpLoadErrorMessage(workspaceResult.reason));
+      }
+    } catch (err) {
+      if (options.cancelled?.()) return;
+      setQuestionLoadStatus("error");
+      setQuestionLoadError(getAcpLoadErrorMessage(err));
+      setWorkspaceLoadError(getAcpLoadErrorMessage(err));
+    } finally {
+      if (!options.cancelled?.()) {
+        setLoading(false);
+      }
     }
-  };
+  }
+
+  const reloadData = () => loadAcpPreparationData();
 
   useEffect(() => {
     if (!sessionId || !canBuild) return;
     let cancelled = false;
     deferStateUpdate(() => {
       if (!cancelled) {
-        setLoading(true);
+        void loadAcpPreparationData({ cancelled: () => cancelled });
       }
     });
-    Promise.all([
-      sessionsApi.getAcpQuestions(sessionId),
-      sessionsApi.getAcpWorkspace(sessionId),
-    ])
-      .then(([qs, ws]) => {
-        if (cancelled) return;
-        setQuestions(qs);
-        setWorkspace(ws);
-      })
-      .catch(() => {
-        // Ignored
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ACP debe hidratarse al cambiar entitlement o session; reloadData usa el estado actual del componente.
   }, [canBuild, sessionId]);
 
   const openQuestions = questions.filter(
@@ -3536,18 +3559,21 @@ function AcpProductPage({
     (q) => q.status === "answered" || q.status === "resolved",
   );
   const deferredQuestions = questions.filter((q) => q.status === "deferred");
-  const isResolutionDone = openQuestions.length === 0;
+  const isQuestionDataReady = questionLoadStatus === "ready";
+  const isResolutionDone = isQuestionDataReady && openQuestions.length === 0;
 
   const completedSteps: AcpWorkflowStep[] = [];
   if (isResolutionDone) completedSteps.push("resolve");
-  if (currentStep === "complete" || currentStep === "package") completedSteps.push("validate");
-  if (currentStep === "package") completedSteps.push("complete");
+  if (isResolutionDone && (currentStep === "complete" || currentStep === "package")) completedSteps.push("validate");
+  if (isResolutionDone && currentStep === "package") completedSteps.push("complete");
 
   const canNavigateTo = (step: AcpWorkflowStep): boolean => {
     if (step === "resolve") return true;
     // Para avanzar a etapas posteriores, todas las preguntas de decisión deben estar resueltas/delegadas/descartadas
     return isResolutionDone;
   };
+  const displayedStep =
+    currentStep === "resolve" || canNavigateTo(currentStep) ? currentStep : "resolve";
 
   if (!canBuild) {
     return (
@@ -3773,7 +3799,7 @@ function AcpProductPage({
 
       {/* Stepper de 4 etapas */}
       <AcpStepStepper
-        activeStep={currentStep}
+        activeStep={displayedStep}
         completedSteps={completedSteps}
         onSelectStep={(step) => {
           if (canNavigateTo(step)) {
@@ -3782,6 +3808,7 @@ function AcpProductPage({
         }}
         canNavigateTo={canNavigateTo}
         openQuestionsCount={openQuestions.length}
+        resolutionState={questionLoadStatus}
       />
 
       {loading ? (
@@ -3792,6 +3819,51 @@ function AcpProductPage({
             pt: "Carregando estado do workspace ACP...",
           })}
         </p>
+      ) : null}
+
+      {questionLoadError ? (
+        <div
+          role="alert"
+          className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-danger)] bg-[var(--uxa-state-danger-bg)] p-4 text-[13px] text-[var(--uxa-color-ink)]"
+        >
+          <p className="font-black">
+            {byLanguage(language, {
+              en: "ACP question workspace could not load",
+              es: "No se pudo cargar la zona de preguntas ACP",
+              pt: "Nao foi possivel carregar a area de perguntas ACP",
+            })}
+          </p>
+          <p className="mt-1 text-[var(--uxa-color-ink-soft)]">{questionLoadError}</p>
+          <button
+            className="uxa-button uxa-button--secondary mt-3"
+            onClick={() => void reloadData()}
+            type="button"
+          >
+            <span>
+              {byLanguage(language, {
+                en: "Retry ACP load",
+                es: "Reintentar carga ACP",
+                pt: "Tentar carregar ACP novamente",
+              })}
+            </span>
+          </button>
+        </div>
+      ) : null}
+
+      {workspaceLoadError ? (
+        <div
+          role="alert"
+          className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)] p-4 text-[13px] text-[var(--uxa-color-ink)]"
+        >
+          <p className="font-black">
+            {byLanguage(language, {
+              en: "ACP workspace state could not load",
+              es: "No se pudo cargar el estado del workspace ACP",
+              pt: "Nao foi possivel carregar o estado do workspace ACP",
+            })}
+          </p>
+          <p className="mt-1 text-[var(--uxa-color-ink-soft)]">{workspaceLoadError}</p>
+        </div>
       ) : null}
 
       {/* Artefactos de Blueprint desplegables opcionalmente */}
@@ -3825,15 +3897,75 @@ function AcpProductPage({
 
       {/* Contenido de la etapa guiada activa */}
       <div className="min-h-[420px]">
-        {currentStep === "resolve" && (
-          <AcpResolutionStage
-            sessionId={sessionId}
-            questions={questions}
-            onQuestionsUpdated={reloadData}
-            onProceedToValidation={() => setCurrentStep("validate")}
-          />
+        {displayedStep === "resolve" && (
+          questionLoadStatus === "ready" ? (
+            <AcpResolutionStage
+              sessionId={sessionId}
+              questions={questions}
+              onQuestionsUpdated={reloadData}
+              onProceedToValidation={() => setCurrentStep("validate")}
+            />
+          ) : (
+            <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+              <UxaBadge tone={questionLoadStatus === "error" ? "danger" : "neutral"}>
+                {byLanguage(language, {
+                  en: "Resolve",
+                  es: "Resolver",
+                  pt: "Resolver",
+                })}
+              </UxaBadge>
+              <h2 className="mt-3 text-[20px] font-black">
+                {questionLoadStatus === "error"
+                  ? byLanguage(language, {
+                      en: "Question state is not verified",
+                      es: "El estado de preguntas no esta verificado",
+                      pt: "O estado das perguntas nao esta verificado",
+                    })
+                  : byLanguage(language, {
+                      en: "Loading implementation questions",
+                      es: "Cargando preguntas de implementacion",
+                      pt: "Carregando perguntas de implementacao",
+                    })}
+              </h2>
+              <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+                {questionLoadStatus === "error"
+                  ? byLanguage(language, {
+                      en: "ACP will not mark the gate as passed until the consolidated questions, answers, delegated decisions, and discarded items are loaded.",
+                      es: "ACP no marcara el gate como superado hasta cargar las preguntas, respuestas, decisiones delegadas y descartes consolidados.",
+                      pt: "ACP nao marcara o gate como aprovado ate carregar perguntas, respostas, decisoes delegadas e descartes consolidados.",
+                    })
+                  : byLanguage(language, {
+                      en: "This step consolidates the answers captured in Attention and the open ACP implementation decisions.",
+                      es: "Esta etapa consolida las respuestas capturadas en Atencion y las decisiones abiertas de implementacion ACP.",
+                      pt: "Esta etapa consolida as respostas capturadas em Atencao e as decisoes abertas de implementacao ACP.",
+                    })}
+              </p>
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <UxaButton disabled variant="primary">
+                  <span>
+                    {byLanguage(language, {
+                      en: "Continue to Validation",
+                      es: "Continuar a Validación",
+                      pt: "Continuar para Validacao",
+                    })}
+                  </span>
+                </UxaButton>
+                {questionLoadStatus === "error" ? (
+                  <UxaButton onClick={() => void reloadData()} variant="secondary">
+                    <span>
+                      {byLanguage(language, {
+                        en: "Retry ACP load",
+                        es: "Reintentar carga ACP",
+                        pt: "Tentar carregar ACP novamente",
+                      })}
+                    </span>
+                  </UxaButton>
+                ) : null}
+              </div>
+            </UxaSurface>
+          )
         )}
-        {currentStep === "validate" && (
+        {displayedStep === "validate" && (
           <AcpValidationStage
             activeRoute={activeRoute}
             sessionId={sessionId}
@@ -3841,7 +3973,7 @@ function AcpProductPage({
             onProceedToReconciliation={() => setCurrentStep("complete")}
           />
         )}
-        {currentStep === "complete" && (
+        {displayedStep === "complete" && (
           <AcpReconciliationStage
             sessionId={sessionId}
             workspace={workspace}
@@ -3849,7 +3981,7 @@ function AcpProductPage({
             onProceedToPackage={() => setCurrentStep("package")}
           />
         )}
-        {currentStep === "package" && (
+        {displayedStep === "package" && (
           <AcpPackageStage
             sessionId={sessionId}
             answeredCount={answeredQuestions.length}

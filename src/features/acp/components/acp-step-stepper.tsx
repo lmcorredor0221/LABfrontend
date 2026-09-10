@@ -13,6 +13,7 @@ export type AcpStepStepperProps = {
   onSelectStep: (step: AcpWorkflowStep) => void;
   canNavigateTo: (step: AcpWorkflowStep) => boolean;
   openQuestionsCount?: number;
+  resolutionState?: "idle" | "loading" | "ready" | "error";
 };
 
 export function AcpStepStepper({
@@ -21,6 +22,7 @@ export function AcpStepStepper({
   onSelectStep,
   canNavigateTo,
   openQuestionsCount = 0,
+  resolutionState = "ready",
 }: AcpStepStepperProps) {
   const { language } = useLanguage();
 
@@ -34,7 +36,19 @@ export function AcpStepStepper({
         pt: "1. Resolver",
       }),
       description:
-        openQuestionsCount > 0
+        resolutionState === "loading" || resolutionState === "idle"
+          ? byLanguage(language, {
+              en: "Loading questions",
+              es: "Cargando preguntas",
+              pt: "Carregando perguntas",
+            })
+          : resolutionState === "error"
+          ? byLanguage(language, {
+              en: "Questions not loaded",
+              es: "Preguntas no cargadas",
+              pt: "Perguntas nao carregadas",
+            })
+          : openQuestionsCount > 0
           ? byLanguage(language, {
               en: `${openQuestionsCount} open questions`,
               es: `${openQuestionsCount} preguntas abiertas`,

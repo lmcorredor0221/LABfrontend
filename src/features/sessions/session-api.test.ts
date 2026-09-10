@@ -113,6 +113,28 @@ describe("sessions api canonical exports", () => {
     );
   });
 
+  it("uses the long-running timeout for ACP workspace and question reads", async () => {
+    const client = {
+      get: vi.fn().mockResolvedValue({}),
+    };
+
+    const api = createSessionsApi(client as never);
+
+    await api.getAcpQuestions("session-acp", "extended");
+    await api.getAcpWorkspace("session-acp");
+
+    expect(client.get).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/sessions/session-acp/acp/questions?profile=extended",
+      { timeoutMs: getLongRunningApiRequestTimeoutMs() },
+    );
+    expect(client.get).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/sessions/session-acp/acp/workspace",
+      { timeoutMs: getLongRunningApiRequestTimeoutMs() },
+    );
+  });
+
   it("loads the governed diagram catalog and selected content format", async () => {
     const client = {
       get: vi.fn().mockResolvedValueOnce({ entries: [] }).mockResolvedValueOnce({ content: "<svg />" }),

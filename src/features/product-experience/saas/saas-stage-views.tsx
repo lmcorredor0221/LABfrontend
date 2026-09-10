@@ -529,7 +529,11 @@ export function EstimateStageView({ actionState, activeRoute, actions }: StageVi
   );
 }
 
-export function ValidateStageView({ activeRoute, supplementalContent }: StageViewProps & { supplementalContent?: ReactNode }) {
+export function ValidateStageView({
+  activeRoute,
+  hideStickyActions = false,
+  supplementalContent,
+}: StageViewProps & { hideStickyActions?: boolean; supplementalContent?: ReactNode }) {
   const { language } = useLanguage();
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
   const sessionId = activeRoute?.route.sessionId ?? "";
@@ -655,29 +659,31 @@ export function ValidateStageView({ activeRoute, supplementalContent }: StageVie
           )}
         </div>
       </UxaSurface>
-      <UxaStickyActionBar label={copy("Validate actions", "Acciones de Validar", "Acoes de Validar")}>
-        <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/diagrams`}>
-          <span>{copy("View diagrams", "Ver diagramas", "Ver diagramas")}</span>
-        </a>
-        {shouldGenerate || shouldEvaluate ? (
-          <UxaButton
-            disabled={processing}
-            isLoading={processing}
-            onClick={() => void handleValidateAction()}
-            variant="primary"
-          >
-            <span>
-              {shouldGenerate
-                ? copy("Generate Test Suite", "Generar Test Suite", "Generar Test Suite")
-                : copy("Run validation", "Ejecutar validación", "Executar validação")}
-            </span>
-          </UxaButton>
-        ) : (
-          <a className="uxa-button uxa-button--primary" href={summary.nextHref}>
-            <span>{summary.nextLabel}</span>
+      {hideStickyActions ? null : (
+        <UxaStickyActionBar label={copy("Validate actions", "Acciones de Validar", "Acoes de Validar")}>
+          <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/diagrams`}>
+            <span>{copy("View diagrams", "Ver diagramas", "Ver diagramas")}</span>
           </a>
-        )}
-      </UxaStickyActionBar>
+          {shouldGenerate || shouldEvaluate ? (
+            <UxaButton
+              disabled={processing}
+              isLoading={processing}
+              onClick={() => void handleValidateAction()}
+              variant="primary"
+            >
+              <span>
+                {shouldGenerate
+                  ? copy("Generate Test Suite", "Generar Test Suite", "Generar Test Suite")
+                  : copy("Run validation", "Ejecutar validación", "Executar validação")}
+              </span>
+            </UxaButton>
+          ) : (
+            <a className="uxa-button uxa-button--primary" href={summary.nextHref}>
+              <span>{summary.nextLabel}</span>
+            </a>
+          )}
+        </UxaStickyActionBar>
+      )}
     </div>
   );
 }

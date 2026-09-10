@@ -330,6 +330,9 @@ export function createSessionsApi(client = apiClient) {
     getAcpQuestions(sessionId: string, profile: AcpExportProfile = "extended") {
       return client.get<ConstructionQuestionViewEntry[]>(
         `/api/v1/sessions/${sessionId}/acp/questions${buildQueryString({ profile })}`,
+        {
+          timeoutMs: LONG_RUNNING_STAGE_TIMEOUT_MS,
+        },
       );
     },
     getAcpValidation(sessionId: string, profile: AcpExportProfile = "extended") {
@@ -407,7 +410,9 @@ export function createSessionsApi(client = apiClient) {
       return client.get<AcpInvitationResponse>(`/api/v1/sessions/${sessionId}/acp/invitation`);
     },
     getAcpWorkspace(sessionId: string) {
-      return client.get<ACPWorkspaceResponse>(`/api/v1/sessions/${sessionId}/acp/workspace`);
+      return client.get<ACPWorkspaceResponse>(`/api/v1/sessions/${sessionId}/acp/workspace`, {
+        timeoutMs: LONG_RUNNING_STAGE_TIMEOUT_MS,
+      });
     },
     runAcpWorkspacePhase(sessionId: string, phaseKey: string, payload: ACPPhaseCommandRequest = {}) {
       return client.post<ACPWorkspaceResponse>(

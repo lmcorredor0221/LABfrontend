@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { AlertCircle, ArrowRight } from "lucide-react";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { useLanguage } from "@/core/i18n/language-context";
 import { UxaButton } from "@/features/product-experience/design-system";
@@ -25,10 +25,12 @@ export function AcpValidationStage({
 }: AcpValidationStageProps) {
   const { language } = useLanguage();
   const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleProceed() {
     if (processing || !sessionId) return;
     setProcessing(true);
+    setError(null);
     try {
       for (const phaseKey of [
         "blueprint_validation",
@@ -42,6 +44,8 @@ export function AcpValidationStage({
       }
       await onReload();
       onProceedToReconciliation();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setProcessing(false);
     }
@@ -59,17 +63,37 @@ export function AcpValidationStage({
                   pt: "Executando validacao ACP...",
                 })
               : byLanguage(language, {
-                  en: "Continue to Complete Artifacts",
-                  es: "Continuar a Completar Artefactos",
-                  pt: "Continuar para Completar Artefatos",
+                  en: "Generate ACP tests and continue",
+                  es: "Generar pruebas ACP y continuar",
+                  pt: "Gerar testes ACP e continuar",
                 })}
           </span>
           <ArrowRight aria-hidden="true" className="ml-2 h-4 w-4" />
         </UxaButton>
       </div>
 
+      {error ? (
+        <div
+          role="alert"
+          className="flex items-start gap-3 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-danger)] bg-[var(--uxa-state-danger-bg)] p-4 text-[13px] text-[var(--uxa-color-ink)]"
+        >
+          <AlertCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[var(--uxa-state-danger)]" />
+          <div>
+            <p className="font-black">
+              {byLanguage(language, {
+                en: "ACP validation could not start",
+                es: "No se pudo iniciar la validacion ACP",
+                pt: "Nao foi possivel iniciar a validacao ACP",
+              })}
+            </p>
+            <p className="mt-1 text-[var(--uxa-color-ink-soft)]">{error}</p>
+          </div>
+        </div>
+      ) : null}
+
       <ValidateStageView
         activeRoute={activeRoute}
+        hideStickyActions
         supplementalContent={<AcpSimulationGraph />}
       />
     </div>
