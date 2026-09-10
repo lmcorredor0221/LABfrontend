@@ -4,15 +4,9 @@ import { useState } from "react";
 import {
   ArrowRight,
   CheckCircle2,
-  Download,
-  FileCode,
-  Layers,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
-  Zap,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { useLanguage } from "@/core/i18n/language-context";
 import {
@@ -22,8 +16,6 @@ import {
 } from "@/features/product-experience/design-system";
 import type { ACPWorkspaceResponse } from "@/features/sessions/types";
 import { sessionsApi } from "@/features/sessions/session-api";
-
-import { executeAcpZipDownload } from "@/features/acp/acp-adapter";
 
 export type AcpReconciliationStageProps = {
   sessionId: string;
@@ -41,22 +33,7 @@ export function AcpReconciliationStage({
   const { language } = useLanguage();
   const [reconciling, setReconciling] = useState(false);
   const [reconciled, setReconciled] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
-
-  async function handleDownloadZip() {
-    if (downloading) return;
-    setDownloading(true);
-    setDownloadSuccess(false);
-    try {
-      await executeAcpZipDownload({ sessionId });
-      setDownloadSuccess(true);
-    } catch {
-      // Ignored for feedback
-    } finally {
-      setDownloading(false);
-    }
-  }
+  const workspaceStatus = workspace?.run.status ?? workspace?.readiness.overall_status ?? "pending";
 
   // Lista de componentes técnicos de ACP sujetos a impacto
   const affectedComponents = [
@@ -108,8 +85,9 @@ export function AcpReconciliationStage({
     if (reconciling) return;
     setReconciling(true);
     try {
-      // Regenera selectivamente el preview ACP sin reiniciar el proyecto
-      await sessionsApi.generateAcp(sessionId);
+      await sessionsApi.runAcpWorkspacePhase(sessionId, "package_build", {
+        idempotency_key: `${sessionId}:package_build:${Date.now()}`,
+      });
       await onReload();
       setReconciled(true);
     } catch {
@@ -140,6 +118,7 @@ export function AcpReconciliationStage({
                   pt: "Consistência interna",
                 })}
               </UxaBadge>
+              <UxaBadge tone="neutral">{String(workspaceStatus).replaceAll("_", " ")}</UxaBadge>
             </div>
             <h2 className="mt-2 text-[20px] font-black">
               {byLanguage(language, {
@@ -158,21 +137,6 @@ export function AcpReconciliationStage({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <UxaButton
-              disabled={downloading}
-              isLoading={downloading}
-              onClick={() => void handleDownloadZip()}
-              size="md"
-              variant="secondary"
-            >
-              <Download className="mr-1.5 h-4 w-4" />
-              <span>
-                {downloading
-                  ? byLanguage(language, { en: "Preparing ZIP...", es: "Preparando ZIP...", pt: "Preparando ZIP..." })
-                  : byLanguage(language, { en: "Download ACP ZIP", es: "Descargar ACP ZIP", pt: "Baixar ACP ZIP" })}
-              </span>
-            </UxaButton>
-
             <UxaButton
               disabled={reconciling}
               isLoading={reconciling}

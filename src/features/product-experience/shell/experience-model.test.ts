@@ -24,10 +24,10 @@ describe("experience-model canonical product states", () => {
     );
     expect(getProductExperienceStateHref("session-uxa", "acp_prep")).toBe("/projects/session-uxa/acp");
     expect(getProductExperienceStateHref("session-uxa", "validate")).toBe(
-      "/projects/session-uxa/acp?acp_tab=validate",
+      "/projects/session-uxa/acp?step=validate",
     );
     expect(getProductExperienceStateHref("session-uxa", "completed")).toBe(
-      "/projects/session-uxa/acp?acp_tab=package",
+      "/projects/session-uxa/acp?step=package",
     );
   });
 

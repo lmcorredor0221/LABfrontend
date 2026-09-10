@@ -23,11 +23,11 @@ export default async function Page(props: PageProps) {
   }
 
   if (resolution.stage === "validate") {
-    redirect(`/projects/${id}/acp?acp_tab=validate`);
+    redirect(`/projects/${id}/acp?step=validate`);
   }
 
   if (resolution.stage === "package") {
-    redirect(`/projects/${id}/acp?acp_tab=package`);
+    redirect(`/projects/${id}/acp?step=package`);
   }
 
   return <ProjectExperienceBoundary productSection="work" section={resolution.section} sessionId={id} stage={resolution.stage} />;

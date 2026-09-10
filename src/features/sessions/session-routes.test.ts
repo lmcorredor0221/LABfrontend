@@ -389,7 +389,7 @@ describe("session project routes", () => {
         current: {
           blocking: false,
           detail: "El ACP se encuentra en validacion funcional, tecnica y de gobernanza.",
-          href: "/projects/session-s3/acp?acp_tab=validate",
+          href: "/projects/session-s3/acp?step=validate",
           label: "Validar",
           product_key: "acp",
           progress_percent: 62,
@@ -403,7 +403,7 @@ describe("session project routes", () => {
       },
     });
 
-    expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/acp?acp_tab=validate");
+    expect(getSessionProjectRoute(session, snapshot, overview)).toBe("/projects/session-s3/acp?step=validate");
   });
 
   it("prioritizes the explicit continuation action over the premium landing route", () => {

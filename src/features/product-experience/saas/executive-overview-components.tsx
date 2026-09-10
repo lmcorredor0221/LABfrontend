@@ -850,7 +850,7 @@ export function deliverableActionHref(
     case "blueprint_pro":
       return `/projects/${sessionId}/blueprint/pro?result_tab=${menu}`;
     case "acp":
-      return `/projects/${sessionId}/acp?acp_tab=${menu}`;
+      return `/projects/${sessionId}/acp?step=${menu}`;
     case "blueprint_basic":
     default:
       return `/projects/${sessionId}/blueprint?result_tab=${menu}`;

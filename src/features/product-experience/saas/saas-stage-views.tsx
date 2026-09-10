@@ -682,7 +682,7 @@ export function ValidateStageView({ activeRoute, supplementalContent }: StageVie
   );
 }
 
-export function PackageStageView({ activeRoute, onDownloadZip, answeredCount = 0, deferredCount = 0 }: StageViewProps & { onDownloadZip?: () => void; answeredCount?: number; deferredCount?: number }) {
+export function PackageStageView({ activeRoute }: StageViewProps) {
   const { language } = useLanguage();
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
   const sessionId = activeRoute?.route.sessionId ?? "";
@@ -700,7 +700,9 @@ export function PackageStageView({ activeRoute, onDownloadZip, answeredCount = 0
     setGenerating(true);
     setError(null);
     try {
-      await sessionsApi.generateAcp(sessionId);
+      await sessionsApi.runAcpWorkspacePhase(sessionId, "package_build", {
+        idempotency_key: `${sessionId}:package_build:${Date.now()}`,
+      });
       if (typeof window !== "undefined") {
         window.location.reload();
       }

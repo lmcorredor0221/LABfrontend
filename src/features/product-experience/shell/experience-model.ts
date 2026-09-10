@@ -266,10 +266,10 @@ export function getProductExperienceStateHref(sessionId: string, stage: LeanExpe
   }
 
   if (stage === "validate") {
-    return `${getProjectProductRoute(sessionId, "acp")}?acp_tab=validate`;
+    return `${getProjectProductRoute(sessionId, "acp")}?step=validate`;
   }
 
-  return `${getProjectProductRoute(sessionId, "acp")}?acp_tab=package`;
+  return `${getProjectProductRoute(sessionId, "acp")}?step=package`;
 }
 
 export function getProductExperienceProductHref(sessionId: string, section: ProductExperienceProductSection) {

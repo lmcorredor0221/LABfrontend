@@ -12,6 +12,7 @@ import {
   getAcpFileTone,
   getBlockingQuestions,
   getConstructionTone,
+  executeAcpZipDownload,
   getExportBlockedReason,
   getManifestFile,
   getValidationSeverityTone,
@@ -168,10 +169,8 @@ export function TemplatesWorkspacePage() {
         };
   const {
     createSession,
-    exportAcpZip,
     exportJson,
     exportMarkdown,
-    generateAcp,
     getAcpFile,
     getAcpPreview,
     getAcpQuestions,
@@ -179,6 +178,7 @@ export function TemplatesWorkspacePage() {
     listArtifacts,
     listError,
     listStatus,
+    runAcpWorkspacePhase,
     selectWorkspaceSession,
     selectedSession,
   } = useSessionWorkspace();
@@ -307,10 +307,12 @@ export function TemplatesWorkspacePage() {
     setActiveActionKey("generate");
 
     try {
-      await generateAcp(selectedSession.id);
+      await runAcpWorkspacePhase(selectedSession.id, "package_build", {
+        idempotency_key: `${selectedSession.id}:templates-package-build:${Date.now()}`,
+      });
       await loadWorkspace(selectedSession.id);
       setActionState("success");
-      setActionMessage("ACP regenerado y sincronizado con la sesion seleccionada.");
+      setActionMessage("Fase package_build de ACP ejecutada y sincronizada con la sesion seleccionada.");
     } catch (error) {
       setActionState("error");
       setActionMessage(getErrorMessage(error, "No se pudo regenerar el ACP."));
@@ -391,10 +393,12 @@ export function TemplatesWorkspacePage() {
     setActiveActionKey("export:zip");
 
     try {
-      const blob = await exportAcpZip(selectedSession.id);
-      downloadBlob(blob, `${selectedSession.id}-acp.zip`);
+      await runAcpWorkspacePhase(selectedSession.id, "conformance_export", {
+        idempotency_key: `${selectedSession.id}:templates-conformance-export:${Date.now()}`,
+      });
+      await executeAcpZipDownload({ sessionId: selectedSession.id });
       setActionState("success");
-      setActionMessage("ACP zip descargado correctamente.");
+      setActionMessage("ACP zip generado con export job y descarga iniciada.");
     } catch (error) {
       setActionState("error");
       setActionMessage(getErrorMessage(error, "No se pudo exportar el ACP zip."));

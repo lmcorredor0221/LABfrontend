@@ -5,10 +5,6 @@ import { LanguageProvider } from "@/core/i18n/language-context";
 import { deliverableCatalogApi } from "@/features/deliverables/infrastructure/deliverable-catalog-api";
 import { getConstructionScenarios } from "@/features/product-experience/saas/saas-product-model";
 import {
-  acpDirectApi,
-  type AcpDirectRouteResolution,
-} from "@/features/product-experience/saas/acp-direct-api";
-import {
   premiumEnrichmentApi,
   type PremiumEnrichmentWorkspace,
   type PremiumSelectiveReprocessResult,
@@ -36,8 +32,11 @@ const mockSessionsApi = vi.hoisted(() => ({
   createCheckoutSession: vi.fn(),
   createExportJob: vi.fn(),
   downloadExportJob: vi.fn(),
+  generateAcp: vi.fn(),
   getAcpQuestions: vi.fn(),
   getAcpWorkspace: vi.fn(),
+  getExportJob: vi.fn(),
+  runAcpWorkspacePhase: vi.fn(),
   retryExportJob: vi.fn(),
 }));
 const mockUseProductBuildStatus = vi.hoisted(() => vi.fn<() => UseProductBuildStatusResult>(() => ({
@@ -88,12 +87,6 @@ vi.mock("@/features/product-experience/saas/premium-enrichment-api", () => ({
     dismissItem: vi.fn(),
     getWorkspace: vi.fn(() => new Promise(() => undefined)),
     resolveItem: vi.fn(),
-  },
-}));
-
-vi.mock("@/features/product-experience/saas/acp-direct-api", () => ({
-  acpDirectApi: {
-    getResolution: vi.fn(() => new Promise(() => undefined)),
   },
 }));
 
@@ -1016,49 +1009,11 @@ function createAcpQuestions() {
   ];
 }
 
-function createAcpResolution(): AcpDirectRouteResolution {
-  return {
-    can_export_package: false,
-    can_start_package: false,
-    catalog_counts: {
-      acp_deliverables: 49,
-    },
-    completed_stage_keys: ["discover", "define"],
-    contract_version: "acp-direct-route-resolution.v1",
-    current_tier: "acp",
-    justified_stage_keys: [],
-    missing_stage_keys: ["design", "tools", "memory", "estimate", "validate"],
-    next_stage_key: "discover",
-    portable_catalog_paths: [],
-    processing_guidance: "ACP directo usa full readiness.",
-    product_mode: "acp_implementation",
-    question_policy: "full_readiness",
-    readiness_blockers: ["missing_stage:design"],
-    required_stage_keys: ["discover", "define", "design", "tools", "memory", "estimate", "validate"],
-    route_kind: "acp_direct",
-    session_id: "session-uxa11",
-    stages: [
-      { blocking_question_count: 0, completed: true, justification: "", justified: false, label: "Descubrir", next_action: "", stage_key: "discover", technical_question_count: 0 },
-      { blocking_question_count: 0, completed: true, justification: "", justified: false, label: "Definir", next_action: "", stage_key: "define", technical_question_count: 0 },
-      { blocking_question_count: 0, completed: false, justification: "", justified: false, label: "Disenar", next_action: "Aprueba arquitectura.", stage_key: "design", technical_question_count: 0 },
-      { blocking_question_count: 0, completed: false, justification: "", justified: false, label: "Herramientas", next_action: "Aprueba herramientas.", stage_key: "tools", technical_question_count: 0 },
-      { blocking_question_count: 0, completed: false, justification: "", justified: false, label: "Memoria", next_action: "Aprueba memoria.", stage_key: "memory", technical_question_count: 0 },
-      { blocking_question_count: 0, completed: false, justification: "", justified: false, label: "Estimar", next_action: "Genera estimacion.", stage_key: "estimate", technical_question_count: 0 },
-      { blocking_question_count: 0, completed: false, justification: "", justified: false, label: "Validar", next_action: "Valida readiness.", stage_key: "validate", technical_question_count: 0 },
-    ],
-    total_blocking_questions: 0,
-    total_technical_questions: 0,
-    workspace_id: "workspace-1",
-  };
-}
-
 beforeEach(() => {
   mockPush.mockClear();
   mockUseSearchParams.mockReturnValue(new URLSearchParams());
   mockUseProductBuildStatus.mockReset();
   mockUseProductBuildStatus.mockReturnValue(createProductBuildStatusMock());
-  vi.mocked(acpDirectApi.getResolution).mockReset();
-  vi.mocked(acpDirectApi.getResolution).mockImplementation(() => new Promise(() => undefined));
   vi.mocked(premiumEnrichmentApi.deferToAcp).mockReset();
   vi.mocked(premiumEnrichmentApi.dismissItem).mockReset();
   vi.mocked(premiumEnrichmentApi.getWorkspace).mockReset();
@@ -1069,11 +1024,15 @@ beforeEach(() => {
   mockSessionsApi.createCheckoutSession.mockReset();
   mockSessionsApi.createExportJob.mockReset();
   mockSessionsApi.downloadExportJob.mockReset();
+  mockSessionsApi.generateAcp.mockReset();
   mockSessionsApi.getAcpQuestions.mockReset();
   mockSessionsApi.getAcpWorkspace.mockReset();
+  mockSessionsApi.getExportJob.mockReset();
+  mockSessionsApi.runAcpWorkspacePhase.mockReset();
   mockSessionsApi.retryExportJob.mockReset();
   mockSessionsApi.getAcpWorkspace.mockImplementation(() => new Promise(() => undefined));
   mockSessionsApi.getAcpQuestions.mockImplementation(() => new Promise(() => undefined));
+  mockSessionsApi.runAcpWorkspacePhase.mockImplementation(() => new Promise(() => undefined));
 });
 
 describe("UXA11 SaaS stage views", () => {
@@ -1511,6 +1470,8 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("heading", { name: "Valor incremental sobre Blueprint" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Condiciones para activar" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Adquirir ACP" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Resultado del Blueprint" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "Secciones del resultado Blueprint" })).not.toBeInTheDocument();
     expect(screen.queryByRole("navigation", { name: "Ruta de Etapas ACP" })).not.toBeInTheDocument();
     expect(mockSessionsApi.getAcpQuestions).not.toHaveBeenCalled();
     expect(mockSessionsApi.getAcpWorkspace).not.toHaveBeenCalled();
@@ -1612,7 +1573,6 @@ describe("UXA11 SaaS product views", () => {
   });
 
   it("keeps ACP preparation inside ACP tabs even when canonical LEAN prerequisites are missing", async () => {
-    vi.mocked(acpDirectApi.getResolution).mockResolvedValueOnce(createAcpResolution());
     mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspace());
     mockSessionsApi.getAcpQuestions.mockResolvedValueOnce(createAcpQuestions());
 
@@ -1623,7 +1583,6 @@ describe("UXA11 SaaS product views", () => {
   });
 
   it("keeps ACP focused on preparation while the ZIP is still blocked", async () => {
-    vi.mocked(acpDirectApi.getResolution).mockResolvedValueOnce(createAcpResolution());
     mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspace());
     mockSessionsApi.getAcpQuestions.mockResolvedValueOnce(createAcpQuestions());
 
@@ -1633,8 +1592,30 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.queryByRole("button", { name: "Descargar ACP ZIP" })).not.toBeInTheDocument();
   });
 
+  it("reprocesses ACP deliverables through the workspace phase instead of legacy generation", async () => {
+    mockUseSearchParams.mockReturnValueOnce(new URLSearchParams({ step: "complete" }));
+    mockSessionsApi.getAcpWorkspace.mockResolvedValue(createAcpWorkspace());
+    mockSessionsApi.getAcpQuestions.mockResolvedValue([]);
+    mockSessionsApi.runAcpWorkspacePhase.mockResolvedValueOnce(createAcpWorkspace());
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    const updateButton = await screen.findByRole("button", { name: /Actualizar artefactos/i });
+    fireEvent.click(updateButton);
+
+    await waitFor(() =>
+      expect(mockSessionsApi.runAcpWorkspacePhase).toHaveBeenCalledWith(
+        "session-uxa11",
+        "package_build",
+        expect.objectContaining({
+          idempotency_key: expect.stringContaining("session-uxa11:package_build:"),
+        }),
+      ),
+    );
+    expect(mockSessionsApi.generateAcp).not.toHaveBeenCalled();
+  });
+
   it("surfaces answer outcomes and delegated decisions inside ACP impact panel", async () => {
-    vi.mocked(acpDirectApi.getResolution).mockResolvedValueOnce(createAcpResolution());
     mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspace());
     mockSessionsApi.getAcpQuestions.mockResolvedValueOnce([
       {
@@ -1675,14 +1656,7 @@ describe("UXA11 SaaS product views", () => {
   });
 
   it("shows the ACP ZIP download only when the workspace is exportable", async () => {
-    vi.mocked(acpDirectApi.getResolution).mockResolvedValueOnce({
-      ...createAcpResolution(),
-      can_export_package: true,
-      can_start_package: true,
-      missing_stage_keys: [],
-      next_stage_key: "package",
-      readiness_blockers: [],
-    });
+    mockUseSearchParams.mockReturnValueOnce(new URLSearchParams({ step: "package" }));
     mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(
       createAcpWorkspace({
         next_action: "Generar package y exportar.",
@@ -1707,7 +1681,13 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
 
-    expect(await screen.findByText(/Descargar ACP ZIP/i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("button", { name: /Descargar ACP ZIP/i })
+          .some((button) => button.className.includes("uxa-button--primary")),
+      ).toBe(true),
+    );
   });
 
   it("keeps Validate and Package as internal ACP Premium sections", () => {

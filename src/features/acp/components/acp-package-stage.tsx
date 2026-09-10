@@ -2,16 +2,9 @@
 
 import { useState } from "react";
 import {
-  Archive,
-  ArrowDownToLine,
-  Bot,
   CheckCircle2,
   Download,
-  FileArchive,
-  FileCheck,
-  FileCode,
   FolderTree,
-  Sparkles,
   Terminal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,21 +12,19 @@ import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { useLanguage } from "@/core/i18n/language-context";
 import {
   UxaBadge,
-  UxaButton,
   UxaSurface,
 } from "@/features/product-experience/design-system";
 import { executeAcpZipDownload } from "@/features/acp/acp-adapter";
+import { sessionsApi } from "@/features/sessions/session-api";
 
 export type AcpPackageStageProps = {
   sessionId: string;
-  projectTitle?: string;
   answeredCount: number;
   deferredCount: number;
 };
 
 export function AcpPackageStage({
   sessionId,
-  projectTitle = "Agente",
   answeredCount,
   deferredCount,
 }: AcpPackageStageProps) {
@@ -46,6 +37,9 @@ export function AcpPackageStage({
     setDownloading(true);
     setDownloadSuccess(false);
     try {
+      await sessionsApi.runAcpWorkspacePhase(sessionId, "conformance_export", {
+        idempotency_key: `${sessionId}:conformance_export:${Date.now()}`,
+      });
       await executeAcpZipDownload({ sessionId });
       setDownloadSuccess(true);
     } catch {
@@ -221,7 +215,7 @@ export function AcpPackageStage({
               <p className="text-slate-400"># 1. Descomprimir el paquete</p>
               <p>unzip ACP-bundle.zip -d ./my-agent</p>
               <p className="pt-2 text-slate-400"># 2. Iniciar con Claude Code / Codex / Cursor</p>
-              <p className="text-white">claude "Lee ACP/prompts/builder-handoff.md y construye el agente"</p>
+              <p className="text-white">{'claude "Lee ACP/prompts/builder-handoff.md y construye el agente"'}</p>
             </div>
           </UxaSurface>
 
