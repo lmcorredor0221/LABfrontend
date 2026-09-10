@@ -706,8 +706,8 @@ export function PackageStageView({ activeRoute }: StageViewProps) {
     setGenerating(true);
     setError(null);
     try {
-      await sessionsApi.runAcpWorkspacePhase(sessionId, "package_build", {
-        idempotency_key: `${sessionId}:package_build:${Date.now()}`,
+      await sessionsApi.runAcpWorkspacePhase(sessionId, "acp_artifact_reconciliation", {
+        idempotency_key: `${sessionId}:acp_artifact_reconciliation:${Date.now()}`,
       });
       if (typeof window !== "undefined") {
         window.location.reload();

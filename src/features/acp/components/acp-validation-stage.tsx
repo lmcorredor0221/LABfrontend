@@ -33,10 +33,11 @@ export function AcpValidationStage({
     setError(null);
     try {
       for (const phaseKey of [
-        "blueprint_validation",
-        "test_suite",
-        "gap_classification",
-        "implementation_questions",
+        "acp_input_readiness",
+        "acp_questions_resolution",
+        "acp_test_suite",
+        "acp_graphic_simulation",
+        "acp_quality_gates",
       ]) {
         await sessionsApi.runAcpWorkspacePhase(sessionId, phaseKey, {
           idempotency_key: `${sessionId}:${phaseKey}:${Date.now()}`,

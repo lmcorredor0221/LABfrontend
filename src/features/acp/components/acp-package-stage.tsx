@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  AlertCircle,
   CheckCircle2,
   Download,
   FolderTree,
@@ -31,19 +32,23 @@ export function AcpPackageStage({
   const { language } = useLanguage();
   const [downloading, setDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
   async function handleDownload() {
     if (downloading) return;
     setDownloading(true);
     setDownloadSuccess(false);
+    setErrorNotice(null);
     try {
-      await sessionsApi.runAcpWorkspacePhase(sessionId, "conformance_export", {
-        idempotency_key: `${sessionId}:conformance_export:${Date.now()}`,
-      });
+      for (const phaseKey of ["acp_package_build", "acp_download_ready"]) {
+        await sessionsApi.runAcpWorkspacePhase(sessionId, phaseKey, {
+          idempotency_key: `${sessionId}:${phaseKey}:${Date.now()}`,
+        });
+      }
       await executeAcpZipDownload({ sessionId });
       setDownloadSuccess(true);
-    } catch {
-      // Ignored
+    } catch (err) {
+      setErrorNotice(err instanceof Error ? err.message : String(err));
     } finally {
       setDownloading(false);
     }
@@ -155,6 +160,24 @@ export function AcpPackageStage({
                 pt: "Download iniciado com sucesso! Seu pacote ACP está pronto para ser carregado em sua IDE agêntica.",
               })}
             </span>
+          </div>
+        ) : null}
+        {errorNotice ? (
+          <div
+            role="alert"
+            className="mt-4 flex items-start gap-3 rounded-xl border border-[var(--uxa-state-danger)] bg-[var(--uxa-state-danger-bg)] p-3 text-[12px] text-[var(--uxa-color-ink)]"
+          >
+            <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--uxa-state-danger)]" />
+            <div>
+              <p className="font-bold">
+                {byLanguage(language, {
+                  en: "ACP package could not be prepared",
+                  es: "No se pudo preparar el paquete ACP",
+                  pt: "Nao foi possivel preparar o pacote ACP",
+                })}
+              </p>
+              <p className="mt-1 text-[var(--uxa-color-ink-soft)]">{errorNotice}</p>
+            </div>
           </div>
         ) : null}
       </UxaSurface>

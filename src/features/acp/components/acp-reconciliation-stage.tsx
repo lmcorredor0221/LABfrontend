@@ -40,10 +40,10 @@ export function AcpReconciliationStage({
   const completedPhaseCount = workspacePhases.filter((phase) =>
     phase.status === "completed" || phase.status === "completed_with_observations",
   ).length;
-  const packagePhase = workspacePhases.find((phase) => phase.phase_key === "package_build");
-  const packageIsComplete =
-    packagePhase?.status === "completed" || packagePhase?.status === "completed_with_observations";
-  const consistencyTone = packageIsComplete ? "success" : packagePhase?.status === "failed" || error ? "danger" : "warning";
+  const reconciliationPhase = workspacePhases.find((phase) => phase.phase_key === "acp_artifact_reconciliation");
+  const reconciliationIsComplete =
+    reconciliationPhase?.status === "completed" || reconciliationPhase?.status === "completed_with_observations";
+  const consistencyTone = reconciliationIsComplete ? "success" : reconciliationPhase?.status === "failed" || error ? "danger" : "warning";
   const consistencyLabel = workspacePhases.length
     ? `${completedPhaseCount}/${workspacePhases.length} ${byLanguage(language, {
         en: "phases",
@@ -107,8 +107,8 @@ export function AcpReconciliationStage({
     setReconciling(true);
     setError(null);
     try {
-      await sessionsApi.runAcpWorkspacePhase(sessionId, "package_build", {
-        idempotency_key: `${sessionId}:package_build:${Date.now()}`,
+      await sessionsApi.runAcpWorkspacePhase(sessionId, "acp_artifact_reconciliation", {
+        idempotency_key: `${sessionId}:acp_artifact_reconciliation:${Date.now()}`,
       });
       await onReload();
       setReconciled(true);
@@ -318,7 +318,7 @@ export function AcpReconciliationStage({
             })}
           </h3>
           <UxaBadge tone={consistencyTone}>
-            {packageIsComplete
+            {reconciliationIsComplete
               ? byLanguage(language, { en: "Consistent", es: "Consistente", pt: "Consistente" })
               : consistencyLabel}
           </UxaBadge>

@@ -307,12 +307,12 @@ export function TemplatesWorkspacePage() {
     setActiveActionKey("generate");
 
     try {
-      await runAcpWorkspacePhase(selectedSession.id, "package_build", {
-        idempotency_key: `${selectedSession.id}:templates-package-build:${Date.now()}`,
+      await runAcpWorkspacePhase(selectedSession.id, "acp_artifact_reconciliation", {
+        idempotency_key: `${selectedSession.id}:templates-artifact-reconciliation:${Date.now()}`,
       });
       await loadWorkspace(selectedSession.id);
       setActionState("success");
-      setActionMessage("Fase package_build de ACP ejecutada y sincronizada con la sesion seleccionada.");
+      setActionMessage("Fase acp_artifact_reconciliation ejecutada y sincronizada con la sesion seleccionada.");
     } catch (error) {
       setActionState("error");
       setActionMessage(getErrorMessage(error, "No se pudo regenerar el ACP."));
@@ -393,9 +393,11 @@ export function TemplatesWorkspacePage() {
     setActiveActionKey("export:zip");
 
     try {
-      await runAcpWorkspacePhase(selectedSession.id, "conformance_export", {
-        idempotency_key: `${selectedSession.id}:templates-conformance-export:${Date.now()}`,
-      });
+      for (const phaseKey of ["acp_package_build", "acp_download_ready"]) {
+        await runAcpWorkspacePhase(selectedSession.id, phaseKey, {
+          idempotency_key: `${selectedSession.id}:templates-${phaseKey}:${Date.now()}`,
+        });
+      }
       await executeAcpZipDownload({ sessionId: selectedSession.id });
       setActionState("success");
       setActionMessage("ACP zip generado con export job y descarga iniciada.");
