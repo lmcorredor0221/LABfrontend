@@ -3222,18 +3222,22 @@ function BlueprintProPage({
   const [downloadNotice, setDownloadNotice] = useState<InlineNotice | null>(null);
   const { market: checkoutMarket, setMarket: setCheckoutMarket } = useCheckoutMarketSelection();
 
+  const showLifecyclePanel = !unlocked || !viewModel.blueprintDownload.allowed;
+
   return (
     <div className="space-y-5">
-      <BlueprintProLifecyclePanel
-        canOpenAcp={canOpenAcp}
-        checkoutState={viewModel.access?.checkout_state}
-        downloadGate={viewModel.blueprintDownload}
-        premiumAssetCount={premiumAssetCount}
-        productProgress={blueprintProProgress}
-        purchasing={purchasing}
-        requestSent={blueprintProRequestSent}
-        unlocked={unlocked}
-      />
+      {showLifecyclePanel ? (
+        <BlueprintProLifecyclePanel
+          canOpenAcp={canOpenAcp}
+          checkoutState={viewModel.access?.checkout_state}
+          downloadGate={viewModel.blueprintDownload}
+          premiumAssetCount={premiumAssetCount}
+          productProgress={blueprintProProgress}
+          purchasing={purchasing}
+          requestSent={blueprintProRequestSent}
+          unlocked={unlocked}
+        />
+      ) : null}
       <CommercialBlueprintResult
         activeRoute={activeRoute}
         artifactCards={viewModel.artifactCards}

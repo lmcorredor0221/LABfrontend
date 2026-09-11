@@ -1270,13 +1270,14 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByText(/Generando entregables de Blueprint/i)).toBeInTheDocument();
   });
 
-  it("renders Blueprint Pro executive overview inside the Blueprint Pro tabs", () => {
+  it("renders Blueprint Pro executive overview inside the Blueprint Pro tabs and hides the redundant lifecycle banner", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
 
     expect(screen.getByRole("heading", { name: "Resultado del Blueprint" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Resumen Pro/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Diagramas de Blueprint Pro/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "De una propuesta clara a un Blueprint defendible" })).toBeInTheDocument();
+    expect(screen.queryByText(/Blueprint Pro esta activo y listo para/i)).not.toBeInTheDocument();
   });
 
   it("keeps Blueprint Pro in the access gate until the premium entitlement is active", () => {
