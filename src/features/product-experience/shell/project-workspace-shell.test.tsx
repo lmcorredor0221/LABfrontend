@@ -331,6 +331,27 @@ describe("ProjectWorkspaceShell UXA5", () => {
     expect(screen.getAllByText(/El proceso continua aunque aun no existan nuevos resultados visibles/).length).toBeGreaterThan(0);
   });
 
+  it("shows persistent processing feedback for rehydrated server operations", () => {
+    const route = createRoute();
+    route.operation.data!.stageOperation = createStageOperation({
+      action: "generate_estimation_report",
+      current_step: "analysis",
+      detail: "Calculando esfuerzo, riesgo, ROI y politica de avance al paquete.",
+      stage_key: "estimate",
+      status: "running",
+    });
+
+    renderWithLanguage(
+      <ProjectWorkspaceShell activeProduct="work" activeRoute={route} activeStage="estimate" sessionId="session-uxa5">
+        <section aria-label="Contenido de Estimate"><UxaButton>Continuar</UxaButton></section>
+      </ProjectWorkspaceShell>,
+    );
+
+    expect(screen.getByText("Backend/LLM")).toBeInTheDocument();
+    expect(screen.getAllByText("Calculando esfuerzo, riesgo, ROI y politica de avance al paquete.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/El proceso continua aunque aun no existan nuevos resultados visibles/).length).toBeGreaterThan(0);
+  });
+
   it("surfaces canonical journey context in the shell header", () => {
     const route = createRoute();
 
@@ -442,7 +463,7 @@ describe("ProjectWorkspaceShell UXA5", () => {
       </ProjectWorkspaceShell>,
     );
 
-    expect(screen.getByText("Generando propuesta de arquitectura.")).toBeInTheDocument();
+    expect(screen.getAllByText("Generando propuesta de arquitectura.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Propuesta de arquitectura").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(onCancelOperation).toHaveBeenCalledWith("operation-1");
@@ -469,7 +490,7 @@ describe("ProjectWorkspaceShell UXA5", () => {
       </ProjectWorkspaceShell>,
     );
 
-    expect(screen.getByText("Stage operation heartbeat expired before completion.")).toBeInTheDocument();
+    expect(screen.getAllByText("Stage operation heartbeat expired before completion.").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(onRetryOperation).toHaveBeenCalledWith("operation-1");
   });

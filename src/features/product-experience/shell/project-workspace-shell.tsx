@@ -40,6 +40,7 @@ import type { ProductExperienceRouteSnapshot } from "@/features/product-experien
 import { ProductOperationPanel } from "@/features/product-experience/operations/operation-panel";
 import {
   buildProductOperationEnvelope,
+  isOperationActive,
   type ProductOperationActionSnapshot,
 } from "@/features/product-experience/operations/operation-model";
 import {
@@ -882,10 +883,11 @@ export function ProjectWorkspaceShell({
   const stageRailItems = buildStageRailItems(sessionId, activeStage, t);
   const stageDefinition = getProductExperienceStage(activeStage, t);
   const journeyDisplay = getJourneyStateMachineDisplay(language, activeRoute?.operation.data?.overview?.journey_state_machine ?? null);
+  const effectiveOperation = buildProductOperationEnvelope({ actionState: operationAction, activeRoute });
   const activeOperationSubmitting = operationAction?.status === "submitting";
-  const activeOperation = activeOperationSubmitting ? operationAction?.operation : null;
+  const activeOperation = activeOperationSubmitting ? operationAction?.operation ?? effectiveOperation : effectiveOperation;
   const activeAttention = attentionAction?.status === "submitting";
-  const processingActive = Boolean(activeOperationSubmitting || activeAttention);
+  const processingActive = Boolean(activeAttention || activeOperationSubmitting || isOperationActive(activeOperation));
   const processingTitle = activeAttention
     ? attentionAction?.message ?? t("processing.attention.title", "Aplicando accion del Segmento de Atencion.")
     : operationAction?.message ?? activeOperation?.detail ?? t("processing.generic.title", "Procesando informacion.");
@@ -900,7 +902,7 @@ export function ProjectWorkspaceShell({
   const processingActivity = activeAttention
     ? t("processing.attention.activity", "HITL")
     : t("processing.backendActivity", "Backend/LLM");
-  const operationPanelVisible = Boolean(buildProductOperationEnvelope({ actionState: operationAction, activeRoute }));
+  const operationPanelVisible = Boolean(effectiveOperation);
 
   function openAttention(source: HTMLElement) {
     attentionReturnFocusRef.current = source;
@@ -926,7 +928,7 @@ export function ProjectWorkspaceShell({
     <div className="uxa-foundation-root min-h-screen w-full bg-[var(--surface-canvas)]">
       <UxaSkipLink targetId="project-workspace-main">{t("common.skipToContent", "Skip to content")}</UxaSkipLink>
       <p aria-live="polite" className="sr-only" role="status">
-        {attentionAnnouncement || operationAction?.operation?.detail || attentionAction?.message || ""}
+        {attentionAnnouncement || effectiveOperation?.detail || attentionAction?.message || ""}
       </p>
       <div className="min-h-screen w-full">
         <ProjectTopbar
