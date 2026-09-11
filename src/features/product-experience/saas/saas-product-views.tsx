@@ -3437,10 +3437,14 @@ function BlueprintProPage({
                     productKey: "blueprint_pro",
                   });
                 } else {
-                  await executeAccessRequest({
+                  const accessResponse = await executeAccessRequest({
                     sessionId,
                     productKey: "blueprint_pro",
                   });
+                  if (accessResponse && accessResponse.status === "approved") {
+                    window.location.reload();
+                    return;
+                  }
                   setRequestSentProduct("blueprint_pro");
                 }
               } finally {
