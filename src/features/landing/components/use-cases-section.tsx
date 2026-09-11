@@ -25,7 +25,7 @@ export function UseCasesSection({ onSelectPrompt }: UseCasesSectionProps) {
         en: "Multimodal data extraction from invoices, PO validation against ERP, and human sign-off on discrepancies.",
         pt: "Extração multimodal de dados em faturas, validação de pedidos no ERP e aprovação humana para discrepâncias.",
       }),
-      savings: "70% – 85%",
+      savings: "65% – 75% tiempo op.",
       hitl: byLanguage(language, { es: "Escalamiento si discrepancia > $10 USD", en: "Escalates if discrepancy > $10 USD", pt: "Escala se discrepância > $10 USD" }),
       promptToLoad: byLanguage(language, {
         es: "Tenemos 6 personas revisando facturas en PDF y validándolas contra órdenes de compra registradas en el ERP SAP. Queremos automatizar la validación dejando solo las discrepancias para aprobación humana.",
@@ -46,7 +46,7 @@ export function UseCasesSection({ onSelectPrompt }: UseCasesSectionProps) {
         en: "Queries customer records in CRM/Shopify, diagnoses complaint root causes, and executes refunds within safety thresholds.",
         pt: "Consulta o histórico no CRM/Shopify, diagnostica o motivo da reclamação e autoriza reembolsos sob limites pré-definidos.",
       }),
-      savings: "60% – 75%",
+      savings: "50% – 65% res. autónoma",
       hitl: byLanguage(language, { es: "Aprobación humana si supera $100 USD", en: "Human approval if refund > $100 USD", pt: "Aprovação humana se reembolso > $100 USD" }),
       promptToLoad: byLanguage(language, {
         es: "Quiero automatizar el soporte de clientes para que un agente consulte el estado de pedidos en la API de Shopify, tome decisiones de reembolso y escale casos complejos a Zendesk.",
@@ -67,7 +67,7 @@ export function UseCasesSection({ onSelectPrompt }: UseCasesSectionProps) {
         en: "Scans vendor contracts against internal risk policies, flags uncapped liability clauses, and highlights critical variances.",
         pt: "Analisa contratos contra políticas internas de risco, detecta cláusulas de responsabilidade ilimitada e destaca divergências.",
       }),
-      savings: "65% – 80%",
+      savings: "55% – 70% aceleración",
       hitl: byLanguage(language, { es: "Revisión obligatoria de cláusulas críticas", en: "Mandatory human review on critical terms", pt: "Revisão obrigatória de cláusulas críticas" }),
       promptToLoad: byLanguage(language, {
         es: "Necesitamos analizar documentos legales y solicitudes de crédito comparando condiciones contra políticas internas, solicitando aprobación humana cuando existan inconsistencias.",

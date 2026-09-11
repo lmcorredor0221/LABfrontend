@@ -131,47 +131,49 @@ function StagePrimaryActionPanel({
   const { t } = useLanguage();
 
   return (
-    <UxaSurface className="uxa-stage-hero">
-      <div className="uxa-stage-hero-body">
-        <div className="uxa-stage-hero-header">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <UxaBadge tone={contract.stage.statusTone}>{contract.stage.statusLabel}</UxaBadge>
-              <UxaBadge tone={contract.primaryAction.tone ?? "info"}>{contract.primaryAction.label}</UxaBadge>
-            </div>
-            <h2 className="uxa-stage-title">
-              {contract.stage.title}
-            </h2>
-            <p className="uxa-stage-description">
-              {contract.stage.description}
-            </p>
-          </div>
-        </div>
-        <div className="uxa-stage-action-row">
-          <div className="uxa-stage-action-copy">
+    <>
+      <UxaSurface className="uxa-stage-hero">
+        <div className="uxa-stage-hero-body">
+          <div className="uxa-stage-hero-header">
             <div className="min-w-0">
-              <p className="uxa-stage-action-eyebrow">{t("workbench.recommendedActionEyebrow", "Accion recomendada")}</p>
-              <h3 className="uxa-stage-action-title">
-                {contract.primaryAction.label}
-              </h3>
-            </div>
-            <div className="min-w-0">
-              <p className="uxa-stage-action-description">
-                {contract.primaryAction.description}
+              <div className="flex flex-wrap items-center gap-2">
+                <UxaBadge tone={contract.stage.statusTone}>{contract.stage.statusLabel}</UxaBadge>
+                <UxaBadge tone={contract.primaryAction.tone ?? "info"}>{contract.primaryAction.label}</UxaBadge>
+              </div>
+              <h2 className="uxa-stage-title">
+                {contract.stage.title}
+              </h2>
+              <p className="uxa-stage-description">
+                {contract.stage.description}
               </p>
-              {message ? (
-                <p className="mt-2 rounded-[var(--uxa-radius-md)] bg-white/80 px-3 py-2 text-[12px] leading-5 text-[var(--uxa-color-ink)]" role="status">
-                  {message}
-                </p>
-              ) : null}
             </div>
           </div>
-          <div className="uxa-stage-action-strip">
-            {actionArea}
+          <div className="uxa-stage-action-row">
+            <div className="uxa-stage-action-copy">
+              <div className="min-w-0">
+                <p className="uxa-stage-action-eyebrow">{t("workbench.recommendedActionEyebrow", "Accion recomendada")}</p>
+                <h3 className="uxa-stage-action-title">
+                  {contract.primaryAction.label}
+                </h3>
+              </div>
+              <div className="min-w-0">
+                <p className="uxa-stage-action-description">
+                  {contract.primaryAction.description}
+                </p>
+                {message ? (
+                  <p className="mt-2 rounded-[var(--uxa-radius-md)] bg-white/80 px-3 py-2 text-[12px] leading-5 text-[var(--uxa-color-ink)]" role="status">
+                    {message}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <div className="uxa-stage-action-strip">
+              {actionArea}
+            </div>
           </div>
         </div>
-      </div>
-    </UxaSurface>
+      </UxaSurface>
+    </>
   );
 }
 

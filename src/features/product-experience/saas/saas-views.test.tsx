@@ -1274,12 +1274,8 @@ describe("UXA11 SaaS product views", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
 
     expect(screen.getByRole("heading", { name: "Resultado del Blueprint" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Enriquecimiento Pro/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Resumen Pro/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Diagramas de Blueprint Pro/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Resuelve solo lo que mejora el Blueprint profesional" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { name: /Resumen Pro/ }));
     expect(screen.getByRole("heading", { name: "De una propuesta clara a un Blueprint defendible" })).toBeInTheDocument();
   });
 
@@ -1287,7 +1283,7 @@ describe("UXA11 SaaS product views", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_pro" />);
 
     expect(screen.getByRole("heading", { name: /Activa Blueprint Pro antes de abrir el workspace profesional/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /El enriquecimiento Pro inicia solo después de activar Blueprint Pro/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /El enriquecimiento Pro inicia solo después de activar Blueprint Pro/i })).not.toBeInTheDocument();
     expect(vi.mocked(premiumEnrichmentApi.getWorkspace)).not.toHaveBeenCalled();
     expect(screen.queryByText("Cargando backlog priorizado de enriquecimiento...")).not.toBeInTheDocument();
   });
@@ -1435,6 +1431,7 @@ describe("UXA11 SaaS product views", () => {
   });
 
   it("renders the direct suggestion accelerator when premium enrichment returns a suggested answer", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=enrichment"));
     vi.mocked(premiumEnrichmentApi.getWorkspace).mockResolvedValueOnce(createPremiumWorkspace());
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
@@ -1449,6 +1446,7 @@ describe("UXA11 SaaS product views", () => {
   });
 
   it("analyzes premium answers before triggering any reconciliation", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=enrichment"));
     vi.mocked(premiumEnrichmentApi.getWorkspace)
       .mockResolvedValueOnce(createPremiumWorkspace())
       .mockResolvedValueOnce(createResolvedPremiumWorkspace());
@@ -1474,6 +1472,7 @@ describe("UXA11 SaaS product views", () => {
   });
 
   it("requires an explicit follow-up action to reconcile affected premium deliverables", async () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=enrichment"));
     vi.mocked(premiumEnrichmentApi.getWorkspace)
       .mockResolvedValueOnce(createPremiumWorkspace())
       .mockResolvedValueOnce(createResolvedPremiumWorkspace())

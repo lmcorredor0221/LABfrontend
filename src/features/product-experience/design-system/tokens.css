@@ -1536,6 +1536,9 @@
     flex-wrap: wrap;
   }
 
+  #project-workspace-main {
+    padding-bottom: 96px;
+  }
 }
 
 @media (pointer: coarse) {

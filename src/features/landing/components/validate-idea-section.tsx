@@ -377,7 +377,18 @@ export function ValidateIdeaSection({
 
                 <button
                   type="button"
-                  onClick={() => onStartBlueprint("blueprint")}
+                  onClick={() => {
+                    if (evalResult?.prefilled_project_data && typeof window !== "undefined") {
+                      try {
+                        const payload = JSON.stringify(evalResult.prefilled_project_data);
+                        window.sessionStorage.setItem("pending_initiative_prefill", payload);
+                        window.localStorage.setItem("pending_initiative_prefill", payload);
+                      } catch {
+                        // ignore storage errors
+                      }
+                    }
+                    onStartBlueprint("blueprint");
+                  }}
                   className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold shadow-lg shadow-indigo-600/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.02]"
                 >
                   <span>

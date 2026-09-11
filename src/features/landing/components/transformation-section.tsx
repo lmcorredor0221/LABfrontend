@@ -80,7 +80,7 @@ export function TransformationSection() {
       }),
       points: [
         byLanguage(language, { es: "Listo para Cursor / Claude Code", en: "Ready for Cursor / Claude Code", pt: "Pronto para Cursor / Claude Code" }),
-        byLanguage(language, { es: "0% de tiempo perdido en rediseños", en: "0% wasted time on redesigns", pt: "0% de tempo perdido em retrabalho" }),
+        byLanguage(language, { es: "35% a 55% de reducción en retrabajos (McKinsey & Co.)", en: "35% to 55% reduction in rework (McKinsey & Co.)", pt: "35% a 55% de redução em retrabalho (McKinsey & Co.)" }),
         byLanguage(language, { es: "Opción de construcción delegada en LAB Factory", en: "Delegated build option in LAB Factory", pt: "Opção de construção delegada no LAB Factory" }),
       ],
     },
@@ -106,9 +106,9 @@ export function TransformationSection() {
           </h2>
           <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base mt-3 leading-relaxed">
             {byLanguage(language, {
-              es: "El 80% de los proyectos de IA fallan por empezar programando sin arquitectura. LAB te lleva paso a paso desde el problema de negocio hasta el paquete de construcción.",
-              en: "80% of AI agent projects fail due to coding without architecture. LAB guides you step by step from business problem to build package.",
-              pt: "80% dos projetos de IA falham por começar a programar sem arquitetura. O LAB guia você passo a passo do problema de negócio ao pacote de construção.",
+              es: "Estudios de RAND Corporation y Gartner señalan que más del 80% de las iniciativas de IA fallan por empezar programando sin arquitectura previa. LAB te lleva paso a paso desde el problema de negocio hasta el paquete de construcción.",
+              en: "Research by RAND Corporation and Gartner highlights that over 80% of AI initiatives fail due to coding without prior architecture. LAB guides you step by step from business problem to build package.",
+              pt: "Estudos da RAND Corporation e Gartner apontam que mais de 80% das iniciativas de IA falham por começar a programar sem arquitetura prévia. O LAB guia você passo a passo do problema de negócio ao pacote de construção.",
             })}
           </p>
         </div>

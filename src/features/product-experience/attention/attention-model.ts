@@ -279,7 +279,7 @@ export function isAttentionItemRequired(item: AttentionItemV2): boolean {
     item.action.kind === "approve" ||
     item.action.kind === "confirm" ||
     item.type === "question" ||
-    item.type === "gap" ||
+    (item.type === "gap" && item.action.kind !== "navigate") ||
     item.type === "approval" ||
     item.type === "access_request";
 }

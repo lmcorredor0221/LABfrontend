@@ -175,7 +175,7 @@ describe("executive overview shared components", () => {
 
     expect(screen.getByRole("heading", { name: /De una necesidad ambigua/ })).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Progreso global del producto" })).toHaveAttribute("aria-valuenow", "33");
-    expect(screen.getByRole("status")).toHaveTextContent("Generando Blueprint");
+    expect(screen.getAllByRole("status")[0]).toHaveTextContent("Generando Blueprint");
     expect(screen.getByRole("link", { name: /Abrir Atencion/ })).toHaveAttribute("href", "/projects/session-1/attention");
   });
 

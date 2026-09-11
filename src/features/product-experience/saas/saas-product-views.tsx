@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowUpRight,
   Boxes,
@@ -1093,11 +1093,19 @@ function normalizeBlueprintResultTab(
     return "commercial-artifacts";
   }
 
+  if (normalized === "enrichment" && options.hasEnrichmentTab) {
+    return "enrichment";
+  }
+
+  if (options.hasProductOverview) {
+    return "overview";
+  }
+
   if (options.hasEnrichmentTab) {
     return "enrichment";
   }
 
-  return options.hasProductOverview ? "overview" : "diagrams";
+  return "diagrams";
 }
 
 function CommercialBlueprintResult({
@@ -1120,9 +1128,9 @@ function CommercialBlueprintResult({
   const overviewTab = getProductOverviewTabConfig(tierScope, language);
   const hasProductOverview = Boolean(overviewTab);
   const hasAcpWorkflowTabs = false;
-  const hasEnrichmentTab = tierScope === "blueprint_pro";
-  const productBuildKey = overviewTab?.productKey ?? (tierScope === "acp" ? "acp" : tierScope === "blueprint_pro" ? "blueprint_pro" : "blueprint_basic");
   const requestedTab = searchParams.get("result_tab");
+  const hasEnrichmentTab = requestedTab === "enrichment";
+  const productBuildKey = overviewTab?.productKey ?? (tierScope === "acp" ? "acp" : tierScope === "blueprint_pro" ? "blueprint_pro" : "blueprint_basic");
   const productBuild = useProductBuildStatus(sessionId, productBuildKey, {
     polling: true,
     staleWhileRevalidating: true,
@@ -3097,7 +3105,7 @@ function BlueprintProLifecyclePanel({
             ? 35
             : 22
           : downloadGate.allowed
-            ? Math.max(productProgress, canOpenAcp ? 92 : 82)
+            ? 100
             : Math.max(productProgress, 68),
       ),
     ),
@@ -3107,11 +3115,16 @@ function BlueprintProLifecyclePanel({
     <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <UxaBadge tone={badgeTone}>{badgeLabel}</UxaBadge>
+          <div className="flex flex-wrap items-center gap-2">
+            <UxaBadge tone={badgeTone}>{badgeLabel}</UxaBadge>
+            <span className="md:hidden text-[12px] font-semibold text-[var(--uxa-color-ink-soft)]">
+              {downloadGate.label} • {premiumAssetCount} {byLanguage(language, { en: "assets ready", es: "activos listos", pt: "ativos prontos" })}
+            </span>
+          </div>
           <h2 className="mt-3 text-[20px] font-black">{title}</h2>
           <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{description}</p>
         </div>
-        <div className="grid min-w-[280px] grid-cols-2 gap-2">
+        <div className="hidden md:grid min-w-[280px] grid-cols-2 gap-2">
           {[
             {
               label: byLanguage(language, { en: "Current state", es: "Estado actual", pt: "Estado atual" }),
@@ -3177,6 +3190,7 @@ function BlueprintProPage({
   activeRoute: ProductExperienceRouteSnapshot | null;
 }) {
   const { language } = useLanguage();
+  const router = useRouter();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({
     activeRoute,
@@ -3273,7 +3287,8 @@ function BlueprintProPage({
             ) : (
               <button
                 className={cn(
-                  "uxa-button uxa-button--primary",
+                  "uxa-button",
+                  viewModel.canDownloadBlueprint ? "uxa-button--secondary" : "uxa-button--primary",
                   purchasing && "opacity-60 cursor-not-allowed",
                 )}
                 disabled={purchasing}
@@ -3288,10 +3303,14 @@ function BlueprintProPage({
                         productKey: "acp",
                       });
                     } else {
-                      await executeAccessRequest({
+                      const accessResponse = await executeAccessRequest({
                         sessionId,
                         productKey: "acp",
                       });
+                      if (accessResponse && accessResponse.status === "approved") {
+                        router.push(`/projects/${sessionId}/acp?step=resolve`);
+                        return;
+                      }
                       setRequestSentProduct("acp");
                     }
                   } finally {
@@ -3469,6 +3488,7 @@ function AcpProductPage({
   activeRoute: ProductExperienceRouteSnapshot | null;
 }) {
   const { language } = useLanguage();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({ activeRoute, language, section: "acp" });
@@ -3709,11 +3729,28 @@ function AcpProductPage({
           })}
         >
           {canCheckout ? (
-            <CheckoutMarketSelector
-              language={language}
-              market={checkoutMarket}
-              onMarketChange={setCheckoutMarket}
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] line-through text-[var(--uxa-color-ink-muted)]">
+                  $199 USD
+                </span>
+                <UxaBadge tone="success">
+                  {byLanguage(language, {
+                    en: "Blueprint Pro credit: -$49 USD",
+                    es: "Crédito Blueprint Pro: -$49 USD",
+                    pt: "Crédito Blueprint Pro: -$49 USD",
+                  })}
+                </UxaBadge>
+                <span className="text-[16px] font-black text-[var(--uxa-color-ink)]">
+                  $150 USD
+                </span>
+              </div>
+              <CheckoutMarketSelector
+                language={language}
+                market={checkoutMarket}
+                onMarketChange={setCheckoutMarket}
+              />
+            </div>
           ) : null}
           <button
             className={cn(
@@ -3732,10 +3769,14 @@ function AcpProductPage({
                     productKey: "acp",
                   });
                 } else {
-                  await executeAccessRequest({
+                  const accessResponse = await executeAccessRequest({
                     sessionId,
                     productKey: "acp",
                   });
+                  if (accessResponse && accessResponse.status === "approved") {
+                    router.push(`/projects/${sessionId}/acp?step=resolve`);
+                    return;
+                  }
                   setRequestSent(true);
                 }
               } finally {

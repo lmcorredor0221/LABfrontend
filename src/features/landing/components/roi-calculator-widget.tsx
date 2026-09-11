@@ -64,7 +64,7 @@ export function RoiCalculatorWidget() {
         </div>
 
         <div className="text-xs text-slate-400 font-mono">
-          Benchmark LATAM: <strong className="text-white">${hourlyRateUsd} USD / h</strong>
+          Benchmark LATAM: <strong className="text-white">${hourlyRateUsd} USD / h</strong> (Fuente: Statista & Clutch LatAm Rates)
         </div>
       </div>
 
@@ -94,13 +94,13 @@ export function RoiCalculatorWidget() {
             {byLanguage(language, { es: "Desarrollo Tradicional sin LAB", en: "Traditional Dev without LAB", pt: "Desenvolvimento sem LAB" })}
           </div>
           <div className="text-2xl font-black text-red-400">
-            {formatPrice(tradCostUsd, tradCostUsd * 3170)}
+            {formatPrice(tradCostUsd)}
           </div>
           <div className="text-[11px] text-slate-400 font-mono">
             {current.tradHours} horas de ingeniería • ~{Math.round(current.tradHours / 40)} semanas
           </div>
           <div className="text-[10px] text-red-400 font-semibold pt-1">
-            ⚠ Alto riesgo de desbordamiento de presupuesto por rehacer prompts.
+            ⚠ Alto riesgo de desbordamiento de presupuesto por falta de arquitectura previa.
           </div>
         </div>
 
@@ -109,7 +109,7 @@ export function RoiCalculatorWidget() {
             {byLanguage(language, { es: "Con LAB Blueprint Pro / ACP", en: "With LAB Blueprint Pro / ACP", pt: "Com LAB Blueprint Pro / ACP" })}
           </div>
           <div className="text-2xl font-black text-indigo-400">
-            {formatPrice(current.labHours * hourlyRateUsd + 89, (current.labHours * hourlyRateUsd + 89) * 3170)}
+            {formatPrice(current.labHours * hourlyRateUsd + 89)}
           </div>
           <div className="text-[11px] text-indigo-300 font-mono">
             {current.labHours} horas con ACP • ~{Math.round(current.labHours / 40)} semanas
@@ -124,7 +124,7 @@ export function RoiCalculatorWidget() {
             {byLanguage(language, { es: "Ahorro Neto Estimado", en: "Estimated Net Savings", pt: "Economia Liquida Estimada" })}
           </div>
           <div className="text-2xl font-black text-emerald-400">
-            {formatPrice(netSavingsUsd, netSavingsUsd * 3170)}
+            {formatPrice(netSavingsUsd)}
           </div>
           <div className="text-[11px] text-emerald-300 font-mono">
             Ahorro de {labSavingsHours} horas de retrabajo

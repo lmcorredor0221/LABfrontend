@@ -779,7 +779,6 @@ function JourneyContextPanel({
                 <span>{viewGuideLabel}</span>
                 <ArrowRight aria-hidden="true" className="h-4 w-4" />
               </UxaButton>
-              {ctaPrimaryControl}
             </div>
           </div>
         </div>
@@ -902,7 +901,13 @@ export function ProjectWorkspaceShell({
   const processingActivity = activeAttention
     ? t("processing.attention.activity", "HITL")
     : t("processing.backendActivity", "Backend/LLM");
-  const operationPanelVisible = Boolean(effectiveOperation);
+  const operationPanelVisible = Boolean(
+    effectiveOperation && (
+      isOperationActive(effectiveOperation) ||
+      operationAction?.status === "submitting" ||
+      effectiveOperation.status === "failed"
+    )
+  );
 
   function openAttention(source: HTMLElement) {
     attentionReturnFocusRef.current = source;
@@ -975,7 +980,7 @@ export function ProjectWorkspaceShell({
       </div>
       <button
         aria-label={t("shell.floatingAttentionAria", "Abrir Segmento de Atencion")}
-        className="fixed bottom-5 right-5 z-40 flex min-h-[var(--uxa-target-primary)] items-center gap-2 rounded-[var(--uxa-radius-md)] bg-[var(--uxa-state-danger)] px-3 text-[12px] font-black text-[var(--uxa-color-inverse)] shadow-[var(--uxa-shadow-elevated)]"
+        className="fixed bottom-5 right-5 z-40 hidden md:flex min-h-[var(--uxa-target-primary)] items-center gap-2 rounded-[var(--uxa-radius-md)] bg-[var(--uxa-state-danger)] px-3 text-[12px] font-black text-[var(--uxa-color-inverse)] shadow-[var(--uxa-shadow-elevated)]"
         onClick={(event) => openAttention(event.currentTarget)}
         type="button"
       >

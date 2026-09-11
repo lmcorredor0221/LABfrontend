@@ -1062,10 +1062,10 @@ export function DeliverableGenerationLiveTracker({
       )}
     >
       <UxaPersistentProcessingFeedback
-        active={queueActive}
-        title={`Procesando ${productLabel}`}
-        description={processingQueue?.summary || status?.current_activity?.detail || "La cola sigue ejecutandose en segundo plano."}
-        stageLabel={status?.current_activity?.label || "Cola persistida"}
+        active={queueActive || isActivelyGenerating}
+        title={`Construyendo especificaciones y diagramas de ${productLabel}`}
+        description={processingQueue?.summary || status?.current_activity?.detail || "Todo el proceso corre de forma persistente y segura en la nube. Puedes cerrar tu navegador o salir de la plataforma con total tranquilidad: tus artefactos estarán guardados y listos cuando regreses."}
+        stageLabel="Tiempo estimado: 2 a 4 min"
         activityLabel={`${queueMetrics.processing} en proceso`}
       />
 
@@ -1170,6 +1170,17 @@ export function DeliverableGenerationLiveTracker({
           </div>
         ))}
       </div>
+
+      {isActivelyGenerating ? (
+        <div className="mt-3 rounded-[var(--uxa-radius-md)] border border-sky-200 bg-sky-50/80 p-3 text-[12px] text-sky-900">
+          <p className="font-semibold flex items-center gap-1.5">
+            <span>☁</span> Ejecución asíncrona persistente en la nube
+          </p>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-sky-800">
+            Todo el proceso corre de forma segura en segundo plano. Puedes salir de esta página o cerrar el navegador con total tranquilidad: al volver encontrarás tus artefactos y diagramas completados.
+          </p>
+        </div>
+      ) : null}
 
       {(completedItems.length || failedItems.length) ? (
         <div className="mt-3 grid gap-3 lg:grid-cols-2">
