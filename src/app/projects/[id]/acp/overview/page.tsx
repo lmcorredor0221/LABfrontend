@@ -1,4 +1,4 @@
-import { ProjectExperienceBoundary } from "@/features/product-experience/shell/project-experience-boundary";
+import { redirect } from "next/navigation";
 
 type PageProps = {
   params: Promise<{
@@ -9,5 +9,6 @@ type PageProps = {
 export default async function Page(props: PageProps) {
   const { id } = await props.params;
 
-  return <ProjectExperienceBoundary productSection="acp_overview" sessionId={id} stage="validate" />;
+  redirect(`/projects/${id}/acp`);
 }
+

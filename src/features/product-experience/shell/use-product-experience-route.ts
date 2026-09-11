@@ -37,7 +37,7 @@ import type {
 } from "@/features/sessions/session-contracts";
 import type { SessionSnapshot } from "@/features/sessions/types";
 
-const productExperienceStore = createProductExperienceServerState();
+export const productExperienceStore = createProductExperienceServerState();
 
 export type ProductAttentionActionState = {
   itemKey?: string;

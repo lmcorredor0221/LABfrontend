@@ -70,6 +70,7 @@ import { AcpResolutionStage } from "@/features/acp/components/acp-resolution-sta
 import { AcpValidationStage } from "@/features/acp/components/acp-validation-stage";
 import { AcpReconciliationStage } from "@/features/acp/components/acp-reconciliation-stage";
 import { AcpPackageStage } from "@/features/acp/components/acp-package-stage";
+import { productExperienceStore } from "@/features/product-experience/shell/use-product-experience-route";
 
 type CheckoutMarketCode = "co" | "mx" | "ar";
 type AcpLoadStatus = "idle" | "loading" | "ready" | "error";
@@ -1791,6 +1792,10 @@ function ProductExecutiveOverviewPage({
   activeRoute: ProductExperienceRouteSnapshot | null;
   section: ExecutiveOverviewProductSection;
 }) {
+  if (section === "acp_overview") {
+    return <AcpProductPage activeRoute={activeRoute} />;
+  }
+
   const { language } = useLanguage();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const config = EXECUTIVE_OVERVIEW_CONFIG[section];
@@ -3312,7 +3317,8 @@ function BlueprintProPage({
                         productKey: "acp",
                       });
                       if (accessResponse && accessResponse.status === "approved") {
-                        router.push(`/projects/${sessionId}/acp?step=resolve`);
+                        productExperienceStore.invalidateSession(sessionId);
+                        window.location.assign(`/projects/${sessionId}/acp`);
                         return;
                       }
                       setRequestSentProduct("acp");
@@ -3525,6 +3531,14 @@ function AcpProductPage({
   const [workspaceLoadError, setWorkspaceLoadError] = useState<string | null>(null);
   const [showBlueprintArtifacts, setShowBlueprintArtifacts] = useState(false);
   const { market: checkoutMarket, setMarket: setCheckoutMarket } = useCheckoutMarketSelection();
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "test") return;
+    if (!canBuild && sessionId) {
+      productExperienceStore.invalidateSession(sessionId);
+      void productExperienceStore.loadRoute({ currentStage: "validate", sessionId }, { force: true }).catch(() => {});
+    }
+  }, [canBuild, sessionId]);
 
   async function loadAcpPreparationData(options: { cancelled?: () => boolean } = {}) {
     if (!sessionId || !canBuild) return;
@@ -3782,7 +3796,8 @@ function AcpProductPage({
                     productKey: "acp",
                   });
                   if (accessResponse && accessResponse.status === "approved") {
-                    router.push(`/projects/${sessionId}/acp?step=resolve`);
+                    productExperienceStore.invalidateSession(sessionId);
+                    window.location.assign(`/projects/${sessionId}/acp`);
                     return;
                   }
                   setRequestSent(true);

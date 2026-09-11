@@ -258,7 +258,7 @@ export function getProductExperienceStateHref(sessionId: string, stage: LeanExpe
   }
 
   if (stage === "acp_access_requested" || stage === "acp_access_pending") {
-    return getProjectProductRoute(sessionId, "acp_overview");
+    return getProjectProductRoute(sessionId, "acp");
   }
 
   if (stage === "acp_prep") {

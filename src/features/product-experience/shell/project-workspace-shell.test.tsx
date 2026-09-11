@@ -273,7 +273,7 @@ describe("ProjectWorkspaceShell UXA5", () => {
 
     expect(container.querySelectorAll("h1")).toHaveLength(1);
     expect(screen.getAllByRole("navigation", { name: "Ruta LEAN" })).toHaveLength(1);
-    expect(container.querySelectorAll(".uxa-button--primary")).toHaveLength(2);
+    expect(container.querySelectorAll(".uxa-button--primary")).toHaveLength(1);
     expect(screen.getByRole("region", { name: "Contexto actual del proyecto" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Recursos del proyecto")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Abrir Segmento de Atencion/ })).toHaveLength(2);
@@ -365,7 +365,7 @@ describe("ProjectWorkspaceShell UXA5", () => {
     expect(within(contextRegion).getByText("ACP")).toBeInTheDocument();
     expect(within(contextRegion).getByRole("heading", { name: "Preparacion ACP" })).toBeInTheDocument();
     expect(within(contextRegion).getByText("Hay preguntas o decisiones pendientes esperando tu input.")).toBeInTheDocument();
-    expect(within(contextRegion).getByRole("button", { name: "Revisar Atencion" })).toBeInTheDocument();
+    expect(within(contextRegion).queryByRole("button", { name: "Revisar Atencion" })).not.toBeInTheDocument();
     expect(within(contextRegion).getByRole("button", { name: "Ver guia" })).toBeInTheDocument();
     expect(within(contextRegion).queryByText("Guia del momento")).not.toBeInTheDocument();
     expect(within(contextRegion).queryByText("Que sigue")).not.toBeInTheDocument();
@@ -438,10 +438,7 @@ describe("ProjectWorkspaceShell UXA5", () => {
     const contextRegion = screen.getByRole("region", { name: "Contexto actual del proyecto" });
     expect(within(contextRegion).getByText("Procesando")).toBeInTheDocument();
     expect(within(contextRegion).getAllByText("La etapa actual requiere completar herramientas.").length).toBeGreaterThan(0);
-    expect(within(contextRegion).getByRole("link", { name: "Abrir Herramientas" })).toHaveAttribute(
-      "href",
-      "/projects/session-uxa5/work/tools",
-    );
+    expect(within(contextRegion).queryByRole("link", { name: "Abrir Herramientas" })).not.toBeInTheDocument();
   });
 
   it("renders server stage operations with real cancel and retry controls", () => {
