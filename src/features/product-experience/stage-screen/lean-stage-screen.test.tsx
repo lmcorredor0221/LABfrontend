@@ -52,6 +52,9 @@ describe("LeanStageScreen", () => {
     expect(screen.queryByText("100%")).not.toBeInTheDocument();
     expect(screen.queryByText("Parametro interno sin accion para el usuario.")).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar", { name: "Completitud funcional" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Acciones de la etapa" })).toBeInTheDocument();
+    expect(screen.getByText("CTAs de esta etapa")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ejecutar" })).toBeInTheDocument();
   });
 });
 

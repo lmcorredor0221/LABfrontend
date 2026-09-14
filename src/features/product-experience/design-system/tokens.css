@@ -781,6 +781,74 @@
   min-width: 0;
 }
 
+.uxa-contextual-action-dock {
+  background: color-mix(in srgb, var(--uxa-sticky-action-bg) 96%, transparent);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid var(--uxa-color-border);
+  bottom: 0;
+  box-shadow: 0 -12px 34px rgba(15, 23, 42, 0.12);
+  left: 0;
+  padding: 10px var(--uxa-space-4);
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 10px));
+  position: fixed;
+  right: 0;
+  z-index: 50;
+}
+
+.uxa-contextual-action-dock__inner {
+  align-items: center;
+  display: flex;
+  gap: var(--uxa-space-4);
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--uxa-layout-content-max);
+  min-height: var(--uxa-layout-sticky-action-height);
+  width: 100%;
+}
+
+.uxa-contextual-action-dock__scope {
+  align-items: center;
+  color: var(--uxa-color-ink-soft);
+  display: flex;
+  flex: 0 1 auto;
+  gap: var(--uxa-space-2);
+  min-width: 0;
+}
+
+.uxa-contextual-action-dock__scope > span:last-child {
+  font-size: var(--uxa-font-size-small);
+  font-weight: 650;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.uxa-contextual-action-dock__actions {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  gap: var(--uxa-space-2);
+  justify-content: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.uxa-contextual-action-dock__actions > * {
+  flex: 0 0 auto;
+}
+
+.uxa-contextual-action-dock__actions .uxa-button {
+  border-radius: var(--uxa-radius-md);
+  min-height: 44px;
+  white-space: nowrap;
+  width: auto;
+}
+
+#project-workspace-main {
+  padding-bottom: 112px;
+}
+
 .uxa-processing-strip {
   background: var(--uxa-state-neutral-bg);
   border-radius: var(--uxa-radius-pill);
@@ -1571,7 +1639,33 @@
   }
 
   #project-workspace-main {
-    padding-bottom: 96px;
+    padding-bottom: 132px;
+  }
+
+  .uxa-contextual-action-dock {
+    padding-inline: var(--uxa-space-3);
+  }
+
+  .uxa-contextual-action-dock__inner {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--uxa-space-2);
+  }
+
+  .uxa-contextual-action-dock__scope {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .uxa-contextual-action-dock__actions {
+    justify-content: flex-start;
+    padding-bottom: 1px;
+    width: 100%;
+  }
+
+  .uxa-contextual-action-dock__actions .uxa-button {
+    min-width: max-content;
+    width: auto;
   }
 }
 

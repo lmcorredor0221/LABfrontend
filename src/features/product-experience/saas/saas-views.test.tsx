@@ -3,11 +3,7 @@ import type { ReactElement } from "react";
 import { vi } from "vitest";
 import { LanguageProvider } from "@/core/i18n/language-context";
 import { deliverableCatalogApi } from "@/features/deliverables/infrastructure/deliverable-catalog-api";
-import {
-  premiumEnrichmentApi,
-  type PremiumEnrichmentWorkspace,
-  type PremiumSelectiveReprocessResult,
-} from "@/features/product-experience/saas/premium-enrichment-api";
+import { premiumEnrichmentApi } from "@/features/product-experience/saas/premium-enrichment-api";
 import { ProductSaasView } from "@/features/product-experience/saas/saas-product-views";
 import type { UseProductBuildStatusResult } from "@/features/product-experience/saas/use-product-build-status";
 import {
@@ -668,124 +664,6 @@ function createStageOperation(overrides: Partial<ProductExperienceStageOperation
   };
 }
 
-function createPremiumWorkspace(): PremiumEnrichmentWorkspace {
-  return {
-    contract_version: "premium-enrichment-workspace.v1",
-    current_tier: "blueprint_pro",
-    deferred_count: 0,
-    items: [
-      {
-        affected_deliverable_keys: ["blueprint_doc"],
-        changed_dependency_keys: ["compliance_scope"],
-        entry: {
-          affected_deliverable_keys: ["blueprint_doc"],
-          answer_options: [
-            {
-              confidence: 0.91,
-              description: "Resume el marco regulatorio principal que debemos reflejar en el blueprint.",
-              impact: "Aclara restricciones críticas para el documento profesional.",
-              key: "regulatory-summary",
-              label: "Resumen regulatorio",
-              recommended: true,
-            },
-          ],
-          assumed_answer: "",
-          confidence: 0.91,
-          cost_to_resolve_units: 2,
-          created_from: "premium_enrichment",
-          dependency_keys: ["compliance_scope"],
-          disposition: "infer",
-          id: "uncertainty-1",
-          impact: "Puede cambiar el blueprint profesional final.",
-          kind: "question",
-          product_mode: "premium_enrichment",
-          reason: "Falta contexto sobre las restricciones regulatorias del cliente.",
-          session_id: "session-uxa11",
-          source_refs: ["brief.md#regulacion"],
-          source_stage: "blueprint",
-          status: "open",
-          suggested_answer: "Cliente regulado por norma financiera local y controles de auditoria trimestral.",
-          target_stage: "blueprint_pro",
-          title: "Precisar restricciones regulatorias",
-          uncertainty_key: "compliance_scope",
-          workspace_id: "workspace-1",
-        },
-        ordered_regeneration_keys: ["blueprint_doc"],
-        priority_reason: "Tiene alto impacto en el Blueprint profesional.",
-        priority_score: 92,
-        unaffected_deliverable_count: 2,
-      },
-    ],
-    prioritized_count: 1,
-    processing_guidance: "Resuelve primero las dependencias con mayor impacto en el documento profesional.",
-    product_mode: "premium_enrichment",
-    resolved_count: 0,
-    selectable_limit: 6,
-    session_id: "session-uxa11",
-    total_uncertainties: 1,
-    value_summary: "Una sola aclaración desbloquea el blueprint profesional.",
-    workspace_id: "workspace-1",
-  };
-}
-
-function createResolvedPremiumWorkspace(answerText = "Cliente regulado por norma financiera local y controles de auditoria trimestral."): PremiumEnrichmentWorkspace {
-  const workspace = createPremiumWorkspace();
-  return {
-    ...workspace,
-    prioritized_count: 0,
-    resolved_count: 1,
-    items: workspace.items.map((item) => ({
-      ...item,
-      entry: {
-        ...item.entry,
-        assumed_answer: answerText,
-        status: "resolved",
-      },
-    })),
-  };
-}
-
-function createPremiumResolutionResult(
-  overrides: Partial<PremiumSelectiveReprocessResult> = {},
-): PremiumSelectiveReprocessResult {
-  const workspace = createPremiumWorkspace();
-  const item = workspace.items[0];
-  const answerText = item.entry.suggested_answer;
-  return {
-    changed_dependency_keys: ["definition.requirements"],
-    comparison_summary:
-      "Se resolvio 'Precisar restricciones regulatorias'. La respuesta no cambia materialmente los entregables existentes.",
-    contract_version: "premium-selective-reprocess-result.v1",
-    affected_deliverable_keys: ["blueprint_doc"],
-    execution_mode: "analyze_only",
-    generation_job_ids: [],
-    generation_status_by_deliverable: {},
-    impact_summary: "La respuesta no cambia materialmente los entregables existentes.",
-    material_impact: false,
-    ordered_regeneration_keys: ["blueprint_doc"],
-    preserved_deliverable_keys: ["diagram.c4_context", "diagram.security_guardrails"],
-    reconciled_deliverable_keys: [],
-    reconciliation_decision: "document_only",
-    reconciliation_job_ids: [],
-    reconciliation_status: "not_required",
-    queue_completed: 0,
-    queue_processed_keys: [],
-    queue_status: "not_required",
-    queue_total: 0,
-    recommended_action: "Documentar la aclaracion sin reconciliar el Blueprint Pro.",
-    regenerated_deliverable_keys: [],
-    reprocess_decision: "document_only",
-    resolved_entry: {
-      ...item.entry,
-      assumed_answer: answerText,
-      status: "resolved",
-    },
-    stale_deliverable_keys: [],
-    superseded_uncertainty_count: 0,
-    ...overrides,
-  };
-}
-
 function createAcpWorkspace(
   overrides: Partial<{
     generated_at: string;
@@ -1274,9 +1152,11 @@ describe("UXA11 SaaS product views", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
 
     expect(screen.getByRole("heading", { name: "Resultado del Blueprint" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Resumen Pro/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Diagramas de Blueprint Pro/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Seguimiento/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Diagramas/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "De una propuesta clara a un Blueprint defendible" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Acciones de Blueprint Pro" })).toBeInTheDocument();
+    expect(screen.getByText("CTAs de este producto")).toBeInTheDocument();
     expect(screen.queryByText(/Blueprint Pro esta activo y listo para/i)).not.toBeInTheDocument();
   });
 
@@ -1427,113 +1307,21 @@ describe("UXA11 SaaS product views", () => {
     renderWithLanguage(<ProductSaasView activeRoute={route} section="blueprint_pro" />);
 
     expect(screen.queryByRole("button", { name: "Descargar Blueprint Pro" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Permiso de descarga requerido" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Descarga pendiente" })).toBeDisabled();
     expect(screen.getByRole("heading", { name: /El workspace profesional esta activo, pero la exportacion sigue protegida/i })).toBeInTheDocument();
   });
 
-  it("renders the direct suggestion accelerator when premium enrichment returns a suggested answer", async () => {
+  it("keeps Blueprint Pro free of decision questions even when result_tab asks for enrichment", () => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=enrichment"));
-    vi.mocked(premiumEnrichmentApi.getWorkspace).mockResolvedValueOnce(createPremiumWorkspace());
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
 
-    expect(await screen.findByRole("button", { name: /Usar sugerencia y analizar/i })).toBeInTheDocument();
-    expect(screen.getByText("Cliente regulado por norma financiera local y controles de auditoria trimestral.")).toBeInTheDocument();
-    expect(screen.getByText("Politica de decisiones")).toBeInTheDocument();
-    expect(screen.getByText(/Responder guarda y analiza impacto/i)).toBeInTheDocument();
-    expect(screen.getByText("Inferida por LAB")).toBeInTheDocument();
-    expect(screen.getByText("Solo documentar")).toBeInTheDocument();
-    expect(screen.getByText("Ver impacto")).toBeInTheDocument();
-  });
-
-  it("analyzes premium answers before triggering any reconciliation", async () => {
-    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=enrichment"));
-    vi.mocked(premiumEnrichmentApi.getWorkspace)
-      .mockResolvedValueOnce(createPremiumWorkspace())
-      .mockResolvedValueOnce(createResolvedPremiumWorkspace());
-    vi.mocked(premiumEnrichmentApi.resolveItem).mockResolvedValueOnce(createPremiumResolutionResult());
-
-    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Usar sugerencia y analizar/i }));
-
-    await waitFor(() =>
-      expect(premiumEnrichmentApi.resolveItem).toHaveBeenCalledWith(
-        "session-uxa11",
-        "uncertainty-1",
-        expect.objectContaining({
-          execution_mode: "analyze_only",
-          regenerate: false,
-        }),
-      ),
-    );
-    expect(await screen.findByText("Decisión documentada sin reconciliación")).toBeInTheDocument();
-    expect(screen.getByText("Solo documentar")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Reconciliar entregables afectados/i })).not.toBeInTheDocument();
-  });
-
-  it("requires an explicit follow-up action to reconcile affected premium deliverables", async () => {
-    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=enrichment"));
-    vi.mocked(premiumEnrichmentApi.getWorkspace)
-      .mockResolvedValueOnce(createPremiumWorkspace())
-      .mockResolvedValueOnce(createResolvedPremiumWorkspace())
-      .mockResolvedValueOnce(createResolvedPremiumWorkspace());
-    vi.mocked(premiumEnrichmentApi.resolveItem)
-      .mockResolvedValueOnce(
-        createPremiumResolutionResult({
-          comparison_summary:
-            "Se resolvio 'Precisar restricciones regulatorias'. La respuesta afecta entregables del Blueprint Pro.",
-          impact_summary: "La respuesta afecta entregables del Blueprint Pro.",
-          material_impact: true,
-          queue_status: "pending_user_confirmation",
-          reconciliation_decision: "localized_reconciliation",
-          reconciliation_status: "pending_user_confirmation",
-          recommended_action: "Reconcilia solo los entregables impactados para mantener consistencia.",
-        }),
-      )
-      .mockResolvedValueOnce(
-        createPremiumResolutionResult({
-          comparison_summary:
-            "Se resolvio 'Precisar restricciones regulatorias'. 1 entregable(s) fueron reconciliados en cola FIFO y 2 conservaron su version.",
-          execution_mode: "apply_reconciliation",
-          generation_job_ids: ["job-1"],
-          impact_summary: "La respuesta afecta entregables del Blueprint Pro.",
-          material_impact: true,
-          queue_completed: 1,
-          queue_processed_keys: ["blueprint_doc"],
-          queue_status: "completed",
-          queue_total: 1,
-          reconciled_deliverable_keys: ["blueprint_doc"],
-          reconciliation_decision: "localized_reconciliation",
-          reconciliation_job_ids: ["job-1"],
-          reconciliation_status: "completed",
-          recommended_action: "Reconcilia solo los entregables impactados para mantener consistencia.",
-          regenerated_deliverable_keys: ["blueprint_doc"],
-        }),
-      );
-
-    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Usar sugerencia y analizar/i }));
-
-    const applyButton = await screen.findByRole("button", { name: "Reconciliar entregables afectados" });
-    expect(screen.getByText("Reconciliación localizada")).toBeInTheDocument();
-
-    fireEvent.click(applyButton);
-
-    await waitFor(() =>
-      expect(premiumEnrichmentApi.resolveItem).toHaveBeenNthCalledWith(
-        2,
-        "session-uxa11",
-        "uncertainty-1",
-        expect.objectContaining({
-          execution_mode: "apply_reconciliation",
-          regenerate: true,
-        }),
-      ),
-    );
-    expect(await screen.findByText("Reconciliación de entregables completada")).toBeInTheDocument();
-    expect(screen.getByText("1 reconciliados")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Seguimiento/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: /Enriquecimiento Pro/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Usar sugerencia y analizar/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Politica de decisiones")).not.toBeInTheDocument();
+    expect(premiumEnrichmentApi.getWorkspace).not.toHaveBeenCalled();
+    expect(premiumEnrichmentApi.resolveItem).not.toHaveBeenCalled();
   });
 
   it("requests governed Blueprint Pro artifacts with cumulative package stage", async () => {
@@ -1547,7 +1335,7 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
 
-    fireEvent.click(screen.getByRole("tab", { name: /Artefactos gobernados/i }));
+    fireEvent.click(screen.getByRole("tab", { name: /Artefactos/i }));
 
     await waitFor(() =>
       expect(deliverableCatalogApi.list).toHaveBeenCalledWith({
@@ -1568,7 +1356,7 @@ describe("UXA11 SaaS product views", () => {
   it("shows a direct ACP handoff from Blueprint Pro when ACP is already enabled", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="blueprint_pro" />);
 
-    expect(screen.getByRole("link", { name: "Continuar con ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp");
+    expect(screen.getByRole("link", { name: "Abrir ACP" })).toHaveAttribute("href", "/projects/session-uxa11/acp");
   });
 
   it("offers ACP acquisition from Blueprint Pro when Blueprint Pro is active but ACP is not", async () => {

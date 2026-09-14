@@ -1,18 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowUpRight,
   Boxes,
+  ClipboardCopy,
   Clock3,
   Download,
   Edit3,
   ExternalLink,
   FastForward,
+  FileText,
+  GitBranch,
+  Link2,
+  ListChecks,
+  Printer,
   Search,
   Sparkles,
   Trash2,
+  Users,
   X,
   Zap,
 } from "lucide-react";
@@ -30,10 +37,10 @@ import type { ProductExperienceRouteSnapshot } from "@/features/product-experien
 import {
   UxaBadge,
   UxaButton,
+  UxaContextualActionDock,
   UxaMetricCard,
   UxaProcessingStrip,
   UxaProductHero,
-  UxaStickyActionBar,
   UxaSurface,
 } from "@/features/product-experience/design-system";
 import type { ProductExperienceProductSection } from "@/features/product-experience/shell/experience-model";
@@ -76,6 +83,62 @@ type CheckoutMarketCode = "co" | "mx" | "ar";
 type AcpLoadStatus = "idle" | "loading" | "ready" | "error";
 
 const CHECKOUT_MARKET_STORAGE_KEY = "lean_checkout_market";
+const BLUEPRINT_FREE_VALIDATED_ITEMS = [
+  {
+    key: "discovery.analysis",
+    icon: FileText,
+    label: {
+      en: "Agent Executive Canvas",
+      es: "Canvas Ejecutivo del Agente",
+      pt: "Canvas Executivo do Agente",
+    },
+  },
+  {
+    key: "definition.requirements",
+    icon: ListChecks,
+    label: {
+      en: "MVP User Stories Brief",
+      es: "Brief de Historias de Usuario MVP",
+      pt: "Brief de Historias de Usuario MVP",
+    },
+  },
+  {
+    key: "discovery.stakeholder_inventory",
+    icon: Users,
+    label: {
+      en: "Organizational Impact Matrix",
+      es: "Matriz de Impacto Organizacional",
+      pt: "Matriz de Impacto Organizacional",
+    },
+  },
+  {
+    key: "diagram.architecture_overview",
+    icon: Boxes,
+    label: {
+      en: "Agent Architecture Overview",
+      es: "Overview de Arquitectura del Agente",
+      pt: "Overview de Arquitetura do Agente",
+    },
+  },
+  {
+    key: "diagram.current_process_map",
+    icon: GitBranch,
+    label: {
+      en: "Current Manual Process Diagram",
+      es: "Diagrama del Proceso Manual Actual",
+      pt: "Diagrama do Processo Manual Atual",
+    },
+  },
+  {
+    key: "diagram.user_journey",
+    icon: ArrowUpRight,
+    label: {
+      en: "Agent User Journey",
+      es: "User Journey con el Agente",
+      pt: "User Journey com o Agente",
+    },
+  },
+] as const;
 const CHECKOUT_MARKETS: Array<{
   code: CheckoutMarketCode;
   label: Record<SupportedLanguage, string>;
@@ -1127,16 +1190,17 @@ function CommercialBlueprintResult({
   const { language } = useLanguage();
   const searchParams = useSearchParams();
   const overviewTab = getProductOverviewTabConfig(tierScope, language);
+  const isBlueprintPro = tierScope === "blueprint_pro";
   const hasProductOverview = Boolean(overviewTab);
   const hasAcpWorkflowTabs = false;
   const requestedTab = searchParams.get("result_tab");
-  const hasEnrichmentTab = requestedTab === "enrichment";
+  const hasEnrichmentTab = !isBlueprintPro && requestedTab === "enrichment";
   const productBuildKey = overviewTab?.productKey ?? (tierScope === "acp" ? "acp" : tierScope === "blueprint_pro" ? "blueprint_pro" : "blueprint_basic");
   const productBuild = useProductBuildStatus(sessionId, productBuildKey, {
     polling: true,
     staleWhileRevalidating: true,
   });
-  const shouldShowBuildTracker = canRenderBuildTracker(productBuild.data);
+  const shouldShowBuildTracker = !isBlueprintPro && canRenderBuildTracker(productBuild.data);
   const diagramCatalogFilter = useMemo(
     () => (item: DiagramCatalogItem) => isTierIncluded(item.required_tier, tierScope),
     [tierScope],
@@ -1285,8 +1349,20 @@ function CommercialBlueprintResult({
       ? [
           {
             key: "overview" as const,
-            label: overviewTab.label,
-            description: overviewTab.description,
+            label: isBlueprintPro
+              ? byLanguage(language, {
+                  en: "Tracking",
+                  es: "Seguimiento",
+                  pt: "Acompanhamento",
+                })
+              : overviewTab.label,
+            description: isBlueprintPro
+              ? byLanguage(language, {
+                  en: "Professional generation progress and available assets.",
+                  es: "Progreso de generacion profesional y activos disponibles.",
+                  pt: "Progresso de geracao profissional e ativos disponiveis.",
+                })
+              : overviewTab.description,
           },
         ]
       : []),
@@ -1323,9 +1399,9 @@ function CommercialBlueprintResult({
     {
       key: "diagrams",
       label: byLanguage(language, {
-        en: `${productTierLabel(language, tierScope)} diagrams`,
-        es: `Diagramas de ${productTierLabel(language, tierScope)}`,
-        pt: `Diagramas de ${productTierLabel(language, tierScope)}`,
+        en: isBlueprintPro ? "Diagrams" : `${productTierLabel(language, tierScope)} diagrams`,
+        es: isBlueprintPro ? "Diagramas" : `Diagramas de ${productTierLabel(language, tierScope)}`,
+        pt: isBlueprintPro ? "Diagramas" : `Diagramas de ${productTierLabel(language, tierScope)}`,
       }),
       description: byLanguage(language, {
         en: "Visual governed catalog by product access rules.",
@@ -1336,9 +1412,9 @@ function CommercialBlueprintResult({
     {
       key: "governed-artifacts",
       label: byLanguage(language, {
-        en: "Governed artifacts",
-        es: "Artefactos gobernados",
-        pt: "Artefatos governados",
+        en: isBlueprintPro ? "Artifacts" : "Governed artifacts",
+        es: isBlueprintPro ? "Artefactos" : "Artefactos gobernados",
+        pt: isBlueprintPro ? "Artefatos" : "Artefatos governados",
       }),
       description: byLanguage(language, {
         en: "Functional and technical deliverables managed by governance.",
@@ -1349,9 +1425,9 @@ function CommercialBlueprintResult({
     {
       key: "commercial-artifacts",
       label: byLanguage(language, {
-        en: "Commercial artifacts",
-        es: "Artefactos comerciales",
-        pt: "Artefatos comerciais",
+        en: isBlueprintPro ? "Document" : "Commercial artifacts",
+        es: isBlueprintPro ? "Documento" : "Artefactos comerciales",
+        pt: isBlueprintPro ? "Documento" : "Artefatos comerciais",
       }),
       description: byLanguage(language, {
         en: "Executive material prepared to explain value and conversion.",
@@ -1384,14 +1460,6 @@ function CommercialBlueprintResult({
                 pt: "Explore diagramas e artefatos em uma superficie compacta. Cada aba reutiliza os visualizadores governados e preserva as regras de acesso.",
               })}
             </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/diagrams`}>
-              <span>{byLanguage(language, { en: "Open Diagram Center", es: "Abrir Diagram Center", pt: "Abrir Diagram Center" })}</span>
-            </a>
-            <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/artifacts`}>
-              <span>{byLanguage(language, { en: "Open Artifacts", es: "Abrir Artefactos", pt: "Abrir Artefatos" })}</span>
-            </a>
           </div>
         </div>
         <div
@@ -1796,6 +1864,16 @@ function ProductExecutiveOverviewPage({
     return <AcpProductPage activeRoute={activeRoute} />;
   }
 
+  return <BlueprintExecutiveOverviewPage activeRoute={activeRoute} section={section} />;
+}
+
+function BlueprintExecutiveOverviewPage({
+  activeRoute,
+  section,
+}: {
+  activeRoute: ProductExperienceRouteSnapshot | null;
+  section: Exclude<ExecutiveOverviewProductSection, "acp_overview">;
+}) {
   const { language } = useLanguage();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const config = EXECUTIVE_OVERVIEW_CONFIG[section];
@@ -1857,12 +1935,21 @@ function ProductExecutiveOverviewPage({
           </div>
         </div>
       </ExecutiveOverviewShell>
-      <UxaStickyActionBar
+      <UxaContextualActionDock
         label={byLanguage(language, {
           en: "Executive overview actions",
           es: "Acciones del resumen ejecutivo",
           pt: "Acoes do resumo executivo",
         })}
+        scope={{
+          helper: byLanguage(language, {
+            en: "Product CTAs",
+            es: "CTAs de este producto",
+            pt: "CTAs deste produto",
+          }),
+          label: overview.productLabel,
+          tone: "info",
+        }}
       >
         <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/work/estimate`}>
           <span>
@@ -1877,8 +1964,155 @@ function ProductExecutiveOverviewPage({
           <span>{byLanguage(language, config.detailLabel)}</span>
           <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
         </a>
-      </UxaStickyActionBar>
+      </UxaContextualActionDock>
     </div>
+  );
+}
+
+function BlueprintFreeValidatedProjectCard({
+  language,
+  projectTitle,
+  sessionId,
+}: {
+  language: SupportedLanguage;
+  projectTitle: string;
+  sessionId: string;
+}) {
+  const [feedback, setFeedback] = useState<"link" | "markdown" | "print" | null>(null);
+  const detailHref = `/projects/${sessionId}/blueprint?surface=commercial`;
+  const labels = {
+    title: byLanguage(language, {
+      en: "Validated Project Sheet",
+      es: "Ficha de Proyecto Validado",
+      pt: "Ficha de Projeto Validado",
+    }),
+    included: byLanguage(language, {
+      en: "$0 USD included",
+      es: "$0 USD incluido",
+      pt: "$0 USD incluido",
+    }),
+    link: byLanguage(language, {
+      en: "Copy sheet link",
+      es: "Copiar enlace de ficha",
+      pt: "Copiar link da ficha",
+    }),
+    markdown: byLanguage(language, {
+      en: "Copy clean Markdown",
+      es: "Copiar Markdown limpio",
+      pt: "Copiar Markdown limpo",
+    }),
+    print: byLanguage(language, {
+      en: "One-Pager view",
+      es: "Vista One-Pager",
+      pt: "Vista One-Pager",
+    }),
+    copied: byLanguage(language, {
+      en: "Copied",
+      es: "Copiado",
+      pt: "Copiado",
+    }),
+    ready: byLanguage(language, {
+      en: "Available",
+      es: "Disponible",
+      pt: "Disponivel",
+    }),
+  };
+
+  function setTemporaryFeedback(nextFeedback: typeof feedback) {
+    setFeedback(nextFeedback);
+    window.setTimeout(() => setFeedback(null), 1800);
+  }
+
+  function buildShareUrl() {
+    if (typeof window === "undefined") return detailHref;
+    return new URL(detailHref, window.location.origin).toString();
+  }
+
+  function buildMarkdown() {
+    const items = BLUEPRINT_FREE_VALIDATED_ITEMS.map(
+      (item) => `- ${byLanguage(language, item.label)} (${item.key})`,
+    ).join("\n");
+    return [
+      `# ${labels.title}: ${projectTitle || "Lean Agent Builder"}`,
+      "",
+      `Producto: Blueprint Free ($0 USD)`,
+      "",
+      "## Entregables disponibles",
+      items,
+      "",
+      `URL: ${buildShareUrl()}`,
+    ].join("\n");
+  }
+
+  async function copyText(text: string, nextFeedback: "link" | "markdown") {
+    if (typeof navigator?.clipboard?.writeText === "function") {
+      await navigator.clipboard.writeText(text);
+      setTemporaryFeedback(nextFeedback);
+    }
+  }
+
+  function printOnePager() {
+    window.print();
+    setTemporaryFeedback("print");
+  }
+
+  return (
+    <UxaSurface className="border border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-4">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-[17px] font-black text-[var(--uxa-color-ink)]">{labels.title}</h2>
+            <UxaBadge tone="success">{labels.included}</UxaBadge>
+            {feedback ? <UxaBadge tone="info">{labels.copied}</UxaBadge> : null}
+          </div>
+          <p className="mt-1 max-w-3xl text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+            {projectTitle}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <UxaButton onClick={() => copyText(buildShareUrl(), "link")} size="sm" variant="secondary">
+            <Link2 aria-hidden="true" className="h-4 w-4" />
+            {labels.link}
+          </UxaButton>
+          <UxaButton onClick={() => copyText(buildMarkdown(), "markdown")} size="sm" variant="secondary">
+            <ClipboardCopy aria-hidden="true" className="h-4 w-4" />
+            {labels.markdown}
+          </UxaButton>
+          <UxaButton onClick={printOnePager} size="sm" variant="secondary">
+            <Printer aria-hidden="true" className="h-4 w-4" />
+            {labels.print}
+          </UxaButton>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {BLUEPRINT_FREE_VALIDATED_ITEMS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article
+              className="min-h-[96px] rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-3"
+              key={item.key}
+            >
+              <div className="flex items-start gap-3">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--uxa-radius-md)] bg-[var(--uxa-color-brand-soft)] text-[var(--uxa-color-brand)]">
+                  <Icon aria-hidden="true" className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-[13px] font-black leading-5 text-[var(--uxa-color-ink)]">
+                    {byLanguage(language, item.label)}
+                  </h3>
+                  <p className="mt-1 break-words font-mono text-[10px] text-[var(--uxa-color-ink-muted)]">
+                    {item.key}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <UxaBadge tone="success">{labels.ready}</UxaBadge>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </UxaSurface>
   );
 }
 
@@ -1919,6 +2153,11 @@ function BlueprintProductPage({
           })}
           />
         ) : null}
+        <BlueprintFreeValidatedProjectCard
+          language={language}
+          projectTitle={viewModel.title}
+          sessionId={sessionId}
+        />
         <CommercialBlueprintResult
           activeRoute={activeRoute}
           artifactCards={viewModel.artifactCards}
@@ -1926,6 +2165,47 @@ function BlueprintProductPage({
           sessionId={sessionId}
           tierScope="blueprint"
         />
+        <UxaContextualActionDock
+          label={byLanguage(language, {
+            en: "Blueprint actions",
+            es: "Acciones de Blueprint",
+            pt: "Acoes de Blueprint",
+          })}
+          scope={{
+            helper: byLanguage(language, {
+              en: "Product CTAs",
+              es: "CTAs de este producto",
+              pt: "CTAs deste produto",
+            }),
+            label: "Blueprint Free",
+            tone: "info",
+          }}
+        >
+          <a
+            className="uxa-button uxa-button--secondary"
+            href={`/projects/${sessionId}/diagrams`}
+          >
+            <span>
+              {byLanguage(language, {
+                en: "Explore diagrams",
+                es: "Explorar diagramas",
+                pt: "Explorar diagramas",
+              })}
+            </span>
+          </a>
+          <a
+            className="uxa-button uxa-button--primary"
+            href={`/projects/${sessionId}/blueprint/pro`}
+          >
+            <span>
+              {byLanguage(language, {
+                en: "Get Blueprint Pro",
+                es: "Adquirir Blueprint Pro",
+                pt: "Adquirir Blueprint Pro",
+              })}
+            </span>
+          </a>
+        </UxaContextualActionDock>
       </div>
     );
   }
@@ -1951,6 +2231,11 @@ function BlueprintProductPage({
         })}
         />
       ) : null}
+      <BlueprintFreeValidatedProjectCard
+        language={language}
+        projectTitle={viewModel.title}
+        sessionId={sessionId}
+      />
       <CommercialBlueprintResult
         activeRoute={activeRoute}
         artifactCards={viewModel.artifactCards}
@@ -1958,12 +2243,21 @@ function BlueprintProductPage({
         sessionId={sessionId}
         tierScope="blueprint"
       />
-      <UxaStickyActionBar
+      <UxaContextualActionDock
         label={byLanguage(language, {
           en: "Blueprint actions",
           es: "Acciones de Blueprint",
           pt: "Acoes de Blueprint",
         })}
+        scope={{
+          helper: byLanguage(language, {
+            en: "Product CTAs",
+            es: "CTAs de este producto",
+            pt: "CTAs deste produto",
+          }),
+          label: "Blueprint Free",
+          tone: "info",
+        }}
       >
         <a
           className="uxa-button uxa-button--secondary"
@@ -1989,7 +2283,7 @@ function BlueprintProductPage({
             })}
           </span>
         </a>
-      </UxaStickyActionBar>
+      </UxaContextualActionDock>
     </div>
   );
 }
@@ -3026,14 +3320,14 @@ function BlueprintProLifecyclePanel({
     : downloadGate.allowed
       ? canOpenAcp
         ? byLanguage(language, {
-            en: "Blueprint Pro is active and ready to download or continue to ACP",
-            es: "Blueprint Pro esta activo y listo para descargar o continuar a ACP",
-            pt: "Blueprint Pro esta ativo e pronto para baixar ou continuar para ACP",
-          })
+          en: "Blueprint Pro is active and ready to download or continue to ACP",
+          es: "Blueprint Pro esta activo y listo para descargar o continuar a ACP",
+          pt: "Blueprint Pro esta ativo e pronto para baixar ou continuar para ACP",
+        })
         : byLanguage(language, {
-            en: "Blueprint Pro is active and ready for enrichment and download",
-            es: "Blueprint Pro esta activo y listo para enriquecer y descargar",
-            pt: "Blueprint Pro esta ativo e pronto para enriquecer e baixar",
+            en: "Blueprint Pro is active and preparing professional results",
+            es: "Blueprint Pro esta activo y preparando resultados profesionales",
+            pt: "Blueprint Pro esta ativo e preparando resultados profissionais",
           })
       : byLanguage(language, {
           en: "The professional workspace is active, but export is still protected",
@@ -3043,9 +3337,9 @@ function BlueprintProLifecyclePanel({
   const description = !unlocked
     ? requestSent
       ? byLanguage(language, {
-          en: "The request was already registered. The professional workspace, prioritized questions, and the authenticated ZIP download will appear only after approval or activation is completed.",
-          es: "La solicitud ya fue registrada. El workspace profesional, las preguntas priorizadas y la descarga ZIP autenticada apareceran solo cuando termine la aprobacion o activacion.",
-          pt: "A solicitacao ja foi registrada. O workspace profissional, as perguntas priorizadas e o download ZIP autenticado aparecerao apenas quando a aprovacao ou ativacao terminar.",
+          en: "The request was already registered. The professional workspace, generated assets, and authenticated ZIP download will appear only after approval or activation is completed.",
+          es: "La solicitud ya fue registrada. El workspace profesional, los activos generados y la descarga ZIP autenticada apareceran solo cuando termine la aprobacion o activacion.",
+          pt: "A solicitacao ja foi registrada. O workspace profissional, os ativos gerados e o download ZIP autenticado aparecerao apenas quando a aprovacao ou ativacao terminar.",
         })
       : canSelfActivate
         ? byLanguage(language, {
@@ -3060,9 +3354,9 @@ function BlueprintProLifecyclePanel({
           })
     : downloadGate.allowed
       ? byLanguage(language, {
-          en: "Resolve only the prioritized professional questions, review the generated assets, and download the governed ZIP when it is ready. ACP remains the next commercial step, not part of this download.",
-          es: "Resuelve solo las preguntas profesionales priorizadas, revisa los activos generados y descarga el ZIP gobernado cuando este listo. ACP sigue siendo el siguiente paso comercial, no parte de esta descarga.",
-          pt: "Resolva apenas as perguntas profissionais priorizadas, revise os ativos gerados e baixe o ZIP governado quando ele estiver pronto. O ACP continua sendo o proximo passo comercial, nao parte deste download.",
+          en: "Review the generated professional assets and download the governed ZIP when it is ready. ACP remains the next commercial step for implementation questions and construction assets.",
+          es: "Revisa los activos profesionales generados y descarga el ZIP gobernado cuando este listo. ACP sigue siendo el siguiente paso comercial para preguntas de implementacion y activos de construccion.",
+          pt: "Revise os ativos profissionais gerados e baixe o ZIP governado quando estiver pronto. O ACP continua sendo o proximo passo comercial para perguntas de implementacao e ativos de construcao.",
         })
       : downloadGate.detail;
   const nextStepLabel = !unlocked
@@ -3189,13 +3483,151 @@ function BlueprintProLifecyclePanel({
   );
 }
 
+function BlueprintProTrackingStrip({
+  downloadGate,
+  onProcessPending,
+  onRetryFailed,
+  premiumAssetCount,
+  processingDisabled,
+  productProgress,
+  status,
+  unlocked,
+}: {
+  downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  onProcessPending: () => void | Promise<unknown>;
+  onRetryFailed: () => void | Promise<unknown>;
+  premiumAssetCount: number;
+  processingDisabled: boolean;
+  productProgress: number;
+  status: ProductBuildStatus | null;
+  unlocked: boolean;
+}) {
+  const { language } = useLanguage();
+  const queue = status?.processing_queue ?? null;
+  const failedCount =
+    queue?.failed_count ??
+    status?.deliverables.filter((item) => item.state === "error").length ??
+    0;
+  const pendingCount =
+    queue?.pending_count ??
+    status?.deliverables.filter((item) => item.state === "pending" || item.state === "stale").length ??
+    0;
+  const activeCount =
+    queue?.processing_count ??
+    status?.deliverables.filter((item) => item.state === "queued" || item.state === "generating").length ??
+    0;
+  const availableCount =
+    status?.deliverables.filter((item) => item.state === "available").length ??
+    premiumAssetCount;
+  const totalCount = status?.progress.total_units || status?.deliverables.length || premiumAssetCount;
+  const progress = Math.max(
+    0,
+    Math.min(100, Math.round(status?.progress.percent ?? productProgress)),
+  );
+  const isRunning =
+    queue?.active ||
+    status?.lifecycle === "queued" ||
+    status?.lifecycle === "preparing" ||
+    status?.lifecycle === "running";
+  const shouldOpen = Boolean(isRunning || failedCount > 0 || (!downloadGate.allowed && unlocked));
+  const statusTone = failedCount
+    ? "danger"
+    : isRunning
+      ? "info"
+      : downloadGate.allowed
+        ? "success"
+        : "warning";
+  const statusLabel = failedCount
+    ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
+    : isRunning
+      ? byLanguage(language, { en: "Generation running", es: "Generacion en curso", pt: "Geracao em andamento" })
+      : downloadGate.allowed
+        ? byLanguage(language, { en: "Download ready", es: "Descarga lista", pt: "Download pronto" })
+        : byLanguage(language, { en: "Package in preparation", es: "Paquete en preparacion", pt: "Pacote em preparacao" });
+  const [isOpen, setIsOpen] = useState(shouldOpen);
+
+  if (!unlocked) {
+    return null;
+  }
+
+  return (
+    <details
+      className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white shadow-[var(--uxa-shadow-card)]"
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      open={isOpen}
+    >
+      <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <UxaBadge tone={statusTone}>{statusLabel}</UxaBadge>
+          <span className="text-[13px] font-black text-[var(--uxa-color-ink)]">
+            {byLanguage(language, {
+              en: "Prepare professional Blueprint results",
+              es: "Preparar resultados profesionales del Blueprint",
+              pt: "Preparar resultados profissionais do Blueprint",
+            })}
+          </span>
+          <span className="text-[12px] text-[var(--uxa-color-ink-soft)]">
+            {availableCount}/{totalCount || availableCount} {byLanguage(language, { en: "assets", es: "activos", pt: "ativos" })}
+          </span>
+        </div>
+        <div className="flex min-w-0 items-center gap-3 md:min-w-[320px]">
+          <div className="min-w-[140px] flex-1">
+            <UxaProcessingStrip
+              label={byLanguage(language, {
+                en: "Blueprint Pro preparation progress",
+                es: "Progreso de preparacion Blueprint Pro",
+                pt: "Progresso de preparacao Blueprint Pro",
+              })}
+              value={progress}
+            />
+          </div>
+          <span className="text-[12px] font-black text-[var(--uxa-color-ink)]">{progress}%</span>
+          <span className="text-[11px] font-semibold text-[var(--uxa-color-ink-muted)]">
+            {byLanguage(language, { en: "Details", es: "Detalle", pt: "Detalhe" })}
+          </span>
+        </div>
+      </summary>
+      <div className="border-t border-[var(--uxa-color-border-soft)] p-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          {[
+            [byLanguage(language, { en: "Available", es: "Disponibles", pt: "Disponiveis" }), availableCount],
+            [byLanguage(language, { en: "Pending", es: "Pendientes", pt: "Pendentes" }), pendingCount],
+            [byLanguage(language, { en: "Processing", es: "En proceso", pt: "Em processo" }), activeCount],
+            [byLanguage(language, { en: "Failed", es: "Fallidos", pt: "Falhos" }), failedCount],
+          ].map(([label, value]) => (
+            <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] px-3 py-2" key={String(label)}>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{label}</p>
+              <p className="mt-1 text-[16px] font-black text-[var(--uxa-color-ink)]">{value}</p>
+            </div>
+          ))}
+        </div>
+        {canRenderBuildTracker(status) ? (
+          <div className="mt-3">
+            <DeliverableGenerationLiveTracker
+              productKey="blueprint_pro"
+              productLabel="Blueprint Pro"
+              status={status}
+              onProcessPending={onProcessPending}
+              onRetryFailed={onRetryFailed}
+              processingDisabled={processingDisabled}
+            />
+          </div>
+        ) : (
+          <p className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+            {downloadGate.detail}
+          </p>
+        )}
+      </div>
+    </details>
+  );
+}
+
 function BlueprintProPage({
   activeRoute,
 }: {
   activeRoute: ProductExperienceRouteSnapshot | null;
 }) {
   const { language } = useLanguage();
-  const router = useRouter();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({
     activeRoute,
@@ -3226,6 +3658,10 @@ function BlueprintProPage({
   const [downloading, setDownloading] = useState(false);
   const [downloadNotice, setDownloadNotice] = useState<InlineNotice | null>(null);
   const { market: checkoutMarket, setMarket: setCheckoutMarket } = useCheckoutMarketSelection();
+  const productBuild = useProductBuildStatus(sessionId, "blueprint_pro", {
+    polling: true,
+    staleWhileRevalidating: true,
+  });
 
   const showLifecyclePanel = !unlocked || !viewModel.blueprintDownload.allowed;
 
@@ -3243,6 +3679,16 @@ function BlueprintProPage({
           unlocked={unlocked}
         />
       ) : null}
+      <BlueprintProTrackingStrip
+        downloadGate={viewModel.blueprintDownload}
+        onProcessPending={() => productBuild.executeCommand("process_pending", { allow_llm: true })}
+        onRetryFailed={() => productBuild.executeCommand("retry_failed", { allow_llm: true })}
+        premiumAssetCount={premiumAssetCount}
+        processingDisabled={productBuild.isFetching}
+        productProgress={blueprintProProgress}
+        status={productBuild.data}
+        unlocked={unlocked}
+      />
       <CommercialBlueprintResult
         activeRoute={activeRoute}
         artifactCards={viewModel.artifactCards}
@@ -3252,12 +3698,21 @@ function BlueprintProPage({
         unlocked={unlocked}
       />
       <InlineNoticeBanner notice={downloadNotice} />
-      <UxaStickyActionBar
+      <UxaContextualActionDock
         label={byLanguage(language, {
           en: "Blueprint Pro actions",
-          es: "Acciones de Blueprint Profesional",
+          es: "Acciones de Blueprint Pro",
           pt: "Acoes de Blueprint Profissional",
         })}
+        scope={{
+          helper: byLanguage(language, {
+            en: "Product CTAs",
+            es: "CTAs de este producto",
+            pt: "CTAs deste produto",
+          }),
+          label: "Blueprint Pro",
+          tone: unlocked ? "success" : "warning",
+        }}
       >
         <a
           className="uxa-button uxa-button--secondary"
@@ -3271,6 +3726,79 @@ function BlueprintProPage({
             })}
           </span>
         </a>
+        {unlocked ? (
+          <a
+            className="uxa-button uxa-button--secondary"
+            href={`/projects/${sessionId}/artifacts`}
+          >
+            <span>
+              {byLanguage(language, {
+                en: "Open full viewer",
+                es: "Abrir visor completo",
+                pt: "Abrir visualizador completo",
+              })}
+            </span>
+          </a>
+        ) : null}
+        {unlocked ? (
+          viewModel.canDownloadBlueprint ? (
+            <button
+              className={cn(
+                "uxa-button uxa-button--secondary",
+                downloading && "opacity-60 cursor-not-allowed",
+              )}
+              disabled={downloading}
+              onClick={async () => {
+                if (downloading) return;
+                setDownloadNotice(null);
+                setDownloading(true);
+                try {
+                  const job = await executeBlueprintProDownload({ sessionId });
+                  setDownloadNotice(
+                    buildExportJobNotice(language, job, {
+                      en: "Blueprint Pro",
+                      es: "Blueprint Pro",
+                      pt: "Blueprint Pro",
+                    }),
+                  );
+                } finally {
+                  setDownloading(false);
+                }
+              }}
+              type="button"
+            >
+              <Download aria-hidden="true" className="mr-1.5 h-4 w-4" />
+              <span>
+                {downloading
+                  ? byLanguage(language, {
+                      en: "Preparing download...",
+                      es: "Preparando descarga...",
+                      pt: "Preparando download...",
+                    })
+                  : byLanguage(language, {
+                      en: "Download Blueprint Pro",
+                      es: "Descargar Blueprint Pro",
+                      pt: "Baixar Blueprint Pro",
+                    })}
+              </span>
+            </button>
+          ) : (
+            <button
+              className="uxa-button uxa-button--secondary"
+              disabled
+              title={viewModel.blueprintDownload.detail}
+              type="button"
+            >
+              <span>
+                {byLanguage(language, {
+                  en: "Download pending",
+                  es: "Descarga pendiente",
+                  pt: "Download pendente",
+                })}
+              </span>
+            </button>
+          )
+        ) : null}
         {canCheckout && (!unlocked || canAcquireAcp) ? (
           <CheckoutMarketSelector
             language={language}
@@ -3282,14 +3810,14 @@ function BlueprintProPage({
           <>
             {canOpenAcp ? (
               <a
-                className="uxa-button uxa-button--secondary"
+                className="uxa-button uxa-button--primary"
                 href={`/projects/${sessionId}/acp`}
               >
                 <span>
                   {byLanguage(language, {
-                    en: "Continue to ACP",
-                    es: "Continuar con ACP",
-                    pt: "Continuar com ACP",
+                    en: "Open ACP",
+                    es: "Abrir ACP",
+                    pt: "Abrir ACP",
                   })}
                 </span>
               </a>
@@ -3297,7 +3825,7 @@ function BlueprintProPage({
               <button
                 className={cn(
                   "uxa-button",
-                  viewModel.canDownloadBlueprint ? "uxa-button--secondary" : "uxa-button--primary",
+                  "uxa-button--primary",
                   purchasing && "opacity-60 cursor-not-allowed",
                 )}
                 disabled={purchasing}
@@ -3353,75 +3881,6 @@ function BlueprintProPage({
                         es: "Solicitar ACP",
                         pt: "Solicitar ACP",
                       })}
-                </span>
-              </button>
-            )}
-            <a
-              className="uxa-button uxa-button--secondary"
-              href={`/projects/${sessionId}/artifacts`}
-            >
-              <span>
-                {byLanguage(language, {
-                  en: "View artifacts",
-                  es: "Ver artefactos",
-                  pt: "Ver artefatos",
-                })}
-              </span>
-            </a>
-            {viewModel.canDownloadBlueprint ? (
-              <button
-                className={cn(
-                  "uxa-button uxa-button--primary",
-                  downloading && "opacity-60 cursor-not-allowed",
-                )}
-                disabled={downloading}
-                onClick={async () => {
-                  if (downloading) return;
-                  setDownloadNotice(null);
-                  setDownloading(true);
-                  try {
-                    const job = await executeBlueprintProDownload({ sessionId });
-                    setDownloadNotice(
-                      buildExportJobNotice(language, job, {
-                        en: "Blueprint Pro",
-                        es: "Blueprint Pro",
-                        pt: "Blueprint Pro",
-                      }),
-                    );
-                  } finally {
-                    setDownloading(false);
-                  }
-                }}
-                type="button"
-              >
-                <Download aria-hidden="true" className="mr-1.5 h-4 w-4" />
-                <span>
-                  {downloading
-                    ? byLanguage(language, {
-                        en: "Preparing download...",
-                        es: "Preparando descarga...",
-                        pt: "Preparando download...",
-                      })
-                    : byLanguage(language, {
-                        en: "Download Blueprint Pro",
-                        es: "Descargar Blueprint Pro",
-                        pt: "Baixar Blueprint Pro",
-                      })}
-                </span>
-              </button>
-            ) : (
-              <button
-                className="uxa-button uxa-button--secondary"
-                disabled
-                title={viewModel.blueprintDownload.detail}
-                type="button"
-              >
-                <span>
-                  {byLanguage(language, {
-                    en: "Download permission required",
-                    es: "Permiso de descarga requerido",
-                    pt: "Permissao de download obrigatoria",
-                  })}
                 </span>
               </button>
             )}
@@ -3491,7 +3950,7 @@ function BlueprintProPage({
             </span>
           </button>
         )}
-      </UxaStickyActionBar>
+      </UxaContextualActionDock>
     </div>
   );
 }
@@ -3502,7 +3961,6 @@ function AcpProductPage({
   activeRoute: ProductExperienceRouteSnapshot | null;
 }) {
   const { language } = useLanguage();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({ activeRoute, language, section: "acp" });
@@ -3643,6 +4101,39 @@ function AcpProductPage({
         ? "complete"
         : "package";
   const displayedStep = currentStep === "resolve" || canNavigateTo(currentStep) ? currentStep : nextAcpStep;
+  const acpPrimaryAction:
+    | { disabled?: boolean; href?: string; label: string; nextStep?: AcpWorkflowStep }
+    = displayedStep === "resolve"
+      ? {
+          disabled: !isResolutionDone,
+          label: isResolutionDone
+            ? byLanguage(language, { en: "Continue to Validation", es: "Continuar a Validacion", pt: "Continuar para Validacao" })
+            : byLanguage(language, { en: "Resolve questions", es: "Resolver preguntas", pt: "Resolver perguntas" }),
+          nextStep: "validate",
+        }
+      : displayedStep === "validate"
+        ? {
+            disabled: !isValidationDone,
+            label: isValidationDone
+              ? byLanguage(language, { en: "Continue to Complete", es: "Continuar a Completar", pt: "Continuar para Completar" })
+              : byLanguage(language, { en: "Validation pending", es: "Validacion pendiente", pt: "Validacao pendente" }),
+            nextStep: "complete",
+          }
+        : displayedStep === "complete"
+          ? {
+              disabled: !isReconciliationDone,
+              label: isReconciliationDone
+                ? byLanguage(language, { en: "Continue to Package", es: "Continuar a Package", pt: "Continuar para Package" })
+                : byLanguage(language, { en: "Complete artifacts", es: "Completar artefactos", pt: "Completar artefatos" }),
+              nextStep: "package",
+            }
+          : {
+              href: `/projects/${sessionId}/artifacts`,
+              label: isPackageDone
+                ? byLanguage(language, { en: "Open artifacts", es: "Abrir artefactos", pt: "Abrir artefatos" })
+                : byLanguage(language, { en: "Package pending", es: "Package pendiente", pt: "Package pendente" }),
+              disabled: !isPackageDone,
+            };
 
   if (!canBuild) {
     return (
@@ -3743,12 +4234,21 @@ function AcpProductPage({
             </div>
           </UxaSurface>
         </div>
-        <UxaStickyActionBar
+        <UxaContextualActionDock
           label={byLanguage(language, {
             en: "ACP actions",
             es: "Acciones de ACP",
             pt: "Acoes de ACP",
           })}
+          scope={{
+            helper: byLanguage(language, {
+              en: "Product CTAs",
+              es: "CTAs de este producto",
+              pt: "CTAs deste produto",
+            }),
+            label: "ACP",
+            tone: "warning",
+          }}
         >
           {canCheckout ? (
             <div className="flex flex-wrap items-center gap-3">
@@ -3834,7 +4334,7 @@ function AcpProductPage({
                   })}
             </span>
           </button>
-        </UxaStickyActionBar>
+        </UxaContextualActionDock>
       </div>
     );
   }
@@ -4080,6 +4580,60 @@ function AcpProductPage({
           />
         )}
       </div>
+      <UxaContextualActionDock
+        label={byLanguage(language, {
+          en: "ACP actions",
+          es: "Acciones de ACP",
+          pt: "Acoes de ACP",
+        })}
+        scope={{
+          helper: byLanguage(language, {
+            en: "Product CTAs",
+            es: "CTAs de este producto",
+            pt: "CTAs deste produto",
+          }),
+          label: "ACP",
+          tone: "success",
+        }}
+      >
+        <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/blueprint/pro`}>
+          <span>
+            {byLanguage(language, {
+              en: "Back to Blueprint Pro",
+              es: "Volver al Blueprint Pro",
+              pt: "Voltar ao Blueprint Pro",
+            })}
+          </span>
+        </a>
+        <button
+          className="uxa-button uxa-button--secondary"
+          onClick={() => setShowBlueprintArtifacts(!showBlueprintArtifacts)}
+          type="button"
+        >
+          <span>
+            {showBlueprintArtifacts
+              ? byLanguage(language, { en: "Hide Blueprint base", es: "Ocultar Blueprint base", pt: "Ocultar Blueprint base" })
+              : byLanguage(language, { en: "View Blueprint base", es: "Ver Blueprint base", pt: "Ver Blueprint base" })}
+          </span>
+        </button>
+        {acpPrimaryAction.href && !acpPrimaryAction.disabled ? (
+          <a className="uxa-button uxa-button--primary" href={acpPrimaryAction.href}>
+            <span>{acpPrimaryAction.label}</span>
+          </a>
+        ) : (
+          <UxaButton
+            disabled={acpPrimaryAction.disabled}
+            onClick={() => {
+              if (acpPrimaryAction.nextStep && canNavigateTo(acpPrimaryAction.nextStep)) {
+                setCurrentStep(acpPrimaryAction.nextStep);
+              }
+            }}
+            variant="primary"
+          >
+            {acpPrimaryAction.label}
+          </UxaButton>
+        )}
+      </UxaContextualActionDock>
     </div>
   );
 }
@@ -4558,6 +5112,68 @@ function ArtifactsProductPage({
           )}
         </aside>
       </section>
+      <UxaContextualActionDock
+        label={byLanguage(language, {
+          en: "Deliverable actions",
+          es: "Acciones de entregables",
+          pt: "Acoes de entregaveis",
+        })}
+        scope={{
+          helper: byLanguage(language, {
+            en: "Product CTAs",
+            es: "CTAs de este producto",
+            pt: "CTAs deste produto",
+          }),
+          label: byLanguage(language, {
+            en: "Artifacts",
+            es: "Artefactos",
+            pt: "Artefatos",
+          }),
+          tone: availableCount ? "success" : "info",
+        }}
+      >
+        <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/blueprint`}>
+          <span>
+            {byLanguage(language, {
+              en: "Back to Blueprint",
+              es: "Volver al Blueprint",
+              pt: "Voltar ao Blueprint",
+            })}
+          </span>
+        </a>
+        <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/diagrams`}>
+          <span>
+            {byLanguage(language, {
+              en: "Open diagram viewer",
+              es: "Abrir visor de diagramas",
+              pt: "Abrir visualizador de diagramas",
+            })}
+          </span>
+        </a>
+        {selectedEntry?.deliverable_type === "diagram" ? (
+          <a
+            className="uxa-button uxa-button--secondary"
+            href={`/projects/${sessionId}/diagrams?diagram=${encodeURIComponent(selectedEntry.key)}`}
+          >
+            <span>
+              {byLanguage(language, {
+                en: "Open selected diagram",
+                es: "Abrir diagrama seleccionado",
+                pt: "Abrir diagrama selecionado",
+              })}
+            </span>
+          </a>
+        ) : null}
+        <a className="uxa-button uxa-button--primary" href={`/projects/${sessionId}/acp`}>
+          <span>
+            {byLanguage(language, {
+              en: hasTier(viewModel.accessTier, "acp") || viewModel.access?.can_build_acp ? "Open ACP" : "Request ACP",
+              es: hasTier(viewModel.accessTier, "acp") || viewModel.access?.can_build_acp ? "Abrir ACP" : "Solicitar ACP",
+              pt: hasTier(viewModel.accessTier, "acp") || viewModel.access?.can_build_acp ? "Abrir ACP" : "Solicitar ACP",
+            })}
+          </span>
+        </a>
+      </UxaContextualActionDock>
     </div>
   );
 }
@@ -4574,6 +5190,8 @@ function ActivityProductPage({
     section: "activity",
   });
   const snapshot = activeRoute?.snapshot.data ?? null;
+  const sessionId = activeRoute?.route.sessionId ?? "";
+  const currentStage = activeRoute?.route.currentStage ?? snapshot?.session.current_stage ?? "estimate";
 
   return (
     <div className="space-y-5">
@@ -4715,6 +5333,54 @@ function ActivityProductPage({
           </div>
         </UxaSurface>
       </div>
+      <UxaContextualActionDock
+        label={byLanguage(language, {
+          en: "Activity actions",
+          es: "Acciones de actividad",
+          pt: "Acoes de atividade",
+        })}
+        scope={{
+          helper: byLanguage(language, {
+            en: "Product CTAs",
+            es: "CTAs de este producto",
+            pt: "CTAs deste produto",
+          }),
+          label: byLanguage(language, {
+            en: "Activity",
+            es: "Actividad",
+            pt: "Atividade",
+          }),
+          tone: viewModel.activityItems.length ? "success" : "neutral",
+        }}
+      >
+        <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/work/${currentStage}`}>
+          <span>
+            {byLanguage(language, {
+              en: "Back to stage",
+              es: "Volver a etapa",
+              pt: "Voltar a etapa",
+            })}
+          </span>
+        </a>
+        <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/blueprint`}>
+          <span>
+            {byLanguage(language, {
+              en: "View Blueprint",
+              es: "Ver Blueprint",
+              pt: "Ver Blueprint",
+            })}
+          </span>
+        </a>
+        <a className="uxa-button uxa-button--primary" href={`/projects/${sessionId}/artifacts`}>
+          <span>
+            {byLanguage(language, {
+              en: "View artifacts",
+              es: "Ver artefactos",
+              pt: "Ver artefatos",
+            })}
+          </span>
+        </a>
+      </UxaContextualActionDock>
     </div>
   );
 }
@@ -4739,7 +5405,54 @@ export function ProductSaasView({
 
   if (section === "diagrams") {
     const projectId = activeRoute?.route.sessionId ?? "";
-    return projectId ? <DiagramCenterPage projectId={projectId} /> : null;
+    const currentStage = activeRoute?.route.currentStage ?? "estimate";
+    return projectId ? (
+      <div className="space-y-5">
+        <DiagramCenterPage projectId={projectId} />
+        <UxaContextualActionDock
+          label={byLanguage(language, {
+            en: "Diagram actions",
+            es: "Acciones de diagramas",
+            pt: "Acoes de diagramas",
+          })}
+          scope={{
+            helper: byLanguage(language, {
+              en: "Product CTAs",
+              es: "CTAs de este producto",
+              pt: "CTAs deste produto",
+            }),
+            label: byLanguage(language, {
+              en: "Diagrams",
+              es: "Diagramas",
+              pt: "Diagramas",
+            }),
+            tone: "info",
+          }}
+        >
+          <a className="uxa-button uxa-button--secondary" href={`/projects/${projectId}/work/${currentStage}`}>
+            <span>
+              {byLanguage(language, {
+                en: "Back to stage",
+                es: "Volver a etapa",
+                pt: "Voltar a etapa",
+              })}
+            </span>
+          </a>
+          <a className="uxa-button uxa-button--secondary" href={`/projects/${projectId}/artifacts`}>
+            <span>
+              {byLanguage(language, {
+                en: "View artifacts",
+                es: "Ver artefactos",
+                pt: "Ver artefatos",
+              })}
+            </span>
+          </a>
+          <a className="uxa-button uxa-button--primary" href={`/projects/${projectId}/blueprint/pro`}>
+            <span>Blueprint Pro</span>
+          </a>
+        </UxaContextualActionDock>
+      </div>
+    ) : null;
   }
 
   if (section === "acp") {

@@ -20,6 +20,9 @@ export {
   UxaTextareaField,
   UxaTextField,
 } from "./components";
+export {
+  UxaContextualActionDock,
+} from "./contextual-action-dock";
 export type {
   UxaButtonProps,
   UxaButtonSize,
@@ -32,3 +35,6 @@ export type {
   UxaTextFieldProps,
   UxaTone,
 } from "./components";
+export type {
+  UxaActionDockScope,
+} from "./contextual-action-dock";

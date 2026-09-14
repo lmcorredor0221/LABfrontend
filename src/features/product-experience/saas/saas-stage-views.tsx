@@ -7,10 +7,10 @@ import { sessionsApi } from "@/features/sessions/session-api";
 import {
   UxaBadge,
   UxaButton,
+  UxaContextualActionDock,
   UxaEmptyState,
   UxaMetricCard,
   UxaPageState,
-  UxaStickyActionBar,
   UxaSurface,
 } from "@/features/product-experience/design-system";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
@@ -506,7 +506,14 @@ export function EstimateStageView({ actionState, activeRoute, actions }: StageVi
           scenarioCtaBusy={preparingBlueprint}
         />
       )}
-      <UxaStickyActionBar label={copy("Estimate actions", "Acciones de Estimar", "Acoes de Estimar")}>
+      <UxaContextualActionDock
+        label={copy("Estimate actions", "Acciones de Estimar", "Acoes de Estimar")}
+        scope={{
+          helper: copy("Stage CTAs", "CTAs de esta etapa", "CTAs desta etapa"),
+          label: copy("Estimate", "Estimacion", "Estimativa"),
+          tone: summary.tone,
+        }}
+      >
         <a className="uxa-button uxa-button--secondary" href={secondaryHref}>
           <span>{secondaryLabel}</span>
         </a>
@@ -524,7 +531,7 @@ export function EstimateStageView({ actionState, activeRoute, actions }: StageVi
             <span>{summary.nextLabel}</span>
           </UxaButton>
         )}
-      </UxaStickyActionBar>
+      </UxaContextualActionDock>
     </div>
   );
 }
@@ -660,7 +667,14 @@ export function ValidateStageView({
         </div>
       </UxaSurface>
       {hideStickyActions ? null : (
-        <UxaStickyActionBar label={copy("Validate actions", "Acciones de Validar", "Acoes de Validar")}>
+        <UxaContextualActionDock
+          label={copy("Validate actions", "Acciones de Validar", "Acoes de Validar")}
+          scope={{
+            helper: copy("Stage CTAs", "CTAs de esta etapa", "CTAs desta etapa"),
+            label: copy("Validate", "Validacion", "Validacao"),
+            tone: summary.tone,
+          }}
+        >
           <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/diagrams`}>
             <span>{copy("View diagrams", "Ver diagramas", "Ver diagramas")}</span>
           </a>
@@ -679,10 +693,10 @@ export function ValidateStageView({
             </UxaButton>
           ) : (
             <a className="uxa-button uxa-button--primary" href={summary.nextHref}>
-              <span>{summary.nextLabel}</span>
-            </a>
-          )}
-        </UxaStickyActionBar>
+            <span>{summary.nextLabel}</span>
+          </a>
+        )}
+        </UxaContextualActionDock>
       )}
     </div>
   );
@@ -832,7 +846,14 @@ export function PackageStageView({ activeRoute }: StageViewProps) {
           </div>
         </UxaSurface>
       </div>
-      <UxaStickyActionBar label={copy("Package actions", "Acciones de Package", "Acoes de Package")}>
+      <UxaContextualActionDock
+        label={copy("Package actions", "Acciones de Package", "Acoes de Package")}
+        scope={{
+          helper: copy("Stage CTAs", "CTAs de esta etapa", "CTAs desta etapa"),
+          label: "Package",
+          tone: summary.tone,
+        }}
+      >
         <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/attention`}>
           <span>{copy("Resolve pending items", "Resolver pendientes", "Resolver pendencias")}</span>
         </a>
@@ -852,10 +873,10 @@ export function PackageStageView({ activeRoute }: StageViewProps) {
           </>
         ) : (
           <a className="uxa-button uxa-button--primary" href={`/projects/${sessionId}/acp`}>
-            <span>{copy("Explore ACP", "Conocer ACP", "Conhecer ACP")}</span>
-          </a>
-        )}
-      </UxaStickyActionBar>
+          <span>{copy("Explore ACP", "Conocer ACP", "Conhecer ACP")}</span>
+        </a>
+      )}
+      </UxaContextualActionDock>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { ArrowRight, FileText, GitBranch, Lock, MessageCircle, Sparkles } from "
 import { useLanguage } from "@/core/i18n/language-context";
 import {
   UxaBadge,
+  UxaContextualActionDock,
   UxaSurface,
   type UxaTone,
 } from "@/features/product-experience/design-system";
@@ -124,10 +125,12 @@ export function LeanGeneratedDeliverable({
 }
 
 function StagePrimaryActionPanel({
-  actionArea,
   contract,
   message,
-}: LeanStageScreenProps) {
+}: {
+  contract: LeanStageScreenContract;
+  message?: string;
+}) {
   const { t } = useLanguage();
 
   return (
@@ -166,9 +169,6 @@ function StagePrimaryActionPanel({
                   </p>
                 ) : null}
               </div>
-            </div>
-            <div className="uxa-stage-action-strip">
-              {actionArea}
             </div>
           </div>
         </div>
@@ -356,10 +356,22 @@ function LeanStageEvidenceContext({ contract }: { contract: LeanStageScreenContr
 }
 
 export function LeanStageScreen({ actionArea, contract, message }: LeanStageScreenProps) {
+  const { language } = useLanguage();
+
   return (
     <div className="space-y-4">
-      <StagePrimaryActionPanel actionArea={actionArea} contract={contract} message={message} />
+      <StagePrimaryActionPanel contract={contract} message={message} />
       <LeanStageWorkbench contract={contract} />
+      <UxaContextualActionDock
+        label={byLanguage(language, { en: "Stage actions", es: "Acciones de la etapa", pt: "Acoes da etapa" })}
+        scope={{
+          helper: byLanguage(language, { en: "Stage CTAs", es: "CTAs de esta etapa", pt: "CTAs desta etapa" }),
+          label: contract.stage.title,
+          tone: contract.stage.statusTone,
+        }}
+      >
+        {actionArea}
+      </UxaContextualActionDock>
     </div>
   );
 }
