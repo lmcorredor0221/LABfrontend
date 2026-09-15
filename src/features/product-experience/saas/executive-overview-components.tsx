@@ -1023,21 +1023,32 @@ export function DeliverableGenerationLiveTracker({
         total: processingQueue.total_count,
       }
     : {
-        completed: 0,
+        completed: deliverableCounts.completed,
         failed: deliverableCounts.failed,
         pending: deliverableCounts.pending,
         processing: deliverableCounts.processing,
         retried: 0,
-        total: deliverableCounts.pending + deliverableCounts.failed,
+        total:
+          deliverableCounts.completed +
+          deliverableCounts.failed +
+          deliverableCounts.pending +
+          deliverableCounts.processing,
       };
   const queueActive = Boolean(processingQueue?.active);
   const isActivelyGenerating = isProcessingLifecycle(status?.lifecycle) || queueActive;
+  const isCompletedWithoutFailures = status?.lifecycle === "completed" && queueMetrics.failed === 0;
   const percent = processingQueue?.total_count
     ? normalizePercent(((processingQueue.total_count - processingQueue.pending_count - processingQueue.processing_count) / Math.max(1, processingQueue.total_count)) * 100)
     : normalizePercent(status?.progress.percent);
   const completedItems = processingQueue?.completed_items ?? [];
   const failedItems = processingQueue?.failed_items ?? [];
-  const canProcess = Boolean(onProcessPending && !processingDisabled && !queueActive && queueMetrics.total > 0);
+  const canProcess = Boolean(
+    onProcessPending &&
+      !processingDisabled &&
+      !queueActive &&
+      !isCompletedWithoutFailures &&
+      queueMetrics.pending > 0,
+  );
   const retryableFailedCount = processingQueue
     ? failedItems.filter((item) => item.attempt_count < maxProcessingAttempts && !item.retried).length
     : queueMetrics.failed;

@@ -4,15 +4,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
+  Activity,
   ArrowRight,
   Bell,
   Check,
   ChevronDown,
+  FileText,
   FolderKanban,
   Globe,
   Inbox,
   LayoutDashboard,
   LogOut,
+  Network,
   RefreshCw,
   Settings,
   Sparkles,
@@ -385,13 +388,37 @@ function ProductNavigation({
   activeProduct: ProductExperienceProductSection;
   sessionId: string;
 }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const [isResourcesOpen, setIsResourcesOpen] = useState(false);
+  const resourcesRef = useRef<HTMLDivElement>(null);
   const nav = getProductExperienceProductNav(sessionId, t);
+  const resourceKeys: ProductExperienceProductSection[] = ["diagrams", "artifacts", "attention", "activity"];
+  const resourceIcons = {
+    activity: Activity,
+    artifacts: FileText,
+    attention: Bell,
+    diagrams: Network,
+  } satisfies Partial<Record<ProductExperienceProductSection, typeof Activity>>;
+  const primaryNav = nav.filter((item) => !resourceKeys.includes(item.key));
+  const resourceNav = nav.filter((item) => resourceKeys.includes(item.key));
+  const activeResource = resourceNav.find((item) => item.key === activeProduct) ?? null;
+  const resourcesActive = Boolean(activeResource);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (resourcesRef.current && !resourcesRef.current.contains(event.target as Node)) {
+        setIsResourcesOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <nav aria-label={t("shell.productNavAria", "Navegacion de producto")} className="uxa-product-navigation border-b border-[var(--border-default)] bg-[var(--surface-subtle)] px-4">
       <div className="uxa-product-navigation-list flex items-center gap-1 overflow-x-auto py-2 scrollbar-subtle">
-        {nav.map((item) => (
+        {primaryNav.map((item) => (
           <Link
             aria-current={activeProduct === item.key ? "page" : undefined}
             className={cn(
@@ -408,6 +435,95 @@ function ProductNavigation({
             <span className="sr-only">{item.description}</span>
           </Link>
         ))}
+        <div className="relative shrink-0" ref={resourcesRef}>
+          <button
+            aria-current={resourcesActive ? "page" : undefined}
+            aria-expanded={isResourcesOpen}
+            aria-haspopup="menu"
+            aria-label={byLanguage(language, {
+              en: "Project resources",
+              es: "Recursos del proyecto",
+              pt: "Recursos do projeto",
+            })}
+            className={cn(
+              "uxa-product-nav-link flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium transition",
+              resourcesActive
+                ? "bg-[var(--brand-primary)] text-white font-semibold"
+                : "text-[var(--text-secondary)] hover:bg-white hover:text-[var(--text-primary)]",
+            )}
+            onClick={() => setIsResourcesOpen((prev) => !prev)}
+            type="button"
+          >
+            <FolderKanban aria-hidden="true" className="h-4 w-4" />
+            <span>
+              {activeResource?.label ??
+                byLanguage(language, {
+                  en: "Resources",
+                  es: "Recursos",
+                  pt: "Recursos",
+                })}
+            </span>
+            <ChevronDown aria-hidden="true" className={cn("h-3.5 w-3.5 transition", isResourcesOpen && "rotate-180")} />
+          </button>
+
+          {isResourcesOpen ? (
+            <div
+              aria-label={byLanguage(language, {
+                en: "Project resources",
+                es: "Recursos del proyecto",
+                pt: "Recursos do projeto",
+              })}
+              className="absolute left-0 z-40 mt-2 w-72 rounded-2xl border border-[var(--border-default)] bg-white p-2 shadow-xl ring-1 ring-black/5"
+              role="menu"
+            >
+              <div className="border-b border-[var(--border-default)] px-3 py-2">
+                <p className="text-[12px] font-semibold text-[var(--text-primary)]">
+                  {byLanguage(language, {
+                    en: "Project resources",
+                    es: "Recursos del proyecto",
+                    pt: "Recursos do projeto",
+                  })}
+                </p>
+                <p className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+                  {byLanguage(language, {
+                    en: "Diagrams, artifacts, attention and activity stay available without competing with the product journey.",
+                    es: "Diagramas, artefactos, atencion y actividad siguen disponibles sin competir con el viaje del producto.",
+                    pt: "Diagramas, artefatos, atencao e atividade continuam disponiveis sem competir com a jornada do produto.",
+                  })}
+                </p>
+              </div>
+              <div className="py-1.5">
+                {resourceNav.map((item) => {
+                  const Icon = resourceIcons[item.key as keyof typeof resourceIcons] ?? FolderKanban;
+                  const active = activeProduct === item.key;
+                  return (
+                    <Link
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "flex items-start gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition",
+                        active
+                          ? "bg-[var(--brand-primary)] text-white"
+                          : "text-[var(--text-primary)] hover:bg-[var(--surface-subtle)]",
+                      )}
+                      href={item.href}
+                      key={item.key}
+                      onClick={() => setIsResourcesOpen(false)}
+                      role="menuitem"
+                    >
+                      <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        <span className="block font-semibold">{item.label}</span>
+                        <span className={cn("mt-0.5 block text-[11px]", active ? "text-white/80" : "text-[var(--text-secondary)]")}>
+                          {item.description}
+                        </span>
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
     </nav>
   );

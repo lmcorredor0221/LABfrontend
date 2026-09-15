@@ -278,6 +278,46 @@ describe("executive overview shared components", () => {
     expect(screen.getByText("En Ejecución")).toBeInTheDocument();
   });
 
+  it("does not offer processing actions when the product build is already completed", () => {
+    const status: ProductBuildStatus = {
+      ...createStatus("completed", "blueprint_pro"),
+      processing_queue: {
+        active: false,
+        completed_at: "2026-08-15T10:06:00Z",
+        completed_count: 3,
+        completed_items: [],
+        current_deliverable_key: "",
+        failed_count: 0,
+        failed_items: [],
+        mode: "process_pending",
+        pending_count: 0,
+        processing_count: 0,
+        queue_id: "queue-completed",
+        retried_count: 0,
+        started_at: "2026-08-15T10:00:00Z",
+        status: "completed",
+        summary: "Se completaron 3 de 3 entregables.",
+        total_count: 3,
+        updated_at: "2026-08-15T10:06:00Z",
+      },
+    };
+
+    render(
+      <DeliverableGenerationLiveTracker
+        productKey="blueprint_pro"
+        productLabel="Blueprint Pro"
+        status={status}
+        onProcessPending={vi.fn()}
+        onRetryFailed={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Completado")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Procesar pendientes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Actualizar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reintentar fallidos" })).not.toBeInTheDocument();
+  });
+
   it("renders persistent queue counters and retry action only for retryable failures", () => {
     const onProcessPending = vi.fn();
     const onRetryFailed = vi.fn();

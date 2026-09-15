@@ -130,14 +130,14 @@ function createReport(): EstimationReportArtifact {
 }
 
 describe("blueprint results adapter", () => {
-  it("keeps free users in protected view-only mode with architecture sample", () => {
+  it("keeps free users in protected view-only mode with high-impact diagram samples", () => {
     const access = createAccess();
     const architecture = BLUEPRINT_RESULT_DIAGRAMS.find((item) => item.diagramKey === "architecture_overview");
     const orchestration = BLUEPRINT_RESULT_DIAGRAMS.find((item) => item.diagramKey === "agent_orchestration");
 
     expect(resolveBlueprintResultAccess(access)).toBe("free_view_only");
     expect(resolveBlueprintDiagramPreviewState(architecture!, access)).toBe("sample");
-    expect(resolveBlueprintDiagramPreviewState(orchestration!, access)).toBe("locked_blueprint");
+    expect(resolveBlueprintDiagramPreviewState(orchestration!, access)).toBe("sample");
   });
 
   it("unlocks Blueprint diagrams for professional tier without unlocking ACP-only diagrams", () => {

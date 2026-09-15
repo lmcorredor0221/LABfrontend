@@ -1112,17 +1112,32 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("heading", { name: "5 Artefactos Clave del Blueprint Básico" })).toBeInTheDocument();
   });
 
-  it("renders Blueprint Basic with the executive overview inside the product tabs", () => {
+  it("renders Blueprint Free as a result-first tabbed workbench", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint" />);
 
-    expect(screen.getByRole("heading", { name: "Resultado del Blueprint" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Resumen Blueprint/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /Diagramas de Blueprint/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "De una necesidad ambigua a una propuesta clara" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Blueprint Free" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Area de trabajo Blueprint Free" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Resultado" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Seguimiento" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Diagramas" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Entregables" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Pro" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Tu idea ya es un proyecto de agente validado." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Tu agente ya tiene una primera orquestacion operativa." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Valor tecnico para tu agente" })).toBeInTheDocument();
+    expect(screen.getByText("Riesgo visible")).toBeInTheDocument();
+    expect(screen.getByText("Sin descarga en Free")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Resumen ejecutivo Blueprint Free" })).toBeInTheDocument();
+    expect(screen.queryByText(/componentes minimos/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Preparacion viva")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Acciones de Blueprint Free" })).toBeInTheDocument();
+    expect(screen.queryByText("PROYECTO / PRODUCTO")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Resumen Blueprint/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Diagramas de Blueprint Free" })).not.toBeInTheDocument();
   });
 
-  it("keeps the build tracker visible when opening the Blueprint diagrams tab directly", () => {
-    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=diagrams"));
+  it("opens Blueprint Free tracking from the result_tab deep link with the live build tracker", () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=tracking"));
     mockUseProductBuildStatus.mockReturnValue(createProductBuildStatusMock({
       data: {
         lifecycle: "running",
@@ -1143,21 +1158,126 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint" />);
 
-    expect(screen.getByRole("tab", { name: /Diagramas de Blueprint/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Seguimiento" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Generación de Entregables")).toBeInTheDocument();
     expect(screen.getByText(/Generando entregables de Blueprint/i)).toBeInTheDocument();
   });
 
-  it("renders Blueprint Pro executive overview inside the Blueprint Pro tabs and hides the redundant lifecycle banner", () => {
+  it("opens the Blueprint Free diagram center from the result_tab deep link", () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=diagrams"));
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint" />);
+
+    expect(screen.getByRole("tab", { name: "Diagramas" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Diagramas gancho")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Diagramas de Blueprint Free" })).toBeInTheDocument();
+    expect(screen.queryByText("Generación de Entregables")).not.toBeInTheDocument();
+  });
+
+  it("renders Blueprint Pro as a post-upgrade workbench and hides the redundant lifecycle banner", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
 
-    expect(screen.getByRole("heading", { name: "Resultado del Blueprint" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Blueprint Pro" })).toBeInTheDocument();
+    expect(screen.queryByText("PROYECTO / PRODUCTO")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ver Blueprint Free" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ver workbench" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Navegacion Blueprint Pro" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Resumen" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Workbench Pro" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Inspector de seguimiento")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /paquete Pro sin pedir nuevas respuestas/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cola del producto" })).toBeInTheDocument();
+    expect(screen.getByText("Diagramas Pro")).toBeInTheDocument();
+    expect(screen.getByText("Artefactos Pro")).toBeInTheDocument();
+    expect(screen.getByText("Documento descargable")).toBeInTheDocument();
+    expect(screen.queryByText("Generación de Entregables")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Buscar en Blueprint Pro" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Contenido Pro" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Area de trabajo Blueprint Pro" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Seguimiento/ })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /Diagramas/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "De una propuesta clara a un Blueprint defendible" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Artefactos/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Documento/ })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Acciones de Blueprint Pro" })).toBeInTheDocument();
     expect(screen.getByText("CTAs de este producto")).toBeInTheDocument();
     expect(screen.queryByText(/Blueprint Pro esta activo y listo para/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Enriquecimiento Pro/i })).not.toBeInTheDocument();
+  });
+
+  it("opens the Blueprint Pro diagram center from the result_tab deep link without the legacy Pro catalog", () => {
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=diagrams"));
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
+
+    expect(screen.queryByRole("navigation", { name: "Navegacion Blueprint Pro" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Diagramas/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Diagramas de Blueprint Pro" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Contenido Pro" })).not.toBeInTheDocument();
+  });
+
+  it("keeps Blueprint Pro tracking quantities scoped to the processing queue", () => {
+    mockUseProductBuildStatus.mockReturnValue(createProductBuildStatusMock({
+      data: {
+        deliverables: [
+          ...Array.from({ length: 14 }, (_, index) => ({
+            deliverable_key: `diagram-${index}`,
+            deliverable_type: "diagram",
+            product_surface: "blueprint_pro",
+            state: "available",
+            title: `Diagrama ${index + 1}`,
+          })),
+          ...Array.from({ length: 6 }, (_, index) => ({
+            deliverable_key: `artifact-${index}`,
+            deliverable_type: "artifact",
+            product_surface: "blueprint_pro",
+            state: "available",
+            title: `Artefacto ${index + 1}`,
+          })),
+          ...Array.from({ length: 2 }, (_, index) => ({
+            deliverable_key: `document-${index}`,
+            deliverable_type: index === 0 ? "document" : "package",
+            product_surface: "blueprint_pro",
+            state: "available",
+            title: `Documento ${index + 1}`,
+          })),
+          ...Array.from({ length: 30 }, (_, index) => ({
+            deliverable_key: `stale-${index}`,
+            deliverable_type: "artifact",
+            product_surface: "blueprint_basic",
+            state: "available",
+            title: `Entregable fuera de cola ${index + 1}`,
+          })),
+        ],
+        entitlement: {
+          purchase_required: false,
+        },
+        lifecycle: "completed",
+        processing_queue: {
+          active: false,
+          completed_count: 22,
+          failed_count: 0,
+          pending_count: 0,
+          processing_count: 0,
+          total_count: 22,
+        },
+        progress: {
+          percent: 100,
+          total_units: 52,
+        },
+      } as never,
+      isEmpty: false,
+      status: "success",
+      updatedAt: Date.now(),
+    }));
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
+
+    expect(screen.getByText("14/14")).toBeInTheDocument();
+    expect(screen.getByText("6/6")).toBeInTheDocument();
+    expect(screen.getByText("2/2")).toBeInTheDocument();
+    expect(screen.queryByText(/31\/52/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("36/36")).not.toBeInTheDocument();
+    expect(screen.queryByText("52 total")).not.toBeInTheDocument();
   });
 
   it("keeps Blueprint Pro in the access gate until the premium entitlement is active", () => {
@@ -1308,7 +1428,8 @@ describe("UXA11 SaaS product views", () => {
 
     expect(screen.queryByRole("button", { name: "Descargar Blueprint Pro" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Descarga pendiente" })).toBeDisabled();
-    expect(screen.getByRole("heading", { name: /El workspace profesional esta activo, pero la exportacion sigue protegida/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Contenido Pro" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /El workspace profesional esta activo, pero la exportacion sigue protegida/i })).not.toBeInTheDocument();
   });
 
   it("keeps Blueprint Pro free of decision questions even when result_tab asks for enrichment", () => {

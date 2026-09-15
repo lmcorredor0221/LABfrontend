@@ -1,16 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowUpRight,
   Boxes,
   ClipboardCopy,
   Clock3,
   Download,
-  Edit3,
   ExternalLink,
-  FastForward,
   FileText,
   GitBranch,
   Link2,
@@ -18,13 +16,11 @@ import {
   Printer,
   Search,
   Sparkles,
-  Trash2,
   Users,
-  X,
-  Zap,
 } from "lucide-react";
 import { useLanguage, type SupportedLanguage } from "@/core/i18n/language-context";
 import { DiagramCenterPage } from "@/features/diagram-center";
+import { useDiagramCenter } from "@/features/diagram-center/application/use-diagram-center";
 import type { DiagramCatalogItem } from "@/features/diagram-center/domain/types";
 import diagramCenterStyles from "@/features/diagram-center/presentation/diagram-center.module.css";
 import type {
@@ -42,6 +38,7 @@ import {
   UxaProcessingStrip,
   UxaProductHero,
   UxaSurface,
+  type UxaTone,
 } from "@/features/product-experience/design-system";
 import type { ProductExperienceProductSection } from "@/features/product-experience/shell/experience-model";
 import {
@@ -58,12 +55,6 @@ import {
 } from "@/features/product-experience/saas/executive-overview-components";
 import { useProductBuildStatus } from "@/features/product-experience/saas/use-product-build-status";
 import type { ProductBuildStatus } from "@/features/product-experience/saas/product-build-status";
-import {
-  premiumEnrichmentApi,
-  type PremiumEnrichmentItem,
-  type PremiumEnrichmentWorkspace,
-  type PremiumSelectiveReprocessResult,
-} from "@/features/product-experience/saas/premium-enrichment-api";
 import { ProfessionalArtifactViewer } from "@/features/product-experience/saas/professional-artifact-viewer";
 import { sessionsApi } from "@/features/sessions/session-api";
 import type { ConstructionQuestionViewEntry } from "@/features/sessions/session-contracts";
@@ -83,6 +74,17 @@ type CheckoutMarketCode = "co" | "mx" | "ar";
 type AcpLoadStatus = "idle" | "loading" | "ready" | "error";
 
 const CHECKOUT_MARKET_STORAGE_KEY = "lean_checkout_market";
+const BLUEPRINT_FREE_HERO_DIAGRAM_KEY = "agent_orchestration";
+const AGENT_ORCHESTRATION_MINIMUM_CHECKS = [
+  { key: "agent_orchestration_has_orchestrator", label: "Orquestador" },
+  { key: "agent_orchestration_has_multiple_agents", label: "Agentes" },
+  { key: "agent_orchestration_has_handoffs", label: "Handoffs" },
+  { key: "agent_orchestration_has_tools", label: "Herramientas" },
+  { key: "agent_orchestration_has_memory", label: "Memoria" },
+  { key: "agent_orchestration_has_guardrails", label: "Guardrails" },
+  { key: "agent_orchestration_has_hitl", label: "HITL" },
+  { key: "agent_orchestration_has_fallback", label: "Fallback" },
+] as const;
 const BLUEPRINT_FREE_VALIDATED_ITEMS = [
   {
     key: "discovery.analysis",
@@ -479,7 +481,9 @@ type ProductSaasViewProps = {
 
 type ProductTierScope = CommercialTier;
 type ProductArtifactCard = ReturnType<typeof buildProductSaasViewModel>["artifactCards"][number];
-type BlueprintResultTab = "enrichment" | "overview" | "validate" | "package" | "diagrams" | "governed-artifacts" | "commercial-artifacts";
+type BlueprintFreeTab = "result" | "tracking" | "diagrams" | "deliverables" | "pro";
+type BlueprintWorkbenchTab = "overview" | "diagrams" | "governed-artifacts" | "commercial-artifacts";
+type ProductBuildStatusView = ReturnType<typeof useProductBuildStatus>;
 type ExecutiveOverviewProductSection = "blueprint_overview" | "blueprint_pro_overview" | "acp_overview";
 type ExecutiveOverviewProductKey = "blueprint_basic" | "blueprint_pro" | "acp";
 
@@ -660,128 +664,6 @@ function getToneBadgeLabel(language: "es" | "en" | "pt", tone: "success" | "warn
 
 function formatToken(value: string) {
   return value.replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-type DecisionBadgeTone = "success" | "warning" | "danger" | "info" | "neutral";
-
-type DecisionBadge = {
-  label: string;
-  tone: DecisionBadgeTone;
-};
-
-function normalizeReconciliationDecision(value?: string | null) {
-  if (value === "localized_reprocess") return "localized_reconciliation";
-  if (value === "structural_reprocess") return "structural_reconciliation";
-  return value || "document_only";
-}
-
-function getPremiumDispositionBadge(
-  language: SupportedLanguage,
-  item: PremiumEnrichmentItem,
-): DecisionBadge {
-  if (item.entry.status === "deferred" || item.entry.disposition === "defer") {
-    return {
-      label: byLanguage(language, { en: "Delegated to ACP", es: "Delegada a ACP", pt: "Delegada ao ACP" }),
-      tone: "warning",
-    };
-  }
-  if (item.entry.disposition === "block") {
-    return {
-      label: byLanguage(language, { en: "Blocking", es: "Bloqueante", pt: "Bloqueante" }),
-      tone: "danger",
-    };
-  }
-  if (item.entry.status === "resolved") {
-    return {
-      label: byLanguage(language, { en: "Answered", es: "Respondida", pt: "Respondida" }),
-      tone: "success",
-    };
-  }
-  if (item.entry.disposition === "infer") {
-    return {
-      label: byLanguage(language, { en: "Inferred by LAB", es: "Inferida por LAB", pt: "Inferida pelo LAB" }),
-      tone: "info",
-    };
-  }
-  return {
-    label: byLanguage(language, { en: "Decision pending", es: "Pendiente de decision", pt: "Decisao pendente" }),
-    tone: "neutral",
-  };
-}
-
-function getPremiumReconciliationBadge(
-  language: SupportedLanguage,
-  item: PremiumEnrichmentItem,
-): DecisionBadge {
-  const decision = normalizeReconciliationDecision(item.reconciliation_decision);
-  if (item.reconciliation_status === "pending_user_confirmation") {
-    return {
-      label: byLanguage(language, {
-        en: "Reconciliation needs confirmation",
-        es: "Reconciliacion requiere confirmacion",
-        pt: "Reconciliacao requer confirmacao",
-      }),
-      tone: "warning",
-    };
-  }
-  if (decision === "structural_reconciliation") {
-    return {
-      label: byLanguage(language, {
-        en: "Structural impact",
-        es: "Impacto estructural",
-        pt: "Impacto estrutural",
-      }),
-      tone: "warning",
-    };
-  }
-  if (decision === "localized_reconciliation" || item.material_impact) {
-    return {
-      label: byLanguage(language, {
-        en: "Localized impact",
-        es: "Impacto localizado",
-        pt: "Impacto localizado",
-      }),
-      tone: "info",
-    };
-  }
-  return {
-    label: byLanguage(language, {
-      en: "Document only",
-      es: "Solo documentar",
-      pt: "Somente documentar",
-    }),
-    tone: "neutral",
-  };
-}
-
-function getReconciliationLabel(language: SupportedLanguage, value?: string | null) {
-  const decision = normalizeReconciliationDecision(value);
-  if (decision === "structural_reconciliation") {
-    return byLanguage(language, {
-      en: "Structural reconciliation",
-      es: "Reconciliación estructural",
-      pt: "Reconciliação estrutural",
-    });
-  }
-  if (decision === "localized_reconciliation") {
-    return byLanguage(language, {
-      en: "Localized reconciliation",
-      es: "Reconciliación localizada",
-      pt: "Reconciliação localizada",
-    });
-  }
-  if (decision === "delegated_to_implementation") {
-    return byLanguage(language, {
-      en: "Delegated to implementation",
-      es: "Delegada a implementacion",
-      pt: "Delegada a implementacao",
-    });
-  }
-  return byLanguage(language, {
-    en: "Document only",
-    es: "Solo documentar",
-    pt: "Somente documentar",
-  });
 }
 
 function SectionHeader({
@@ -1065,788 +947,8 @@ function ProductDeliverableCatalog({
   );
 }
 
-function getProductOverviewTabConfig(tierScope: ProductTierScope, language: "en" | "es" | "pt") {
-  if (tierScope === "blueprint") {
-    return {
-      description: byLanguage(language, {
-        en: "Executive story of the LEAN journey and generated value.",
-        es: "Historia ejecutiva del viaje LEAN y del valor generado.",
-        pt: "Historia executiva da jornada LEAN e do valor gerado.",
-      }),
-      label: byLanguage(language, {
-        en: "Blueprint summary",
-        es: "Resumen Blueprint",
-        pt: "Resumo Blueprint",
-      }),
-      productKey: "blueprint_basic" as const,
-    };
-  }
-
-  if (tierScope === "blueprint_pro") {
-    return {
-      description: byLanguage(language, {
-        en: "Executive story of the enriched Blueprint, decisions and professional deliverables.",
-        es: "Historia ejecutiva del Blueprint enriquecido, decisiones y entregables profesionales.",
-        pt: "Historia executiva do Blueprint enriquecido, decisoes e entregaveis profissionais.",
-      }),
-      label: byLanguage(language, {
-        en: "Pro summary",
-        es: "Resumen Pro",
-        pt: "Resumo Pro",
-      }),
-      productKey: "blueprint_pro" as const,
-    };
-  }
-
-  if (tierScope === "acp") {
-    return {
-      description: byLanguage(language, {
-        en: "Executive story of the construction package, readiness and implementation assets.",
-        es: "Historia ejecutiva del paquete de construccion, readiness y activos de implementacion.",
-        pt: "Historia executiva do pacote de construcao, prontidao e ativos de implementacao.",
-      }),
-      label: byLanguage(language, {
-        en: "ACP summary",
-        es: "Resumen ACP",
-        pt: "Resumo ACP",
-      }),
-      productKey: "acp" as const,
-    };
-  }
-
-  return null;
-}
-function normalizeBlueprintResultTab(
-  value: string | null,
-  options: {
-    hasAcpWorkflowTabs: boolean;
-    hasEnrichmentTab: boolean;
-    hasProductOverview: boolean;
-  },
-): BlueprintResultTab {
-  const normalized = String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replaceAll("_", "-");
-
-  if (["enrichment", "enriquecimiento", "resuelve"].includes(normalized) && options.hasEnrichmentTab) {
-    return "enrichment";
-  }
-
-  if (normalized === "overview" && options.hasProductOverview) {
-    return "overview";
-  }
-
-  if (normalized === "validate" && options.hasAcpWorkflowTabs) {
-    return "validate";
-  }
-
-  if (["package", "packaging", "empaquetar"].includes(normalized) && options.hasAcpWorkflowTabs) {
-    return "package";
-  }
-
-  if (normalized === "diagrams") {
-    return "diagrams";
-  }
-
-  if (["governed-artifacts", "artifacts", "governed"].includes(normalized)) {
-    return "governed-artifacts";
-  }
-
-  if (["commercial-artifacts", "commercial"].includes(normalized)) {
-    return "commercial-artifacts";
-  }
-
-  if (normalized === "enrichment" && options.hasEnrichmentTab) {
-    return "enrichment";
-  }
-
-  if (options.hasProductOverview) {
-    return "overview";
-  }
-
-  if (options.hasEnrichmentTab) {
-    return "enrichment";
-  }
-
-  return "diagrams";
-}
-
-function CommercialBlueprintResult({
-  activeRoute,
-  artifactCards,
-  projectTitle,
-  sessionId,
-  tierScope,
-  unlocked = false,
-}: {
-  activeRoute?: ProductExperienceRouteSnapshot | null;
-  artifactCards: ReturnType<typeof buildProductSaasViewModel>["artifactCards"];
-  projectTitle: string;
-  sessionId: string;
-  tierScope: ProductTierScope;
-  unlocked?: boolean;
-}) {
-  const { language } = useLanguage();
-  const searchParams = useSearchParams();
-  const overviewTab = getProductOverviewTabConfig(tierScope, language);
-  const isBlueprintPro = tierScope === "blueprint_pro";
-  const hasProductOverview = Boolean(overviewTab);
-  const hasAcpWorkflowTabs = false;
-  const requestedTab = searchParams.get("result_tab");
-  const hasEnrichmentTab = !isBlueprintPro && requestedTab === "enrichment";
-  const productBuildKey = overviewTab?.productKey ?? (tierScope === "acp" ? "acp" : tierScope === "blueprint_pro" ? "blueprint_pro" : "blueprint_basic");
-  const productBuild = useProductBuildStatus(sessionId, productBuildKey, {
-    polling: true,
-    staleWhileRevalidating: true,
-  });
-  const shouldShowBuildTracker = !isBlueprintPro && canRenderBuildTracker(productBuild.data);
-  const diagramCatalogFilter = useMemo(
-    () => (item: DiagramCatalogItem) => isTierIncluded(item.required_tier, tierScope),
-    [tierScope],
-  );
-  const commercialCards = useMemo(
-    () =>
-      artifactCards.filter(
-        (artifact) => artifact.isCommercial && isTierIncluded(resolveArtifactTier(artifact), tierScope),
-      ),
-    [artifactCards, tierScope],
-  );
-  const commercialArtifacts = useMemo(() => commercialCards.filter((artifact) => !artifact.isDiagram), [commercialCards]);
-  const [selectedKey, setSelectedKey] = useState(commercialArtifacts[0]?.key ?? "");
-  const effectiveCommercialSelectedKey =
-    selectedKey && commercialArtifacts.some((artifact) => artifact.key === selectedKey)
-      ? selectedKey
-      : commercialArtifacts[0]?.key ?? "";
-  const selectedArtifact = commercialArtifacts.find((artifact) => artifact.key === effectiveCommercialSelectedKey) ?? null;
-  const documentCount = commercialArtifacts.length;
-
-  function metadataText(artifact: (typeof commercialArtifacts)[number], key: string, fallback = "") {
-    const value = artifact.metadata[key];
-    return typeof value === "string" && value.trim() ? value : fallback;
-  }
-
-  function metadataList(artifact: (typeof commercialArtifacts)[number], key: string) {
-    const value = artifact.metadata[key];
-    if (Array.isArray(value)) {
-      return value.map(String).filter(Boolean);
-    }
-    if (typeof value === "string" && value.trim()) {
-      return value.split("\n").map((item) => item.trim()).filter(Boolean);
-    }
-    return [];
-  }
-
-  function fallbackCommercialPurpose(artifact: (typeof commercialArtifacts)[number]) {
-    const key = String(artifact.metadata.artifact_key ?? artifact.key).toLocaleLowerCase("es");
-    if (key.includes("resultado-ejecutivo")) {
-      return byLanguage(language, {
-        en: "Executive summary of the business problem, proposed solution, architecture, memory, and minimum tools.",
-        es: "Resumen ejecutivo del problema, solucion propuesta, arquitectura, memoria y herramientas minimas.",
-        pt: "Resumo executivo do problema, solucao proposta, arquitetura, memoria e ferramentas minimas.",
-      });
-    }
-    if (key.includes("comparativa-valor")) {
-      return byLanguage(language, {
-        en: "Commercial comparison of effort, cost, savings, and estimation scope.",
-        es: "Comparativa comercial de esfuerzo, costo, ahorro y alcance de la estimacion.",
-        pt: "Comparativo comercial de esforco, custo, economia e escopo da estimativa.",
-      });
-    }
-    if (key.includes("arquitectura")) {
-      return byLanguage(language, {
-        en: "High-level view of how the business need becomes architecture, tools, memory, and value.",
-        es: "Vista de alto nivel de como la necesidad de negocio se convierte en arquitectura, herramientas, memoria y valor.",
-        pt: "Visao de alto nivel de como a necessidade de negocio vira arquitetura, ferramentas, memoria e valor.",
-      });
-    }
-    if (key.includes("flujo-valor")) {
-      return byLanguage(language, {
-        en: "LEAN value flow from discovery to the commercial Blueprint result.",
-        es: "Flujo de valor LEAN desde descubrimiento hasta el resultado comercial del Blueprint.",
-        pt: "Fluxo de valor LEAN da descoberta ate o resultado comercial do Blueprint.",
-      });
-    }
-    return "";
-  }
-
-  function fallbackContains(): string[] {
-    return [
-      byLanguage(language, {
-        en: "Commercial artifact generated to explain the value and scope of the Blueprint.",
-        es: "Artefacto comercial generado para explicar el valor y alcance del Blueprint.",
-        pt: "Artefato comercial gerado para explicar o valor e escopo do Blueprint.",
-      }),
-    ];
-  }
-
-  const renderCatalogItem = (artifact: (typeof commercialArtifacts)[number]) => {
-    const selected = selectedArtifact?.key === artifact.key;
-    const purpose = metadataText(artifact, "purpose", fallbackCommercialPurpose(artifact));
-    return (
-      <article className={`${diagramCenterStyles.card} ${selected ? diagramCenterStyles.cardSelected : ""} ${diagramCenterStyles.listCard}`} key={artifact.key}>
-        <div>
-          <div className={diagramCenterStyles.cardTop}>
-            <span className={diagramCenterStyles.tag}>
-              {artifact.isDiagram
-                ? byLanguage(language, { en: "Diagram", es: "Diagrama", pt: "Diagrama" })
-                : byLanguage(language, { en: "Artifact", es: "Artefacto", pt: "Artefato" })}
-            </span>
-            <span className={`${diagramCenterStyles.status} ${diagramCenterStyles.statusAvailable}`}>
-              {byLanguage(language, { en: "Commercial", es: "Comercial", pt: "Comercial" })}
-            </span>
-          </div>
-          <button
-            aria-pressed={selected}
-            className={diagramCenterStyles.cardTitleButton}
-            onClick={() => setSelectedKey(artifact.key)}
-            type="button"
-          >
-            <h4>{artifact.label}</h4>
-            <p>{purpose}</p>
-          </button>
-        </div>
-        <div className={diagramCenterStyles.cardFooter}>
-          <button className={diagramCenterStyles.cardAction} onClick={() => setSelectedKey(artifact.key)} type="button">
-            {byLanguage(language, { en: "View", es: "Ver", pt: "Ver" })}
-            <ArrowUpRight aria-hidden="true" size={12} />
-          </button>
-        </div>
-      </article>
-    );
-  };
-
-  const [activeTab, setActiveTab] = useState<BlueprintResultTab | null>(null);
-  const effectiveActiveTab = normalizeBlueprintResultTab(activeTab ?? requestedTab, {
-    hasAcpWorkflowTabs,
-    hasEnrichmentTab,
-    hasProductOverview,
-  });
-  const tabItems: Array<{
-    key: BlueprintResultTab;
-    label: string;
-    description: string;
-    count?: number;
-  }> = [
-    ...(hasEnrichmentTab
-      ? [
-          {
-            key: "enrichment" as const,
-            label: byLanguage(language, {
-              en: "Enrichment Pro",
-              es: "Enriquecimiento Pro",
-              pt: "Enriquecimento Pro",
-            }),
-            description: byLanguage(language, {
-              en: "Resolve only what improves the professional Blueprint.",
-              es: "Resuelve solo lo que mejora el Blueprint profesional.",
-              pt: "Resolva apenas o que melhora o Blueprint profissional.",
-            }),
-          },
-        ]
-      : []),
-    ...(overviewTab
-      ? [
-          {
-            key: "overview" as const,
-            label: isBlueprintPro
-              ? byLanguage(language, {
-                  en: "Tracking",
-                  es: "Seguimiento",
-                  pt: "Acompanhamento",
-                })
-              : overviewTab.label,
-            description: isBlueprintPro
-              ? byLanguage(language, {
-                  en: "Professional generation progress and available assets.",
-                  es: "Progreso de generacion profesional y activos disponibles.",
-                  pt: "Progresso de geracao profissional e ativos disponiveis.",
-                })
-              : overviewTab.description,
-          },
-        ]
-      : []),
-    ...(hasAcpWorkflowTabs
-      ? [
-          {
-            key: "validate" as const,
-            label: byLanguage(language, {
-              en: "Validate Blueprint",
-              es: "Validar Blueprint",
-              pt: "Validar Blueprint",
-            }),
-            description: byLanguage(language, {
-              en: "Test Suite, simulations, gaps, and readiness before building the package.",
-              es: "Test Suite, simulaciones, gaps y readiness antes de construir el paquete.",
-              pt: "Test Suite, simulacoes, gaps e prontidao antes de construir o pacote.",
-            }),
-          },
-          {
-            key: "package" as const,
-            label: byLanguage(language, {
-              en: "Package ACP",
-              es: "Empaquetar ACP",
-              pt: "Empacotar ACP",
-            }),
-            description: byLanguage(language, {
-              en: "Portable package, implementation instructions, contracts, and technical assets.",
-              es: "Paquete portable, instrucciones de implementacion, contratos y activos tecnicos.",
-              pt: "Pacote portavel, instrucoes de implementacao, contratos e ativos tecnicos.",
-            }),
-          },
-        ]
-      : []),
-    {
-      key: "diagrams",
-      label: byLanguage(language, {
-        en: isBlueprintPro ? "Diagrams" : `${productTierLabel(language, tierScope)} diagrams`,
-        es: isBlueprintPro ? "Diagramas" : `Diagramas de ${productTierLabel(language, tierScope)}`,
-        pt: isBlueprintPro ? "Diagramas" : `Diagramas de ${productTierLabel(language, tierScope)}`,
-      }),
-      description: byLanguage(language, {
-        en: "Visual governed catalog by product access rules.",
-        es: "Catalogo visual gobernado por reglas de acceso del producto.",
-        pt: "Catalogo visual governado por regras de acceso del producto.",
-      }),
-    },
-    {
-      key: "governed-artifacts",
-      label: byLanguage(language, {
-        en: isBlueprintPro ? "Artifacts" : "Governed artifacts",
-        es: isBlueprintPro ? "Artefactos" : "Artefactos gobernados",
-        pt: isBlueprintPro ? "Artefatos" : "Artefatos governados",
-      }),
-      description: byLanguage(language, {
-        en: "Functional and technical deliverables managed by governance.",
-        es: "Entregables funcionales y tecnicos administrados por gobernanza.",
-        pt: "Entregaveis funcionais e tecnicos administrados por governanca.",
-      }),
-    },
-    {
-      key: "commercial-artifacts",
-      label: byLanguage(language, {
-        en: isBlueprintPro ? "Document" : "Commercial artifacts",
-        es: isBlueprintPro ? "Documento" : "Artefactos comerciales",
-        pt: isBlueprintPro ? "Documento" : "Artefatos comerciais",
-      }),
-      description: byLanguage(language, {
-        en: "Executive material prepared to explain value and conversion.",
-        es: "Material ejecutivo preparado para explicar valor y conversion.",
-        pt: "Material executivo preparado para explicar valor e conversao.",
-      }),
-      count: documentCount,
-    },
-  ];
-
-  return (
-    <section aria-labelledby="commercial-blueprint-result-title" className={diagramCenterStyles.root}>
-      <header className="uxa-card p-3 md:p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h2 id="commercial-blueprint-result-title" className="text-[17px] font-black text-[var(--uxa-color-ink)]">
-                {byLanguage(language, {
-                  en: "Blueprint result",
-                  es: "Resultado del Blueprint",
-                  pt: "Resultado do Blueprint",
-                })}
-              </h2>
-              <UxaBadge tone="info">{productTierLabel(language, tierScope)}</UxaBadge>
-            </div>
-            <p className="mt-1 max-w-3xl text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-              {byLanguage(language, {
-                en: "Explore diagrams and artifacts from one compact surface. Each tab reuses the governed viewers and preserves access rules.",
-                es: "Explora diagramas y artefactos desde una superficie compacta. Cada pestana reutiliza los visores gobernados y conserva las reglas de acceso.",
-                pt: "Explore diagramas e artefatos em uma superficie compacta. Cada aba reutiliza os visualizadores governados e preserva as regras de acesso.",
-              })}
-            </p>
-          </div>
-        </div>
-        <div
-          aria-label={byLanguage(language, {
-            en: "Blueprint result sections",
-            es: "Secciones del resultado Blueprint",
-            pt: "Secoes do resultado Blueprint",
-          })}
-          className={cn(
-            "mt-3 grid gap-2",
-            hasAcpWorkflowTabs
-              ? "md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6"
-              : hasEnrichmentTab
-                ? "md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5"
-                : hasProductOverview
-                  ? "md:grid-cols-2 xl:grid-cols-4"
-                  : "md:grid-cols-3",
-          )}
-          role="tablist"
-        >
-          {tabItems.map((tab) => {
-            const selected = effectiveActiveTab === tab.key;
-            return (
-              <button
-                aria-controls={`blueprint-result-panel-${tab.key}`}
-                aria-selected={selected}
-                className={cn(
-                  "rounded-[var(--uxa-radius-lg)] border px-3 py-2 text-left transition",
-                  selected
-                    ? "border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand)] text-white shadow-[var(--uxa-shadow-card)]"
-                    : "border-[var(--uxa-color-border)] bg-white text-[var(--uxa-color-ink)] hover:border-[var(--uxa-color-brand)]",
-                )}
-                id={`blueprint-result-tab-${tab.key}`}
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                role="tab"
-                type="button"
-              >
-                <span className="flex items-center justify-between gap-2 text-[12px] font-black">
-                  <span>{tab.label}</span>
-                  {typeof tab.count === "number" ? (
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[10px]",
-                        selected
-                          ? "bg-white/20 text-white"
-                          : "bg-[var(--uxa-color-muted-panel)] text-[var(--uxa-color-ink-muted)]",
-                      )}
-                    >
-                      {tab.count}
-                    </span>
-                  ) : null}
-                </span>
-                <span
-                  className={cn(
-                    "mt-1 block line-clamp-2 text-[11px] leading-4",
-                    selected ? "text-white/80" : "text-[var(--uxa-color-ink-soft)]",
-                  )}
-                >
-                  {tab.description}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </header>
-
-      {effectiveActiveTab !== "overview" ? (
-        productBuild.isError ? (
-          <UxaSurface className="border-[var(--uxa-state-danger-border)] bg-[var(--uxa-state-danger-bg)] p-4">
-            <p className="text-[12px] font-black uppercase tracking-[0.18em] text-[var(--uxa-state-danger)]">
-              {byLanguage(language, {
-                en: "Product status unavailable",
-                es: "Estado del producto no disponible",
-                pt: "Estado do produto indisponivel",
-              })}
-            </p>
-            <p className="mt-2 text-[13px] leading-5 text-[var(--uxa-color-ink-soft)]">
-              {byLanguage(language, {
-                en: "The build status could not be loaded. Diagram and artifact generation may still be running in the background.",
-                es: "No se pudo cargar el estado del build. La generacion de diagramas y artefactos puede seguir ejecutandose en segundo plano.",
-                pt: "Nao foi possivel carregar o estado do build. A geracao de diagramas e artefatos pode seguir executando em segundo plano.",
-              })}
-            </p>
-          </UxaSurface>
-        ) : shouldShowBuildTracker ? (
-          <DeliverableGenerationLiveTracker
-            productKey={productBuildKey}
-            productLabel={productTierLabel(language, tierScope)}
-            status={productBuild.data}
-            onProcessPending={() => productBuild.executeCommand("process_pending", { allow_llm: true })}
-            onRetryFailed={() => productBuild.executeCommand("retry_failed", { allow_llm: true })}
-            processingDisabled={productBuild.isFetching}
-          />
-        ) : productBuild.isLoading || productBuild.isFetching ? (
-          <UxaSurface className="border border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-brand)]">
-                  {byLanguage(language, {
-                    en: "Build status",
-                    es: "Estado del build",
-                    pt: "Estado do build",
-                  })}
-                </p>
-                <p className="mt-1 text-[13px] leading-5 text-[var(--uxa-color-ink)]">
-                  {byLanguage(language, {
-                    en: "Checking diagram and artifact progress for this product surface.",
-                    es: "Validando el progreso de diagramas y artefactos para esta superficie del producto.",
-                    pt: "Validando o progresso de diagramas e artefatos para esta superficie do produto.",
-                  })}
-                </p>
-              </div>
-              <UxaBadge tone="info">
-                {byLanguage(language, {
-                  en: "Updating",
-                  es: "Actualizando",
-                  pt: "Atualizando",
-                })}
-              </UxaBadge>
-            </div>
-          </UxaSurface>
-        ) : null
-      ) : null}
-
-      {effectiveActiveTab === "enrichment" && hasEnrichmentTab ? (
-        <div
-          aria-labelledby="blueprint-result-tab-enrichment"
-          id="blueprint-result-panel-enrichment"
-          role="tabpanel"
-        >
-          <PremiumEnrichmentPanel activeRoute={activeRoute ?? null} unlocked={unlocked} />
-        </div>
-      ) : null}
-
-      {effectiveActiveTab === "overview" && overviewTab ? (
-        <div
-          aria-labelledby="blueprint-result-tab-overview"
-          id="blueprint-result-panel-overview"
-          role="tabpanel"
-        >
-          <ProductExecutiveOverviewTab
-            productKey={overviewTab.productKey}
-            projectTitle={projectTitle}
-            sessionId={sessionId}
-          />
-        </div>
-      ) : null}
-
-      {effectiveActiveTab === "diagrams" ? (
-        <div
-          aria-labelledby="blueprint-result-tab-diagrams"
-          id="blueprint-result-panel-diagrams"
-          role="tabpanel"
-        >
-          <DiagramCenterPage
-            catalogFilter={diagramCatalogFilter}
-            engineLabel={byLanguage(language, {
-              en: "Governed catalog",
-              es: "Catalogo gobernado",
-              pt: "Catalogo governado",
-            })}
-            initialViewMode="list"
-            projectId={sessionId}
-            subtitle={byLanguage(language, {
-              en: productTierDescription(language, tierScope),
-              es: productTierDescription(language, tierScope),
-              pt: productTierDescription(language, tierScope),
-            })}
-            title={byLanguage(language, {
-              en: `${productTierLabel(language, tierScope)} diagrams`,
-              es: `Diagramas de ${productTierLabel(language, tierScope)}`,
-              pt: `Diagramas de ${productTierLabel(language, tierScope)}`,
-            })}
-          />
-        </div>
-      ) : null}
-
-      {effectiveActiveTab === "governed-artifacts" ? (
-        <div
-          aria-labelledby="blueprint-result-tab-governed-artifacts"
-          id="blueprint-result-panel-governed-artifacts"
-          role="tabpanel"
-        >
-          <ProductDeliverableCatalog
-            artifactCards={artifactCards}
-            currentStage={tierScope === "blueprint" ? "estimate" : "package"}
-            sessionId={sessionId}
-            tierScope={tierScope}
-          />
-        </div>
-      ) : null}
-
-      {effectiveActiveTab === "commercial-artifacts" && commercialArtifacts.length ? (
-        <div className={diagramCenterStyles.workspace}>
-          <section aria-label="Catalogo comercial del Blueprint" className={diagramCenterStyles.catalogPane}>
-            <div className={diagramCenterStyles.paneHeader}>
-              <div>
-                <h3>{byLanguage(language, { en: "Commercial artifacts", es: "Artefactos comerciales", pt: "Artefatos comerciais" })}</h3>
-                <p>{commercialArtifacts.length} / {commercialArtifacts.length}</p>
-              </div>
-              <span className={diagramCenterStyles.tag}>
-                {byLanguage(language, { en: "Blueprint result", es: "Resultado Blueprint", pt: "Resultado Blueprint" })}
-              </span>
-            </div>
-            <div className={diagramCenterStyles.catalogList}>
-              {commercialArtifacts.map(renderCatalogItem)}
-            </div>
-          </section>
-
-          <aside aria-label="Visor del resultado comercial" className={diagramCenterStyles.viewerPane}>
-            <div className={diagramCenterStyles.paneHeader}>
-              <div>
-                <h3>{byLanguage(language, { en: "Viewer", es: "Visor", pt: "Visualizador" })}</h3>
-                <p>{selectedArtifact?.exportFormat ?? byLanguage(language, { en: "Select an item", es: "Selecciona un item", pt: "Selecione um item" })}</p>
-              </div>
-              {selectedArtifact ? (
-                <span className={`${diagramCenterStyles.status} ${diagramCenterStyles.statusAvailable}`}>
-                  {selectedArtifact.isDiagram
-                    ? byLanguage(language, { en: "Diagram", es: "Diagrama", pt: "Diagrama" })
-                    : byLanguage(language, { en: "Artifact", es: "Artefacto", pt: "Artefato" })}
-                </span>
-              ) : null}
-            </div>
-            {selectedArtifact ? (
-              <div className={diagramCenterStyles.viewerBody}>
-                <div>
-                  <h3 className={diagramCenterStyles.viewerTitle}>{selectedArtifact.label}</h3>
-                  <p className={diagramCenterStyles.viewerDescription}>
-                    {metadataText(selectedArtifact, "purpose", fallbackCommercialPurpose(selectedArtifact))}
-                  </p>
-                </div>
-                <div className={diagramCenterStyles.viewerMeta}>
-                  <span className={diagramCenterStyles.tag}>{selectedArtifact.exportFormat}</span>
-                  <span className={diagramCenterStyles.tag}>{selectedArtifact.stage}</span>
-                  <span className={diagramCenterStyles.tag}>{selectedArtifact.versionLabel}</span>
-                  <span className={diagramCenterStyles.tag}>{String(selectedArtifact.metadata.artifact_key ?? selectedArtifact.key)}</span>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-4">
-                    <p className="font-mono text-[10px] font-black uppercase tracking-[.16em] text-[var(--uxa-color-ink-muted)]">
-                      {byLanguage(language, { en: "What it represents", es: "Que representa", pt: "O que representa" })}
-                    </p>
-                    <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-                      {metadataText(selectedArtifact, "purpose", fallbackCommercialPurpose(selectedArtifact))}
-                    </p>
-                  </div>
-                  <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-4">
-                    <p className="font-mono text-[10px] font-black uppercase tracking-[.16em] text-[var(--uxa-color-ink-muted)]">
-                      {byLanguage(language, { en: "What it is for", es: "Para que sirve", pt: "Para que serve" })}
-                    </p>
-                    <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-                      {metadataText(selectedArtifact, "usage", byLanguage(language, {
-                        en: "Use it to explain the Blueprint value and decide whether to move to the next commercial product.",
-                        es: "Usalo para explicar el valor del Blueprint y decidir si avanzar al siguiente producto comercial.",
-                        pt: "Use para explicar o valor do Blueprint e decidir se avancar ao proximo produto comercial.",
-                      }))}
-                    </p>
-                  </div>
-                </div>
-                <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-4">
-                  <p className="font-mono text-[10px] font-black uppercase tracking-[.16em] text-[var(--uxa-color-ink-muted)]">
-                    {byLanguage(language, { en: "What you will find", es: "Que encontraras", pt: "O que voce encontrara" })}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {(metadataList(selectedArtifact, "contains").length ? metadataList(selectedArtifact, "contains") : fallbackContains()).map((item) => (
-                      <span className={diagramCenterStyles.tag} key={item}>{item}</span>
-                    ))}
-                  </div>
-                </div>
-                <ProfessionalArtifactViewer
-                  canCopy={tierScope !== "blueprint"}
-                  canDownload={tierScope !== "blueprint"}
-                  contentText={selectedArtifact.contentText}
-                  description={metadataText(selectedArtifact, "purpose", fallbackCommercialPurpose(selectedArtifact))}
-                  detail={selectedArtifact.detail}
-                  exportFormat={selectedArtifact.exportFormat}
-                  metadata={selectedArtifact.metadata}
-                  protectedView={tierScope === "blueprint"}
-                  stage={selectedArtifact.stage}
-                  title={selectedArtifact.label}
-                  versionLabel={selectedArtifact.versionLabel}
-                />
-              </div>
-            ) : (
-              <div className={diagramCenterStyles.viewerBody}>
-                <div className={diagramCenterStyles.statePanel}>
-                  <div>
-                    <Boxes aria-hidden="true" size={28} />
-                    <h4>{byLanguage(language, { en: "Select an item", es: "Selecciona un item", pt: "Selecione um item" })}</h4>
-                    <p>{byLanguage(language, {
-                      en: "Choose a commercial artifact to understand its purpose and content.",
-                      es: "Elige un artefacto comercial para entender su proposito y contenido.",
-                      pt: "Escolha um artefato comercial para entender seu proposito e conteudo.",
-                    })}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </aside>
-        </div>
-      ) : null}
-
-      {effectiveActiveTab === "commercial-artifacts" && !commercialArtifacts.length ? (
-        <p className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] p-4 text-[13px] text-[var(--uxa-color-ink-soft)]">
-          {byLanguage(language, {
-            en: "The commercial result has not been prepared yet. Go back to Estimate and select View Blueprint result to generate the corresponding diagrams and artifacts.",
-            es: "El resultado comercial aun no ha sido preparado. Vuelve a Estimar y selecciona Ver resultado Blueprint para generar los diagramas y artefactos correspondientes.",
-            pt: "O resultado comercial ainda nao foi preparado. Volte para Estimar e selecione Ver resultado Blueprint para gerar os diagramas e artefatos correspondentes.",
-          })}
-        </p>
-      ) : null}
-    </section>
-  );
-}
-
 function canRenderBuildTracker(status: ProductBuildStatus | null | undefined) {
   return Boolean(status) && status?.entitlement?.purchase_required !== true;
-}
-
-function ProductExecutiveOverviewTab({
-  productKey,
-  projectTitle,
-  sessionId,
-}: {
-  productKey: ExecutiveOverviewProductKey;
-  projectTitle: string;
-  sessionId: string;
-}) {
-  const { language } = useLanguage();
-  const productBuild = useProductBuildStatus(sessionId, productKey, {
-    polling: true,
-    staleWhileRevalidating: true,
-  });
-  const overview = useMemo(
-    () =>
-      buildExecutiveOverviewModel({
-        productKey,
-        projectTitle,
-        sessionId,
-        status: productBuild.data,
-      }),
-    [productBuild.data, productKey, projectTitle, sessionId],
-  );
-  const shouldShowBuildTracker = canRenderBuildTracker(productBuild.data);
-
-  return (
-    <ExecutiveOverviewShell model={overview} status={productBuild.data}>
-      {productBuild.isError ? (
-        <UxaSurface className="border-[var(--uxa-state-danger-border)] bg-[var(--uxa-state-danger-bg)] p-4">
-          <p className="text-[12px] font-black uppercase tracking-[0.18em] text-[var(--uxa-state-danger)]">
-            {byLanguage(language, {
-              en: "Product status unavailable",
-              es: "Estado del producto no disponible",
-              pt: "Estado do produto indisponivel",
-            })}
-          </p>
-          <p className="mt-2 text-[13px] leading-5 text-[var(--uxa-color-ink-soft)]">
-            {byLanguage(language, {
-              en: "The Blueprint executive status could not be loaded. The generated result remains available through diagrams and artifacts.",
-              es: "No se pudo cargar el estado ejecutivo del Blueprint. El resultado generado sigue disponible en diagramas y artefactos.",
-              pt: "Nao foi possivel carregar o estado executivo do Blueprint. O resultado gerado segue disponivel em diagramas e artefatos.",
-            })}
-          </p>
-        </UxaSurface>
-      ) : null}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-5">
-          <ExecutiveProductKeyDeliverables productKey={productKey} sessionId={sessionId} />
-        </div>
-        <div className="space-y-5">
-          {shouldShowBuildTracker ? (
-            <DeliverableGenerationLiveTracker
-              productKey={productKey}
-              productLabel={overview.productLabel}
-              status={productBuild.data}
-              onProcessPending={() => productBuild.executeCommand("process_pending", { allow_llm: true })}
-              onRetryFailed={() => productBuild.executeCommand("retry_failed", { allow_llm: true })}
-              processingDisabled={productBuild.isFetching}
-            />
-          ) : null}
-          <DeliverableProgressSummary groups={overview.deliverableGroups} />
-          <ProductNextAction model={overview} />
-        </div>
-      </div>
-    </ExecutiveOverviewShell>
-  );
 }
 
 function isExecutiveOverviewSection(section: ProductExperienceProductSection): section is ExecutiveOverviewProductSection {
@@ -1969,54 +1071,1458 @@ function BlueprintExecutiveOverviewPage({
   );
 }
 
-function BlueprintFreeValidatedProjectCard({
-  language,
-  projectTitle,
+function normalizeBlueprintWorkbenchTab(value: string | null): BlueprintWorkbenchTab {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("_", "-");
+
+  if (normalized === "diagrams") {
+    return "diagrams";
+  }
+
+  if (["governed-artifacts", "artifacts", "governed"].includes(normalized)) {
+    return "governed-artifacts";
+  }
+
+  if (["commercial-artifacts", "commercial", "documents", "document", "descarga"].includes(normalized)) {
+    return "commercial-artifacts";
+  }
+
+  return "overview";
+}
+
+function normalizeBlueprintFreeTab(value: string | null): BlueprintFreeTab {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("_", "-");
+
+  if (["tracking", "seguimiento", "overview"].includes(normalized)) {
+    return "tracking";
+  }
+
+  if (normalized === "diagrams") {
+    return "diagrams";
+  }
+
+  if (["deliverables", "artifacts", "artifactos", "artefactos", "entregables", "governed-artifacts"].includes(normalized)) {
+    return "deliverables";
+  }
+
+  if (["pro", "blueprint-pro", "upgrade", "delta"].includes(normalized)) {
+    return "pro";
+  }
+
+  return "result";
+}
+
+function BlueprintBuildInspector({
+  compactWhenStable = false,
+  productBuild,
+  productKey,
+  productLabel,
+  stableSummary,
+  title,
+}: {
+  compactWhenStable?: boolean;
+  productBuild: ProductBuildStatusView;
+  productKey: ExecutiveOverviewProductKey;
+  productLabel: string;
+  stableSummary: string;
+  title: string;
+}) {
+  const { language } = useLanguage();
+  const status = productBuild.data;
+  const queue = status?.processing_queue ?? null;
+  const failedCount =
+    queue?.failed_count ??
+    status?.deliverables?.filter((item) => item.state === "error").length ??
+    0;
+  const pendingCount =
+    queue?.pending_count ??
+    status?.deliverables?.filter((item) => item.state === "pending" || item.state === "stale").length ??
+    0;
+  const processingCount =
+    queue?.processing_count ??
+    status?.deliverables?.filter((item) => item.state === "queued" || item.state === "generating").length ??
+    0;
+  const completedCount =
+    queue?.completed_count ??
+    status?.deliverables?.filter((item) => item.state === "available").length ??
+    0;
+  const totalCount =
+    queue?.total_count ??
+    status?.progress.total_units ??
+    status?.deliverables?.length ??
+    completedCount + pendingCount + processingCount + failedCount;
+  const progress = Math.max(0, Math.min(100, Math.round(status?.progress.percent ?? (totalCount ? (completedCount / totalCount) * 100 : 100))));
+  const isRunning =
+    queue?.active ||
+    status?.lifecycle === "queued" ||
+    status?.lifecycle === "preparing" ||
+    status?.lifecycle === "running";
+  const shouldOpen = Boolean(productBuild.isError || isRunning || failedCount > 0 || (!compactWhenStable && pendingCount > 0));
+  const [isOpen, setIsOpen] = useState(shouldOpen || !compactWhenStable);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (shouldOpen) {
+      deferStateUpdate(() => {
+        if (!cancelled) {
+          setIsOpen(true);
+        }
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldOpen]);
+
+  const tone = productBuild.isError || failedCount > 0 ? "danger" : isRunning ? "info" : "success";
+  const statusLabel = productBuild.isError
+    ? byLanguage(language, { en: "Status unavailable", es: "Estado no disponible", pt: "Estado indisponivel" })
+    : isRunning
+      ? byLanguage(language, { en: "Generation running", es: "Generacion en curso", pt: "Geracao em andamento" })
+      : byLanguage(language, { en: "Ready", es: "Listo", pt: "Pronto" });
+
+  return (
+    <details
+      aria-label={byLanguage(language, {
+        en: "Tracking inspector",
+        es: "Inspector de seguimiento",
+        pt: "Inspetor de acompanhamento",
+      })}
+      className="overflow-hidden rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white shadow-[var(--uxa-shadow-card)]"
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      open={isOpen}
+    >
+      <summary className="grid cursor-pointer list-none gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center [&::-webkit-details-marker]:hidden">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <UxaBadge tone={tone}>{statusLabel}</UxaBadge>
+          <h2 className="text-[14px] font-black text-[var(--uxa-color-ink)]">{title}</h2>
+          <span className="text-[12px] text-[var(--uxa-color-ink-soft)]">
+            {completedCount || totalCount ? `${completedCount}/${totalCount || completedCount}` : stableSummary}
+          </span>
+        </div>
+        <div className="flex min-w-0 items-center gap-3 md:min-w-[300px]">
+          <div className="min-w-[140px] flex-1">
+            <UxaProcessingStrip
+              label={byLanguage(language, {
+                en: `${productLabel} preparation progress`,
+                es: `Progreso de preparacion ${productLabel}`,
+                pt: `Progresso de preparacao ${productLabel}`,
+              })}
+              value={progress}
+            />
+          </div>
+          <span className="text-[12px] font-black text-[var(--uxa-color-ink)]">{progress}%</span>
+          <span className="text-[11px] font-semibold text-[var(--uxa-color-ink-muted)]">
+            {byLanguage(language, { en: "Details", es: "Detalle", pt: "Detalhe" })}
+          </span>
+        </div>
+      </summary>
+
+      <div className="border-t border-[var(--uxa-color-border-soft)] p-4">
+        {productBuild.isError ? (
+          <p className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-state-danger-border)] bg-[var(--uxa-state-danger-bg)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+            {byLanguage(language, {
+              en: "The product status could not be loaded. The route keeps the current state and lets the next refresh reconcile progress.",
+              es: "No se pudo cargar el estado del producto. La ruta conserva el estado actual y permite que el siguiente refresco reconcilie el progreso.",
+              pt: "Nao foi possivel carregar o estado do produto. A rota conserva o estado atual e permite que a proxima atualizacao reconcilie o progresso.",
+            })}
+          </p>
+        ) : canRenderBuildTracker(status) ? (
+          <DeliverableGenerationLiveTracker
+            productKey={productKey}
+            productLabel={productLabel}
+            status={status}
+            onProcessPending={() => productBuild.executeCommand("process_pending", { allow_llm: true })}
+            onRetryFailed={() => productBuild.executeCommand("retry_failed", { allow_llm: true })}
+            processingDisabled={productBuild.isFetching}
+          />
+        ) : (
+          <div className="grid gap-2 md:grid-cols-4">
+            {[
+              [byLanguage(language, { en: "Completed", es: "Completados", pt: "Concluidos" }), completedCount],
+              [byLanguage(language, { en: "Pending", es: "Pendientes", pt: "Pendentes" }), pendingCount],
+              [byLanguage(language, { en: "Processing", es: "En proceso", pt: "Em processo" }), processingCount],
+              [byLanguage(language, { en: "Failed", es: "Fallidos", pt: "Falhos" }), failedCount],
+            ].map(([label, value]) => (
+              <div
+                className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] px-3 py-2"
+                key={String(label)}
+              >
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{label}</p>
+                <p className="mt-1 text-[16px] font-black text-[var(--uxa-color-ink)]">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function getCommercialMetadataText(artifact: ProductArtifactCard, key: string, fallback = "") {
+  const value = artifact.metadata[key];
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function getCommercialMetadataList(artifact: ProductArtifactCard, key: string) {
+  const value = artifact.metadata[key];
+  if (Array.isArray(value)) {
+    return value.map(String).filter(Boolean);
+  }
+  if (typeof value === "string" && value.trim()) {
+    return value
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function BlueprintCommercialArtifactPanel({
+  artifactCards,
+  tierScope,
+}: {
+  artifactCards: ReturnType<typeof buildProductSaasViewModel>["artifactCards"];
+  tierScope: ProductTierScope;
+}) {
+  const { language } = useLanguage();
+  const commercialArtifacts = useMemo(
+    () =>
+      artifactCards.filter(
+        (artifact) =>
+          artifact.isCommercial &&
+          !artifact.isDiagram &&
+          isTierIncluded(resolveArtifactTier(artifact), tierScope),
+      ),
+    [artifactCards, tierScope],
+  );
+  const [selectedKey, setSelectedKey] = useState(commercialArtifacts[0]?.key ?? "");
+  const effectiveSelectedKey =
+    selectedKey && commercialArtifacts.some((artifact) => artifact.key === selectedKey)
+      ? selectedKey
+      : commercialArtifacts[0]?.key ?? "";
+  const selectedArtifact = commercialArtifacts.find((artifact) => artifact.key === effectiveSelectedKey) ?? null;
+
+  function fallbackPurpose(artifact: ProductArtifactCard) {
+    const key = String(artifact.metadata.artifact_key ?? artifact.key).toLocaleLowerCase("es");
+    if (key.includes("arquitectura")) {
+      return byLanguage(language, {
+        en: "High-level view of how the business need becomes architecture, tools, memory, and value.",
+        es: "Vista de alto nivel de como la necesidad de negocio se convierte en arquitectura, herramientas, memoria y valor.",
+        pt: "Visao de alto nivel de como a necessidade de negocio vira arquitetura, ferramentas, memoria e valor.",
+      });
+    }
+    if (key.includes("comparativa")) {
+      return byLanguage(language, {
+        en: "Commercial comparison of effort, cost, savings and implementation scope.",
+        es: "Comparativa comercial de esfuerzo, costo, ahorro y alcance de implementacion.",
+        pt: "Comparativo comercial de esforco, custo, economia e escopo de implementacao.",
+      });
+    }
+    return byLanguage(language, {
+      en: "Professional material prepared to explain value, scope and product continuity.",
+      es: "Material profesional preparado para explicar valor, alcance y continuidad del producto.",
+      pt: "Material profissional preparado para explicar valor, escopo e continuidade do produto.",
+    });
+  }
+
+  if (!commercialArtifacts.length) {
+    return (
+      <p className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] p-4 text-[13px] text-[var(--uxa-color-ink-soft)]">
+        {byLanguage(language, {
+          en: "The professional document has not been prepared yet. The generation queue can continue without changing product gates.",
+          es: "El documento profesional aun no ha sido preparado. La cola de generacion puede continuar sin cambiar gates del producto.",
+          pt: "O documento profissional ainda nao foi preparado. A fila de geracao pode continuar sem alterar gates do produto.",
+        })}
+      </p>
+    );
+  }
+
+  return (
+    <section aria-label="Documento profesional Blueprint" className={diagramCenterStyles.workspace}>
+      <section aria-label="Indice del documento" className={diagramCenterStyles.catalogPane}>
+        <div className={diagramCenterStyles.paneHeader}>
+          <div>
+            <h3>{byLanguage(language, { en: "Document index", es: "Indice del documento", pt: "Indice do documento" })}</h3>
+            <p>{commercialArtifacts.length} / {commercialArtifacts.length}</p>
+          </div>
+          <span className={diagramCenterStyles.tag}>{productTierLabel(language, tierScope)}</span>
+        </div>
+        <div className={diagramCenterStyles.catalogList}>
+          {commercialArtifacts.map((artifact) => {
+            const selected = selectedArtifact?.key === artifact.key;
+            return (
+              <article
+                className={`${diagramCenterStyles.card} ${selected ? diagramCenterStyles.cardSelected : ""} ${diagramCenterStyles.listCard}`}
+                key={artifact.key}
+              >
+                <div>
+                  <div className={diagramCenterStyles.cardTop}>
+                    <span className={diagramCenterStyles.tag}>{artifact.exportFormat}</span>
+                    <span className={`${diagramCenterStyles.status} ${diagramCenterStyles.statusAvailable}`}>
+                      {byLanguage(language, { en: "Ready", es: "Listo", pt: "Pronto" })}
+                    </span>
+                  </div>
+                  <button
+                    aria-pressed={selected}
+                    className={diagramCenterStyles.cardTitleButton}
+                    onClick={() => setSelectedKey(artifact.key)}
+                    type="button"
+                  >
+                    <h4>{artifact.label}</h4>
+                    <p>{getCommercialMetadataText(artifact, "purpose", fallbackPurpose(artifact))}</p>
+                  </button>
+                </div>
+                <div className={diagramCenterStyles.cardFooter}>
+                  <button className={diagramCenterStyles.cardAction} onClick={() => setSelectedKey(artifact.key)} type="button">
+                    {byLanguage(language, { en: "View", es: "Ver", pt: "Ver" })}
+                    <ArrowUpRight aria-hidden="true" size={12} />
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <aside aria-label="Visor del documento profesional" className={diagramCenterStyles.viewerPane}>
+        {selectedArtifact ? (
+          <div className={diagramCenterStyles.viewerBody}>
+            <div>
+              <h3 className={diagramCenterStyles.viewerTitle}>{selectedArtifact.label}</h3>
+              <p className={diagramCenterStyles.viewerDescription}>
+                {getCommercialMetadataText(selectedArtifact, "purpose", fallbackPurpose(selectedArtifact))}
+              </p>
+            </div>
+            <div className={diagramCenterStyles.viewerMeta}>
+              <span className={diagramCenterStyles.tag}>{selectedArtifact.exportFormat}</span>
+              <span className={diagramCenterStyles.tag}>{selectedArtifact.stage}</span>
+              <span className={diagramCenterStyles.tag}>{selectedArtifact.versionLabel}</span>
+            </div>
+            <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-4">
+              <p className="font-mono text-[10px] font-black uppercase tracking-[.16em] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, { en: "Contents", es: "Contenido", pt: "Conteudo" })}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(getCommercialMetadataList(selectedArtifact, "contains").length
+                  ? getCommercialMetadataList(selectedArtifact, "contains")
+                  : [
+                      byLanguage(language, {
+                        en: "Executive narrative and professional product evidence.",
+                        es: "Narrativa ejecutiva y evidencia profesional del producto.",
+                        pt: "Narrativa executiva e evidencia profissional do produto.",
+                      }),
+                    ]
+                ).map((item) => (
+                  <span className={diagramCenterStyles.tag} key={item}>
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <ProfessionalArtifactViewer
+              canCopy={tierScope !== "blueprint"}
+              canDownload={tierScope !== "blueprint"}
+              contentText={selectedArtifact.contentText}
+              description={getCommercialMetadataText(selectedArtifact, "purpose", fallbackPurpose(selectedArtifact))}
+              detail={selectedArtifact.detail}
+              exportFormat={selectedArtifact.exportFormat}
+              metadata={selectedArtifact.metadata}
+              protectedView={tierScope === "blueprint"}
+              stage={selectedArtifact.stage}
+              title={selectedArtifact.label}
+              versionLabel={selectedArtifact.versionLabel}
+            />
+          </div>
+        ) : null}
+      </aside>
+    </section>
+  );
+}
+
+function BlueprintProCompactTrackingPanel({
+  downloadGate,
+  productBuild,
   sessionId,
 }: {
-  language: SupportedLanguage;
-  projectTitle: string;
+  downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  productBuild: ProductBuildStatusView;
   sessionId: string;
 }) {
-  const [feedback, setFeedback] = useState<"link" | "markdown" | "print" | null>(null);
-  const detailHref = `/projects/${sessionId}/blueprint?surface=commercial`;
-  const labels = {
-    title: byLanguage(language, {
-      en: "Validated Project Sheet",
-      es: "Ficha de Proyecto Validado",
-      pt: "Ficha de Projeto Validado",
-    }),
-    included: byLanguage(language, {
-      en: "$0 USD included",
-      es: "$0 USD incluido",
-      pt: "$0 USD incluido",
-    }),
-    link: byLanguage(language, {
-      en: "Copy sheet link",
-      es: "Copiar enlace de ficha",
-      pt: "Copiar link da ficha",
-    }),
-    markdown: byLanguage(language, {
-      en: "Copy clean Markdown",
-      es: "Copiar Markdown limpio",
-      pt: "Copiar Markdown limpo",
-    }),
-    print: byLanguage(language, {
-      en: "One-Pager view",
-      es: "Vista One-Pager",
-      pt: "Vista One-Pager",
-    }),
-    copied: byLanguage(language, {
-      en: "Copied",
-      es: "Copiado",
-      pt: "Copiado",
-    }),
-    ready: byLanguage(language, {
-      en: "Available",
-      es: "Disponible",
-      pt: "Disponivel",
-    }),
+  const { language } = useLanguage();
+  const status = productBuild.data;
+  const queue = status?.processing_queue ?? null;
+  const deliverables = (status?.deliverables ?? []).filter(
+    (item) => !item.product_surface || item.product_surface === "blueprint_pro",
+  );
+  const failedCount =
+    queue?.failed_count ??
+    deliverables.filter((item) => item.state === "error").length;
+  const pendingCount =
+    queue?.pending_count ??
+    deliverables.filter((item) => item.state === "pending" || item.state === "stale").length;
+  const processingCount =
+    queue?.processing_count ??
+    deliverables.filter((item) => item.state === "queued" || item.state === "generating").length;
+  const completedCount =
+    queue?.completed_count ??
+    deliverables.filter((item) => item.state === "available").length;
+  const totalCount =
+    queue?.total_count ??
+    status?.progress.total_units ??
+    deliverables.length;
+  const isRunning = Boolean(
+    queue?.active ||
+      status?.lifecycle === "queued" ||
+      status?.lifecycle === "preparing" ||
+      status?.lifecycle === "running",
+  );
+  const progress = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        queue?.total_count
+          ? ((queue.total_count - pendingCount - processingCount) / Math.max(1, queue.total_count)) * 100
+          : downloadGate.allowed
+            ? 100
+            : (status?.progress.percent ?? (totalCount ? (completedCount / totalCount) * 100 : 0)),
+      ),
+    ),
+  );
+  const isCompletedWithoutFailures = status?.lifecycle === "completed" && failedCount === 0;
+  const canRetryQueue = Boolean(failedCount > 0 && !queue?.active && !productBuild.isFetching);
+  const canProcessQueue = Boolean(pendingCount > 0 && !isCompletedWithoutFailures && !queue?.active && !productBuild.isFetching);
+  const statusTone: UxaTone = productBuild.isError
+    ? "danger"
+    : failedCount
+      ? "danger"
+      : isRunning
+        ? "info"
+        : downloadGate.allowed
+          ? "success"
+          : "warning";
+  const statusLabel = productBuild.isError
+    ? byLanguage(language, { en: "Status unavailable", es: "Estado no disponible", pt: "Estado indisponivel" })
+    : failedCount
+      ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
+      : isRunning
+        ? byLanguage(language, { en: "Generation running", es: "Generacion en curso", pt: "Geracao em andamento" })
+        : downloadGate.allowed
+          ? byLanguage(language, { en: "Download ready", es: "Descarga lista", pt: "Download pronto" })
+          : byLanguage(language, { en: "Package queued", es: "Paquete en cola", pt: "Pacote em fila" });
+
+  const buildGroup = (
+    key: "diagrams" | "artifacts" | "document",
+    predicate: (item: (typeof deliverables)[number]) => boolean,
+  ) => {
+    const items = deliverables.filter(predicate);
+    const completed = items.filter((item) => item.state === "available").length;
+    const failed = items.filter((item) => item.state === "error").length;
+    const active = items.filter((item) => item.state === "queued" || item.state === "generating").length;
+    const pending = items.filter((item) => item.state === "pending" || item.state === "stale").length;
+    const total = items.length;
+    const tone: UxaTone = failed
+      ? "danger"
+      : active || (isRunning && !total)
+        ? "info"
+        : pending || (!total && !downloadGate.allowed)
+          ? "warning"
+          : "success";
+    const fallbackLabel =
+      downloadGate.allowed
+        ? byLanguage(language, { en: "Ready", es: "Listo", pt: "Pronto" })
+        : isRunning
+          ? byLanguage(language, { en: "Running", es: "En curso", pt: "Em andamento" })
+          : byLanguage(language, { en: "Queued", es: "En cola", pt: "Em fila" });
+
+    return {
+      active,
+      completed,
+      failed,
+      key,
+      pending,
+      progressLabel: total ? `${completed}/${total}` : fallbackLabel,
+      tone,
+      total,
+    };
   };
+
+  const diagramGroup = buildGroup("diagrams", (item) => item.deliverable_type === "diagram");
+  const documentGroup = buildGroup(
+    "document",
+    (item) => item.deliverable_type === "document" || item.deliverable_type === "package",
+  );
+  const artifactGroup = buildGroup(
+    "artifacts",
+    (item) => item.deliverable_type !== "diagram" && item.deliverable_type !== "document" && item.deliverable_type !== "package",
+  );
+
+  const componentRows = [
+    {
+      description: byLanguage(language, {
+        en: "Architecture, orchestration, memory and security assets are generated from validated context.",
+        es: "Arquitectura, orquestacion, memoria y seguridad se generan desde el contexto validado.",
+        pt: "Arquitetura, orquestracao, memoria e seguranca sao geradas a partir do contexto validado.",
+      }),
+      group: diagramGroup,
+      label: byLanguage(language, { en: "Pro diagrams", es: "Diagramas Pro", pt: "Diagramas Pro" }),
+    },
+    {
+      description: byLanguage(language, {
+        en: "Specifications, contracts and comparison artifacts are completed with the existing information.",
+        es: "Especificaciones, contratos y comparativas se completan con la informacion existente.",
+        pt: "Especificacoes, contratos e comparativos sao completados com a informacao existente.",
+      }),
+      group: artifactGroup,
+      label: byLanguage(language, { en: "Pro artifacts", es: "Artefactos Pro", pt: "Artefatos Pro" }),
+    },
+    {
+      description: byLanguage(language, {
+        en: "The downloadable package closes at the end so it includes the latest generated assets.",
+        es: "El paquete descargable se arma al final para incluir los activos mas recientes.",
+        pt: "O pacote para download e montado no fim para incluir os ativos mais recentes.",
+      }),
+      group: documentGroup,
+      label: byLanguage(language, { en: "Downloadable document", es: "Documento descargable", pt: "Documento para download" }),
+    },
+  ];
+
+  const queueCards = [
+    {
+      detail: diagramGroup.failed
+        ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
+        : diagramGroup.active || (isRunning && !diagramGroup.total)
+          ? byLanguage(language, { en: "Generating diagram", es: "Generando diagrama", pt: "Gerando diagrama" })
+          : diagramGroup.pending
+            ? byLanguage(language, { en: "Queued", es: "En cola", pt: "Em fila" })
+            : byLanguage(language, { en: "Completed", es: "Completado", pt: "Concluido" }),
+      title: byLanguage(language, { en: "Agent architecture", es: "Arquitectura de agentes", pt: "Arquitetura de agentes" }),
+    },
+    {
+      detail: artifactGroup.failed
+        ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
+        : artifactGroup.active
+          ? byLanguage(language, { en: "Updating artifact", es: "Actualizando artefacto", pt: "Atualizando artefato" })
+          : artifactGroup.pending || isRunning
+            ? byLanguage(language, { en: "Queued", es: "En cola", pt: "Em fila" })
+            : byLanguage(language, { en: "Completed", es: "Completado", pt: "Concluido" }),
+      title: "Security guardrails",
+    },
+    {
+      detail: documentGroup.failed
+        ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
+        : downloadGate.allowed
+          ? byLanguage(language, { en: "Ready to download", es: "Listo para descargar", pt: "Pronto para download" })
+          : documentGroup.active
+            ? byLanguage(language, { en: "Preparing package", es: "Preparando paquete", pt: "Preparando pacote" })
+            : byLanguage(language, { en: "Waiting for queue close", es: "Esperando cierre de cola", pt: "Aguardando fechamento da fila" }),
+      title: byLanguage(language, { en: "Downloadable package", es: "Paquete descargable", pt: "Pacote para download" }),
+    },
+  ];
+
+  return (
+    <section
+      aria-label={byLanguage(language, {
+        en: "Tracking inspector",
+        es: "Inspector de seguimiento",
+        pt: "Inspetor de acompanhamento",
+      })}
+      className="grid min-h-[560px] overflow-hidden rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] lg:grid-cols-[minmax(0,1fr)_280px]"
+    >
+      <div className="min-w-0 p-4">
+        <UxaBadge tone={statusTone}>{statusLabel}</UxaBadge>
+        <h3 className="mt-3 max-w-4xl text-[19px] font-black leading-tight text-[var(--uxa-color-ink)]">
+          {downloadGate.allowed
+            ? byLanguage(language, {
+                en: "LAB prepared the Pro package without asking for new answers.",
+                es: "LAB preparo el paquete Pro sin pedir nuevas respuestas.",
+                pt: "LAB preparou o pacote Pro sem pedir novas respostas.",
+              })
+            : byLanguage(language, {
+                en: "LAB is preparing the Pro package without asking for new answers.",
+                es: "LAB esta preparando el paquete Pro sin pedir nuevas respuestas.",
+                pt: "LAB esta preparando o pacote Pro sem pedir novas respostas.",
+              })}
+        </h3>
+        <p className="mt-2 max-w-4xl text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+          {byLanguage(language, {
+            en: "Blueprint Pro takes what was validated in Free, generates professional assets and keeps open points as ACP input. This screen focuses on progress, review and download.",
+            es: "Blueprint Pro toma lo validado en Free, genera activos profesionales y deja los puntos abiertos como insumo del ACP. Esta pantalla se concentra en progreso, revision y descarga.",
+            pt: "Blueprint Pro usa o que foi validado no Free, gera ativos profissionais e deixa pontos abertos como insumo do ACP. Esta tela concentra progresso, revisao e download.",
+          })}
+        </p>
+
+        <div className="mt-4 overflow-x-auto rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)]">
+          <div className="grid min-h-9 min-w-[620px] grid-cols-[180px_minmax(0,1fr)_120px] items-center gap-3 bg-[var(--uxa-color-muted-panel)] px-3 py-2 font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[var(--uxa-color-ink-muted)]">
+            <span>{byLanguage(language, { en: "Component", es: "Componente", pt: "Componente" })}</span>
+            <span>{byLanguage(language, { en: "Status", es: "Estado", pt: "Estado" })}</span>
+            <span>{byLanguage(language, { en: "Progress", es: "Progreso", pt: "Progresso" })}</span>
+          </div>
+          {componentRows.map((row) => (
+            <div
+              className="grid min-h-[52px] min-w-[620px] grid-cols-[180px_minmax(0,1fr)_120px] items-center gap-3 border-t border-[var(--uxa-color-border-soft)] px-3 py-2"
+              key={row.label}
+            >
+              <strong className="text-[12px] text-[var(--uxa-color-ink)]">{row.label}</strong>
+              <span className="text-[11px] leading-5 text-[var(--uxa-color-ink-soft)]">{row.description}</span>
+              <span className="justify-self-start">
+                <UxaBadge tone={row.group.tone}>{row.group.progressLabel}</UxaBadge>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <article className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-3">
+            <UxaBadge tone="success">{byLanguage(language, { en: "Available", es: "Disponible", pt: "Disponivel" })}</UxaBadge>
+            <h4 className="mt-3 text-[13px] font-black text-[var(--uxa-color-ink)]">
+              {byLanguage(language, { en: "Review generated assets", es: "Revisar activos generados", pt: "Revisar ativos gerados" })}
+            </h4>
+            <p className="mt-1 text-[11px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {byLanguage(language, {
+                en: "The user can open diagrams and artifacts while the final document finishes.",
+                es: "El usuario puede abrir diagramas y artefactos mientras el documento final termina.",
+                pt: "O usuario pode abrir diagramas e artefatos enquanto o documento final termina.",
+              })}
+            </p>
+          </article>
+          <article className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3">
+            <UxaBadge tone="warning">{byLanguage(language, { en: "For ACP", es: "Para ACP", pt: "Para ACP" })}</UxaBadge>
+            <h4 className="mt-3 text-[13px] font-black text-[var(--uxa-color-ink)]">
+              {byLanguage(language, { en: "ACP context", es: "Contexto para ACP", pt: "Contexto para ACP" })}
+            </h4>
+            <p className="mt-1 text-[11px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {byLanguage(language, {
+                en: "Open points are preserved as construction context; they do not block Blueprint Pro visualization.",
+                es: "Los puntos abiertos se conservan como contexto de construccion; no bloquean la visualizacion de Blueprint Pro.",
+                pt: "Pontos abertos sao preservados como contexto de construcao; nao bloqueiam a visualizacao do Blueprint Pro.",
+              })}
+            </p>
+          </article>
+        </div>
+
+        {productBuild.isError ? (
+          <p className="mt-4 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-state-danger-border)] bg-[var(--uxa-state-danger-bg)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+            {byLanguage(language, {
+              en: "The product status could not be loaded. The route keeps the current state and lets the next refresh reconcile progress.",
+              es: "No se pudo cargar el estado del producto. La ruta conserva el estado actual y permite que el siguiente refresco reconcilie el progreso.",
+              pt: "Nao foi possivel carregar o estado do produto. A rota conserva o estado atual e permite que a proxima atualizacao reconcilie o progresso.",
+            })}
+          </p>
+        ) : null}
+      </div>
+
+      <aside className="border-t border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-4 lg:border-l lg:border-t-0">
+        <h3 className="text-[13px] font-black text-[var(--uxa-color-ink)]">
+          {byLanguage(language, { en: "Product queue", es: "Cola del producto", pt: "Fila do produto" })}
+        </h3>
+        <div className="mt-3 grid gap-2">
+          {queueCards.map((item) => (
+            <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3" key={item.title}>
+              <strong className="block text-[11px] leading-4 text-[var(--uxa-color-ink)]">{item.title}</strong>
+              <span className="mt-1 block text-[10px] leading-4 text-[var(--uxa-color-ink-muted)]">{item.detail}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {canRetryQueue ? (
+            <button className="uxa-button uxa-button--primary" onClick={() => void productBuild.executeCommand("retry_failed", { allow_llm: true })} type="button">
+              {byLanguage(language, { en: "Retry queue", es: "Reintentar cola", pt: "Tentar fila novamente" })}
+            </button>
+          ) : canProcessQueue ? (
+            <button className="uxa-button uxa-button--primary" onClick={() => void productBuild.executeCommand("process_pending", { allow_llm: true })} type="button">
+              {byLanguage(language, { en: "Process queue", es: "Procesar cola", pt: "Processar fila" })}
+            </button>
+          ) : (
+            <span className="inline-flex min-h-10 items-center rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white px-3 text-[12px] font-black text-[var(--uxa-color-ink-soft)]">
+              {progress}% {byLanguage(language, { en: "ready", es: "listo", pt: "pronto" })}
+            </span>
+          )}
+          <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/acp`}>
+            {byLanguage(language, { en: "View ACP", es: "Ver ACP", pt: "Ver ACP" })}
+          </a>
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function BlueprintPostUpgradeWorkbench({
+  artifactCards,
+  downloadGate,
+  productBuild,
+  sessionId,
+  tierScope,
+}: {
+  artifactCards: ReturnType<typeof buildProductSaasViewModel>["artifactCards"];
+  downloadGate?: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  productBuild?: ProductBuildStatusView;
+  sessionId: string;
+  tierScope: ProductTierScope;
+}) {
+  const { language } = useLanguage();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("result_tab");
+  const [localSelection, setLocalSelection] = useState<{
+    source: string | null;
+    tab: BlueprintWorkbenchTab;
+  } | null>(null);
+  const activeTab =
+    localSelection?.source === requestedTab
+      ? localSelection.tab
+      : normalizeBlueprintWorkbenchTab(requestedTab);
+  const productKey: ExecutiveOverviewProductKey =
+    tierScope === "blueprint" ? "blueprint_basic" : tierScope === "acp" ? "acp" : "blueprint_pro";
+  const productLabel = productTierLabel(language, tierScope);
+  const diagramCatalogFilter = useMemo(
+    () => (item: DiagramCatalogItem) => isTierIncluded(item.required_tier, tierScope),
+    [tierScope],
+  );
+  const currentStage = tierScope === "blueprint" ? "estimate" : "package";
+  const status = productBuild?.data ?? null;
+  const tabs: Array<{ key: BlueprintWorkbenchTab; label: string; description: string }> = [
+    {
+      key: "overview",
+      label: byLanguage(language, { en: "Tracking", es: "Seguimiento", pt: "Acompanhamento" }),
+      description: byLanguage(language, {
+        en: "Progress, available assets and next product action.",
+        es: "Progreso, activos disponibles y siguiente accion de producto.",
+        pt: "Progresso, ativos disponiveis e proxima acao de produto.",
+      }),
+    },
+    {
+      key: "diagrams",
+      label: byLanguage(language, { en: "Diagrams", es: "Diagramas", pt: "Diagramas" }),
+      description: byLanguage(language, {
+        en: "Governed visual catalog reused from Diagram Center.",
+        es: "Catalogo visual gobernado reutilizado desde Diagram Center.",
+        pt: "Catalogo visual governado reutilizado desde Diagram Center.",
+      }),
+    },
+    {
+      key: "governed-artifacts",
+      label: byLanguage(language, { en: "Artifacts", es: "Artefactos", pt: "Artefatos" }),
+      description: byLanguage(language, {
+        en: "Functional and technical deliverables by tier.",
+        es: "Entregables funcionales y tecnicos por tier.",
+        pt: "Entregaveis funcionais e tecnicos por tier.",
+      }),
+    },
+    {
+      key: "commercial-artifacts",
+      label: byLanguage(language, { en: "Document", es: "Documento", pt: "Documento" }),
+      description: byLanguage(language, {
+        en: "Professional package viewer and export evidence.",
+        es: "Visor del paquete profesional y evidencia de exportacion.",
+        pt: "Visualizador do pacote profissional e evidencia de exportacao.",
+      }),
+    },
+  ];
+
+  function buildWorkbenchHref(tab: BlueprintWorkbenchTab) {
+    const baseHref =
+      tierScope === "acp"
+        ? `/projects/${sessionId}/acp`
+        : tierScope === "blueprint"
+          ? `/projects/${sessionId}/blueprint`
+          : `/projects/${sessionId}/blueprint/pro`;
+    return tab === "overview" ? baseHref : `${baseHref}?result_tab=${tab}`;
+  }
+
+  function selectTab(tab: BlueprintWorkbenchTab) {
+    setLocalSelection({ source: requestedTab, tab });
+    if (typeof window !== "undefined" && window.location.pathname.includes(`/projects/${sessionId}/blueprint`)) {
+      router.push(buildWorkbenchHref(tab));
+    }
+  }
+
+  return (
+    <section aria-labelledby="blueprint-post-upgrade-workbench-title" className="space-y-3" id="blueprint-pro-workbench">
+      <h2 id="blueprint-post-upgrade-workbench-title" className="sr-only">
+        {byLanguage(language, {
+          en: `${productLabel} workbench`,
+          es: `Workbench ${productLabel}`,
+          pt: `Workbench ${productLabel}`,
+        })}
+      </h2>
+      <section
+        aria-label={tierScope === "blueprint_pro" ? "Area de trabajo Blueprint Pro" : "Area de trabajo Blueprint"}
+        className="min-w-0"
+      >
+        <article className="min-h-[620px] overflow-hidden rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white shadow-[var(--uxa-shadow-card)]">
+          <div
+            aria-label={byLanguage(language, {
+              en: "Workbench views",
+              es: "Vistas del workbench",
+              pt: "Vistas do workbench",
+            })}
+            className="flex gap-2 overflow-x-auto border-b border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-2"
+            role="tablist"
+          >
+            {tabs.map((tab) => {
+              const selected = activeTab === tab.key;
+              return (
+                <a
+                  aria-controls={`blueprint-workbench-panel-${tab.key}`}
+                  aria-selected={selected}
+                  className={cn(
+                    "min-h-9 rounded-[var(--uxa-radius-md)] border px-3 text-[12px] font-black transition",
+                    selected
+                      ? "border-[var(--uxa-color-border)] bg-white text-[var(--uxa-color-brand)] shadow-xs"
+                      : "border-transparent text-[var(--uxa-color-ink-soft)] hover:bg-white",
+                  )}
+                  href={buildWorkbenchHref(tab.key)}
+                  id={`blueprint-workbench-tab-${tab.key}`}
+                  key={tab.key}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    selectTab(tab.key);
+                  }}
+                  role="tab"
+                  title={tab.description}
+                >
+                  {tab.label}
+                </a>
+              );
+            })}
+          </div>
+
+          <div className="p-3 md:p-4">
+            {activeTab === "overview" ? (
+              <div
+                aria-labelledby="blueprint-workbench-tab-overview"
+                id="blueprint-workbench-panel-overview"
+                role="tabpanel"
+              >
+                {tierScope === "blueprint_pro" && productBuild && downloadGate ? (
+                  <BlueprintProCompactTrackingPanel
+                    downloadGate={downloadGate}
+                    productBuild={productBuild}
+                    sessionId={sessionId}
+                  />
+                ) : productBuild?.isError ? (
+                  <p className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-state-danger-border)] bg-[var(--uxa-state-danger-bg)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                    {byLanguage(language, {
+                      en: "The product status could not be loaded. The route keeps the current state and lets the next refresh reconcile progress.",
+                      es: "No se pudo cargar el estado del producto. La ruta conserva el estado actual y permite que el siguiente refresco reconcilie el progreso.",
+                      pt: "Nao foi possivel carregar o estado do produto. A rota conserva o estado atual e permite que a proxima atualizacao reconcilie o progresso.",
+                    })}
+                  </p>
+                ) : canRenderBuildTracker(status) ? (
+                  <DeliverableGenerationLiveTracker
+                    productKey={productKey}
+                    productLabel={productLabel}
+                    status={status}
+                    onProcessPending={() => productBuild?.executeCommand("process_pending", { allow_llm: true })}
+                    onRetryFailed={() => productBuild?.executeCommand("retry_failed", { allow_llm: true })}
+                    processingDisabled={productBuild?.isFetching ?? false}
+                  />
+                ) : (
+                  <UxaSurface className="p-4" muted>
+                    <UxaBadge tone="neutral">
+                      {byLanguage(language, { en: "No live status", es: "Sin estado vivo", pt: "Sem estado ao vivo" })}
+                    </UxaBadge>
+                    <h3 className="mt-3 text-[16px] font-black text-[var(--uxa-color-ink)]">
+                      {byLanguage(language, {
+                        en: `${productLabel} tracking`,
+                        es: `Seguimiento de ${productLabel}`,
+                        pt: `Acompanhamento de ${productLabel}`,
+                      })}
+                    </h3>
+                    <p className="mt-2 max-w-3xl text-[13px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                      {productTierDescription(language, tierScope)}
+                    </p>
+                  </UxaSurface>
+                )}
+              </div>
+            ) : null}
+
+            {activeTab === "diagrams" ? (
+              <div
+                aria-labelledby="blueprint-workbench-tab-diagrams"
+                id="blueprint-workbench-panel-diagrams"
+                role="tabpanel"
+              >
+                <DiagramCenterPage
+                  catalogFilter={diagramCatalogFilter}
+                  engineLabel={byLanguage(language, {
+                    en: "Governed catalog",
+                    es: "Catalogo gobernado",
+                    pt: "Catalogo governado",
+                  })}
+                  initialViewMode="list"
+                  projectId={sessionId}
+                  subtitle={productTierDescription(language, tierScope)}
+                  title={byLanguage(language, {
+                    en: `${productTierLabel(language, tierScope)} diagrams`,
+                    es: `Diagramas de ${productTierLabel(language, tierScope)}`,
+                    pt: `Diagramas de ${productTierLabel(language, tierScope)}`,
+                  })}
+                />
+              </div>
+            ) : null}
+
+            {activeTab === "governed-artifacts" ? (
+              <div
+                aria-labelledby="blueprint-workbench-tab-governed-artifacts"
+                id="blueprint-workbench-panel-governed-artifacts"
+                role="tabpanel"
+              >
+                <ProductDeliverableCatalog
+                  artifactCards={artifactCards}
+                  currentStage={currentStage}
+                  sessionId={sessionId}
+                  tierScope={tierScope}
+                />
+              </div>
+            ) : null}
+
+            {activeTab === "commercial-artifacts" ? (
+              <div
+                aria-labelledby="blueprint-workbench-tab-commercial-artifacts"
+                id="blueprint-workbench-panel-commercial-artifacts"
+                role="tabpanel"
+              >
+                <BlueprintCommercialArtifactPanel artifactCards={artifactCards} tierScope={tierScope} />
+              </div>
+            ) : null}
+          </div>
+        </article>
+      </section>
+    </section>
+  );
+}
+
+function blueprintFreeHeroProgress(state: string, buildProgress: number, hasSvg: boolean) {
+  if (hasSvg) return 100;
+  if (state === "updating") return 78;
+  if (state === "generating") return 66;
+  if (state === "queued") return 38;
+  if (state === "pending") return Math.max(18, Math.min(52, buildProgress));
+  if (state === "error") return Math.max(12, Math.min(32, buildProgress));
+  return Math.max(24, Math.min(88, buildProgress));
+}
+
+function BlueprintFreeAgentOrchestrationSkeleton() {
+  const nodes = [
+    { key: "orchestrator", label: "Orquestador", detail: "Planifica y enruta", tone: "brand" },
+    { key: "analysis", label: "Agente analisis", detail: "Lee contexto", tone: "info" },
+    { key: "design", label: "Agente diseno", detail: "Propone arquitectura", tone: "info" },
+    { key: "memory", label: "Memoria", detail: "RAG y checkpoints", tone: "success" },
+    { key: "tools", label: "Herramientas", detail: "MCP, APIs y acciones", tone: "success" },
+    { key: "guardrails", label: "Guardrails + HITL", detail: "Control humano", tone: "warning" },
+    { key: "output", label: "Resultado", detail: "Dossier validado", tone: "brand" },
+  ];
+  return (
+    <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[linear-gradient(90deg,rgba(30,64,175,0.06)_1px,transparent_1px),linear-gradient(180deg,rgba(30,64,175,0.06)_1px,transparent_1px),#f8fafc] bg-[length:32px_32px] p-3">
+      <div className="grid gap-2 md:grid-cols-[1fr_1.3fr_1fr]">
+        <div className="flex items-center">
+          <article className="w-full rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-3 shadow-sm">
+            <span className="font-mono text-[10px] font-black uppercase tracking-[0.1em] text-[var(--uxa-color-brand)]">
+              {nodes[0].label}
+            </span>
+            <p className="mt-1 text-[12px] font-bold text-[var(--uxa-color-ink-soft)]">{nodes[0].detail}</p>
+          </article>
+        </div>
+        <div className="grid gap-2">
+          {nodes.slice(1, 6).map((node) => (
+            <article
+              className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3 shadow-sm"
+              key={node.key}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <span className="font-mono text-[10px] font-black uppercase tracking-[0.1em] text-[var(--uxa-color-ink-muted)]">
+                    {node.label}
+                  </span>
+                  <p className="mt-1 text-[12px] font-bold text-[var(--uxa-color-ink)]">{node.detail}</p>
+                </div>
+                <span
+                  className={cn(
+                    "h-2.5 w-2.5 rounded-full",
+                    node.tone === "success"
+                      ? "bg-emerald-700"
+                      : node.tone === "warning"
+                        ? "bg-amber-600"
+                        : "bg-sky-700",
+                  )}
+                />
+              </div>
+            </article>
+          ))}
+        </div>
+        <div className="flex items-center">
+          <article className="w-full rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-3 shadow-sm">
+            <span className="font-mono text-[10px] font-black uppercase tracking-[0.1em] text-[var(--uxa-color-brand)]">
+              {nodes[6].label}
+            </span>
+            <p className="mt-1 text-[12px] font-bold text-[var(--uxa-color-ink-soft)]">{nodes[6].detail}</p>
+          </article>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BlueprintFreeAgentOrchestrationHero({
+  buildProgress,
+  language,
+  sessionId,
+}: {
+  buildProgress: number;
+  language: SupportedLanguage;
+  sessionId: string;
+}) {
+  const {
+    catalog,
+    catalogStatus,
+    detail,
+    detailStatus,
+    error,
+    generate,
+    job,
+    selectedKey,
+    setSelectedKey,
+  } = useDiagramCenter(sessionId);
+  const item = catalog?.entries.find((entry) => entry.key === BLUEPRINT_FREE_HERO_DIAGRAM_KEY) ?? null;
+  const detailMatchesHero = detail?.item.key === BLUEPRINT_FREE_HERO_DIAGRAM_KEY;
+  const svgSource =
+    detailMatchesHero && detail?.renderings.svg
+      ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(detail.renderings.svg)}`
+      : "";
+  const state = job?.diagram_key === BLUEPRINT_FREE_HERO_DIAGRAM_KEY ? job.status : item?.generation_state ?? "pending";
+  const hasSvg = Boolean(svgSource);
+  const progress = blueprintFreeHeroProgress(state, buildProgress, hasSvg);
+  const quality = detailMatchesHero ? detail?.quality : null;
+  const isWorking = ["queued", "generating", "updating"].includes(state) || catalogStatus === "loading" || detailStatus === "loading";
+  const canGenerate = Boolean(item?.access.can_generate && (state === "pending" || state === "error"));
+  const readyChecks = AGENT_ORCHESTRATION_MINIMUM_CHECKS.filter((check) => quality?.checks?.[check.key]).length;
+  const qualityIsComplete = Boolean(
+    hasSvg &&
+      quality?.valid &&
+      readyChecks === AGENT_ORCHESTRATION_MINIMUM_CHECKS.length,
+  );
+  const orchestrationValueItems = [
+    {
+      detail: byLanguage(language, {
+        en: "Separates intake, planning, execution and validation.",
+        es: "Separa recepcion, planeacion, ejecucion y validacion.",
+        pt: "Separa recepcao, planejamento, execucao e validacao.",
+      }),
+      icon: GitBranch,
+      label: byLanguage(language, { en: "Clear responsibilities", es: "Responsabilidades claras", pt: "Responsabilidades claras" }),
+    },
+    {
+      detail: byLanguage(language, {
+        en: "Shows where context, memory, tools and outputs move.",
+        es: "Muestra donde se mueve contexto, memoria, herramientas y salidas.",
+        pt: "Mostra onde contexto, memoria, ferramentas e saidas se movem.",
+      }),
+      icon: Boxes,
+      label: byLanguage(language, { en: "Controlled handoffs", es: "Handoffs controlados", pt: "Handoffs controlados" }),
+    },
+    {
+      detail: byLanguage(language, {
+        en: "Identifies guardrails and human control before building.",
+        es: "Identifica guardrails y control humano antes de construir.",
+        pt: "Identifica guardrails e controle humano antes de construir.",
+      }),
+      icon: ListChecks,
+      label: byLanguage(language, { en: "Visible risk", es: "Riesgo visible", pt: "Risco visivel" }),
+    },
+  ];
+  const statusLabel = hasSvg
+    ? byLanguage(language, { en: "Ready in Free", es: "Visible en Free", pt: "Visivel no Free" })
+    : state === "error" || catalogStatus === "error" || detailStatus === "error"
+      ? byLanguage(language, { en: "Needs retry", es: "Requiere reintento", pt: "Requer nova tentativa" })
+      : isWorking
+        ? byLanguage(language, { en: "Generating", es: "Generando", pt: "Gerando" })
+        : byLanguage(language, { en: "Preparing", es: "Preparando", pt: "Preparando" });
+
+  useEffect(() => {
+    if (item && selectedKey !== BLUEPRINT_FREE_HERO_DIAGRAM_KEY) {
+      setSelectedKey(BLUEPRINT_FREE_HERO_DIAGRAM_KEY);
+    }
+  }, [item, selectedKey, setSelectedKey]);
+
+  return (
+    <article
+      aria-label={byLanguage(language, {
+        en: "Blueprint Free agent orchestration",
+        es: "Orquestacion agentiva de Blueprint Free",
+        pt: "Orquestracao agentiva do Blueprint Free",
+      })}
+      aria-live="polite"
+      className="mt-4 overflow-hidden rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white"
+    >
+      <div className="grid gap-3 border-b border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3 md:grid-cols-[minmax(0,1fr)_300px] md:items-center">
+        <div>
+          <div className="flex flex-wrap gap-2">
+            <UxaBadge tone="info">
+              {byLanguage(language, { en: "Hook diagram", es: "Diagrama gancho", pt: "Diagrama gancho" })}
+            </UxaBadge>
+            <UxaBadge tone={hasSvg ? "success" : isWorking ? "info" : "warning"}>{statusLabel}</UxaBadge>
+            <UxaBadge tone="warning">
+              {byLanguage(language, { en: "No Free download", es: "Sin descarga en Free", pt: "Sem download no Free" })}
+            </UxaBadge>
+          </div>
+          <h3 className="mt-3 text-[20px] font-black leading-tight text-[var(--uxa-color-ink)]">
+            {byLanguage(language, {
+              en: "Your agent already has a first operating orchestration.",
+              es: "Tu agente ya tiene una primera orquestacion operativa.",
+              pt: "Seu agente ja tem uma primeira orquestracao operacional.",
+            })}
+          </h3>
+          <p className="mt-2 max-w-4xl text-[13px] leading-5 text-[var(--uxa-color-ink-soft)]">
+            {byLanguage(language, {
+              en: "LAB is turning the estimate into a map of agents, tools, memory, guardrails and control points. You can see it in Free; professional export remains in Pro.",
+              es: "LAB esta convirtiendo la estimacion en un mapa de agentes, herramientas, memoria, guardrails y puntos de control. Lo puedes ver en Free; la exportacion profesional queda en Pro.",
+              pt: "LAB esta convertendo a estimativa em um mapa de agentes, ferramentas, memoria, guardrails e pontos de controle. Voce pode ver no Free; a exportacao profissional fica no Pro.",
+            })}
+          </p>
+        </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3 text-[12px] font-black text-[var(--uxa-color-ink)]">
+            <span>
+              {byLanguage(language, { en: "Generation progress", es: "Progreso de generacion", pt: "Progresso de geracao" })}
+            </span>
+            <span>{progress}%</span>
+          </div>
+          <UxaProcessingStrip
+            label={byLanguage(language, {
+              en: "Agent orchestration generation",
+              es: "Generacion de orquestacion agentiva",
+              pt: "Geracao de orquestracao agentiva",
+            })}
+            value={progress}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_220px] 2xl:grid-cols-[minmax(0,1fr)_240px]">
+        <div className="min-h-[420px] p-3">
+          {hasSvg ? (
+            <div
+              aria-label={byLanguage(language, {
+                en: "Agent orchestration preview",
+                es: "Vista de orquestacion agentiva",
+                pt: "Visualizacao de orquestracao agentiva",
+              })}
+              className="relative flex min-h-[390px] overflow-auto rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-2"
+              onContextMenu={(event) => event.preventDefault()}
+              role="region"
+              tabIndex={0}
+            >
+              {/* SVG is loaded as an image resource so active markup is not injected into the DOM. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt={byLanguage(language, {
+                  en: "Agent orchestration diagram",
+                  es: "Diagrama de orquestacion agentiva",
+                  pt: "Diagrama de orquestracao agentiva",
+                })}
+                className="pointer-events-none m-auto h-full max-h-[540px] min-h-[360px] w-full select-none object-contain"
+                draggable={false}
+                onContextMenu={(event) => event.preventDefault()}
+                onDragStart={(event) => event.preventDefault()}
+                src={svgSource}
+              />
+              <span className="absolute right-3 top-3 rounded-full border border-[var(--uxa-color-border)] bg-white/95 px-3 py-1 font-mono text-[10px] font-black uppercase tracking-[0.08em] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, { en: "Download in Pro", es: "Descarga en Pro", pt: "Download no Pro" })}
+              </span>
+            </div>
+          ) : (
+            <BlueprintFreeAgentOrchestrationSkeleton />
+          )}
+        </div>
+
+        <aside className="border-t border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3 xl:border-l xl:border-t-0">
+          {qualityIsComplete ? (
+            <div className="rounded-[var(--uxa-radius-md)] border border-emerald-200 bg-emerald-50 p-3">
+              <p className="font-mono text-[10px] font-black uppercase tracking-[0.12em] text-emerald-800">
+                {byLanguage(language, { en: "Validated diagram", es: "Diagrama validado", pt: "Diagrama validado" })}
+              </p>
+              <p className="mt-1 text-[12px] font-bold leading-5 text-emerald-900">
+                {byLanguage(language, {
+                  en: "Complete diagram, ready to review.",
+                  es: "Diagrama completo y listo para revisar.",
+                  pt: "Diagrama completo e pronto para revisar.",
+                })}
+              </p>
+            </div>
+          ) : null}
+
+          <p className={cn(
+            "font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[var(--uxa-color-brand)]",
+            qualityIsComplete ? "mt-3" : "",
+          )}>
+            {byLanguage(language, { en: "First in queue", es: "Primero en cola", pt: "Primeiro na fila" })}
+          </p>
+          <h4 className="mt-2 text-[14px] font-black leading-5 text-[var(--uxa-color-ink)]">
+            {byLanguage(language, {
+              en: "Technical value for your agent",
+              es: "Valor tecnico para tu agente",
+              pt: "Valor tecnico para seu agente",
+            })}
+          </h4>
+          <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+            {byLanguage(language, {
+              en: "This diagram lets you verify the operating design before investing in a deeper build.",
+              es: "Este diagrama te permite validar el diseno operativo antes de invertir en una construccion mas profunda.",
+              pt: "Este diagrama permite validar o desenho operacional antes de investir em uma construcao mais profunda.",
+            })}
+          </p>
+
+          <div className="mt-3 space-y-2">
+            {orchestrationValueItems.map(({ detail, icon: Icon, label }) => (
+              <div className="flex gap-2 border-t border-[var(--uxa-color-border-soft)] pt-2 first:border-t-0 first:pt-0" key={label}>
+                <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--uxa-color-brand)]" />
+                <div>
+                  <p className="text-[11px] font-black text-[var(--uxa-color-ink)]">{label}</p>
+                  <p className="mt-0.5 text-[11px] leading-4 text-[var(--uxa-color-ink-soft)]">{detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {hasSvg ? (
+            <p className="mt-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {byLanguage(language, {
+                en: "Use it to detect missing responsibilities, risky handoffs or unclear controls before writing implementation specs.",
+                es: "Usalo para detectar responsabilidades faltantes, handoffs riesgosos o controles poco claros antes de escribir especificaciones.",
+                pt: "Use para detectar responsabilidades ausentes, handoffs arriscados ou controles pouco claros antes de escrever especificacoes.",
+              })}
+            </p>
+          ) : (
+            <p className="mt-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {byLanguage(language, {
+                en: "While it is being prepared, the preview stays active so the screen never feels empty.",
+                es: "Mientras se prepara, la vista previa permanece activa para que la pantalla nunca quede vacia.",
+                pt: "Enquanto ela e preparada, a visualizacao permanece ativa para que a tela nunca fique vazia.",
+              })}
+            </p>
+          )}
+          {error || state === "error" ? (
+            <p className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-state-danger-border)] bg-[var(--uxa-state-danger-bg)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {byLanguage(language, {
+                en: "The preview could not be updated yet. You can retry without leaving Blueprint Free.",
+                es: "La vista aun no se pudo actualizar. Puedes reintentar sin salir de Blueprint Free.",
+                pt: "A visualizacao ainda nao pode ser atualizada. Voce pode tentar novamente sem sair do Blueprint Free.",
+              })}
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {canGenerate ? (
+              <UxaButton onClick={() => void generate(BLUEPRINT_FREE_HERO_DIAGRAM_KEY, "user_request")} size="sm" variant="primary">
+                <Sparkles aria-hidden="true" className="h-4 w-4" />
+                {state === "error"
+                  ? byLanguage(language, { en: "Retry", es: "Reintentar", pt: "Tentar novamente" })
+                  : byLanguage(language, { en: "Generate", es: "Generar", pt: "Gerar" })}
+              </UxaButton>
+            ) : null}
+            <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/diagrams?diagram=${BLUEPRINT_FREE_HERO_DIAGRAM_KEY}`}>
+              <ExternalLink aria-hidden="true" className="h-4 w-4" />
+              {byLanguage(language, { en: "Open viewer", es: "Abrir visor", pt: "Abrir visualizador" })}
+            </a>
+          </div>
+        </aside>
+      </div>
+    </article>
+  );
+}
+
+function BlueprintFreePostUpgradeExperience({
+  language,
+  sessionId,
+  viewModel,
+}: {
+  language: SupportedLanguage;
+  sessionId: string;
+  viewModel: ReturnType<typeof buildProductSaasViewModel>;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("result_tab");
+  const [feedback, setFeedback] = useState<"link" | "markdown" | "print" | null>(null);
+  const [localSelection, setLocalSelection] = useState<{
+    source: string | null;
+    tab: BlueprintFreeTab;
+  } | null>(null);
+  const productBuild = useProductBuildStatus(sessionId, "blueprint_basic", {
+    polling: true,
+    staleWhileRevalidating: true,
+  });
+  const activeTab =
+    localSelection?.source === requestedTab
+      ? localSelection.tab
+      : normalizeBlueprintFreeTab(requestedTab);
+  const diagramCatalogFilter = useMemo(() => (item: DiagramCatalogItem) => isTierIncluded(item.required_tier, "blueprint"), []);
+  const highlights = viewModel.blueprintHighlights.slice(0, 4);
+  const resultHighlights = highlights.length
+    ? highlights
+    : [
+        {
+          detail: viewModel.title,
+          key: "problem",
+          status: "ready",
+          title: byLanguage(language, { en: "Validated problem", es: "Problema validado", pt: "Problema validado" }),
+        },
+        {
+          detail: viewModel.estimate.detail,
+          key: "estimate",
+          status: "ready",
+          title: byLanguage(language, { en: "Estimated value", es: "Valor estimado", pt: "Valor estimado" }),
+        },
+      ];
+  const comparison = viewModel.blueprintComparison;
+  const status = productBuild.data;
+  const queue = status?.processing_queue ?? null;
+  const deliverables = (status?.deliverables ?? []).filter(
+    (item) => !item.product_surface || item.product_surface === "blueprint_basic",
+  );
+  const failedCount =
+    queue?.failed_count ??
+    deliverables.filter((item) => item.state === "error").length;
+  const pendingCount =
+    queue?.pending_count ??
+    deliverables.filter((item) => item.state === "pending" || item.state === "stale").length;
+  const processingCount =
+    queue?.processing_count ??
+    deliverables.filter((item) => item.state === "queued" || item.state === "generating").length;
+  const completedCount =
+    queue?.completed_count ??
+    deliverables.filter((item) => item.state === "available").length;
+  const totalCount =
+    queue?.total_count ??
+    status?.progress.total_units ??
+    deliverables.length ??
+    completedCount + pendingCount + processingCount + failedCount;
+  const progress = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        queue?.total_count
+          ? ((queue.total_count - pendingCount - processingCount) / Math.max(1, queue.total_count)) * 100
+          : (status?.progress.percent ?? (totalCount ? (completedCount / totalCount) * 100 : 0)),
+      ),
+    ),
+  );
+  const isRunning = Boolean(
+    queue?.active ||
+      status?.lifecycle === "queued" ||
+      status?.lifecycle === "preparing" ||
+      status?.lifecycle === "running" ||
+      productBuild.isLoading ||
+      productBuild.isFetching,
+  );
+  const statusTone: UxaTone = productBuild.isError
+    ? "danger"
+    : failedCount
+      ? "danger"
+      : isRunning
+        ? "info"
+        : status || totalCount
+          ? "success"
+          : "neutral";
+  const statusLabel = productBuild.isError
+    ? byLanguage(language, { en: "Status unavailable", es: "Estado no disponible", pt: "Estado indisponivel" })
+    : failedCount
+      ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
+      : isRunning
+        ? byLanguage(language, { en: "Processing", es: "Procesando", pt: "Processando" })
+        : status || totalCount
+          ? byLanguage(language, { en: "Result ready", es: "Resultado listo", pt: "Resultado pronto" })
+          : byLanguage(language, { en: "Syncing", es: "Sincronizando", pt: "Sincronizando" });
+  const processingSummary = productBuild.isError
+    ? byLanguage(language, {
+        en: "The live tracker could not be loaded. Refresh keeps the product route and retries the same backend source.",
+        es: "No se pudo cargar el seguimiento vivo. Al refrescar se conserva la ruta del producto y se reintenta la misma fuente del backend.",
+        pt: "Nao foi possivel carregar o acompanhamento ao vivo. Ao atualizar, a rota do produto e mantida e a mesma fonte do backend e consultada novamente.",
+      })
+    : isRunning
+      ? byLanguage(language, {
+          en: "LAB is preparing diagrams and deliverables while you review the validated result.",
+          es: "LAB esta preparando diagramas y entregables mientras revisas el resultado validado.",
+          pt: "LAB esta preparando diagramas e entregaveis enquanto voce revisa o resultado validado.",
+        })
+      : status || totalCount
+        ? byLanguage(language, {
+            en: "The base result is ready. You can review the generated assets or continue to Pro.",
+            es: "El resultado base esta listo. Puedes revisar activos generados o continuar a Pro.",
+            pt: "O resultado base esta pronto. Voce pode revisar ativos gerados ou continuar para Pro.",
+          })
+        : byLanguage(language, {
+            en: "The validated result is available and the live tracker will hydrate as soon as the backend responds.",
+            es: "El resultado validado esta disponible y el seguimiento vivo se hidratara cuando responda el backend.",
+            pt: "O resultado validado esta disponivel e o acompanhamento ao vivo sera hidratado quando o backend responder.",
+          });
+  const tabs: Array<{ key: BlueprintFreeTab; label: string; description: string }> = [
+    {
+      key: "result",
+      label: byLanguage(language, { en: "Result", es: "Resultado", pt: "Resultado" }),
+      description: byLanguage(language, {
+        en: "Validated one-pager and first value from Estimate.",
+        es: "One-pager validado y primer valor despues de Estimar.",
+        pt: "One-pager validado e primeiro valor depois da Estimativa.",
+      }),
+    },
+    {
+      key: "tracking",
+      label: byLanguage(language, { en: "Tracking", es: "Seguimiento", pt: "Acompanhamento" }),
+      description: byLanguage(language, {
+        en: "Live product queue reused from previous stages.",
+        es: "Cola viva del producto reutilizada desde etapas previas.",
+        pt: "Fila viva do produto reutilizada das etapas previas.",
+      }),
+    },
+    {
+      key: "diagrams",
+      label: byLanguage(language, { en: "Diagrams", es: "Diagramas", pt: "Diagramas" }),
+      description: byLanguage(language, {
+        en: "Governed Diagram Center filtered to Free.",
+        es: "Diagram Center gobernado filtrado a Free.",
+        pt: "Diagram Center governado filtrado para Free.",
+      }),
+    },
+    {
+      key: "deliverables",
+      label: byLanguage(language, { en: "Deliverables", es: "Entregables", pt: "Entregaveis" }),
+      description: byLanguage(language, {
+        en: "Foundational deliverables and reusable artifact viewer.",
+        es: "Entregables base y visor de artefactos reutilizado.",
+        pt: "Entregaveis base e visualizador de artefatos reutilizado.",
+      }),
+    },
+    {
+      key: "pro",
+      label: "Pro",
+      description: byLanguage(language, {
+        en: "Professional delta and upgrade path.",
+        es: "Delta profesional y ruta de mejora.",
+        pt: "Delta profissional e rota de upgrade.",
+      }),
+    },
+  ];
+
+  function buildFreeHref(tab: BlueprintFreeTab) {
+    const baseHref = `/projects/${sessionId}/blueprint`;
+    return tab === "result" ? baseHref : `${baseHref}?result_tab=${tab}`;
+  }
+
+  function selectTab(tab: BlueprintFreeTab) {
+    setLocalSelection({ source: requestedTab, tab });
+    if (typeof window !== "undefined" && window.location.pathname.includes(`/projects/${sessionId}/blueprint`)) {
+      router.push(buildFreeHref(tab));
+    }
+  }
 
   function setTemporaryFeedback(nextFeedback: typeof feedback) {
     setFeedback(nextFeedback);
@@ -2024,8 +2530,9 @@ function BlueprintFreeValidatedProjectCard({
   }
 
   function buildShareUrl() {
-    if (typeof window === "undefined") return detailHref;
-    return new URL(detailHref, window.location.origin).toString();
+    const href = `/projects/${sessionId}/blueprint`;
+    if (typeof window === "undefined") return href;
+    return new URL(href, window.location.origin).toString();
   }
 
   function buildMarkdown() {
@@ -2033,9 +2540,7 @@ function BlueprintFreeValidatedProjectCard({
       (item) => `- ${byLanguage(language, item.label)} (${item.key})`,
     ).join("\n");
     return [
-      `# ${labels.title}: ${projectTitle || "Lean Agent Builder"}`,
-      "",
-      `Producto: Blueprint Free ($0 USD)`,
+      `# Blueprint Free: ${viewModel.title || "Lean Agent Builder"}`,
       "",
       "## Entregables disponibles",
       items,
@@ -2057,197 +2562,388 @@ function BlueprintFreeValidatedProjectCard({
   }
 
   return (
-    <UxaSurface className="border border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[17px] font-black text-[var(--uxa-color-ink)]">{labels.title}</h2>
-            <UxaBadge tone="success">{labels.included}</UxaBadge>
-            {feedback ? <UxaBadge tone="info">{labels.copied}</UxaBadge> : null}
+    <div className="space-y-5">
+      <h1 className="sr-only">Blueprint Free</h1>
+
+      <section aria-label="Area de trabajo Blueprint Free" className="min-w-0">
+        <article className="min-h-[620px] overflow-hidden rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white shadow-[var(--uxa-shadow-card)]">
+          <div
+            aria-label={byLanguage(language, {
+              en: "Blueprint Free views",
+              es: "Vistas de Blueprint Free",
+              pt: "Vistas de Blueprint Free",
+            })}
+            className="flex gap-2 overflow-x-auto border-b border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-2"
+            role="tablist"
+          >
+            {tabs.map((tab) => {
+              const selected = activeTab === tab.key;
+              return (
+                <a
+                  aria-controls={`blueprint-free-panel-${tab.key}`}
+                  aria-selected={selected}
+                  className={cn(
+                    "min-h-9 rounded-[var(--uxa-radius-md)] border px-3 text-[12px] font-black transition",
+                    selected
+                      ? "border-[var(--uxa-color-border)] bg-white text-[var(--uxa-color-brand)] shadow-xs"
+                      : "border-transparent text-[var(--uxa-color-ink-soft)] hover:bg-white",
+                  )}
+                  href={buildFreeHref(tab.key)}
+                  id={`blueprint-free-tab-${tab.key}`}
+                  key={tab.key}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    selectTab(tab.key);
+                  }}
+                  role="tab"
+                  title={tab.description}
+                >
+                  {tab.label}
+                </a>
+              );
+            })}
           </div>
-          <p className="mt-1 max-w-3xl text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-            {projectTitle}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <UxaButton onClick={() => copyText(buildShareUrl(), "link")} size="sm" variant="secondary">
-            <Link2 aria-hidden="true" className="h-4 w-4" />
-            {labels.link}
-          </UxaButton>
-          <UxaButton onClick={() => copyText(buildMarkdown(), "markdown")} size="sm" variant="secondary">
-            <ClipboardCopy aria-hidden="true" className="h-4 w-4" />
-            {labels.markdown}
-          </UxaButton>
-          <UxaButton onClick={printOnePager} size="sm" variant="secondary">
-            <Printer aria-hidden="true" className="h-4 w-4" />
-            {labels.print}
-          </UxaButton>
-        </div>
-      </div>
-      <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        {BLUEPRINT_FREE_VALIDATED_ITEMS.map((item) => {
-          const Icon = item.icon;
-          return (
-            <article
-              className="min-h-[96px] rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-3"
-              key={item.key}
-            >
-              <div className="flex items-start gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--uxa-radius-md)] bg-[var(--uxa-color-brand-soft)] text-[var(--uxa-color-brand)]">
-                  <Icon aria-hidden="true" className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <h3 className="text-[13px] font-black leading-5 text-[var(--uxa-color-ink)]">
-                    {byLanguage(language, item.label)}
-                  </h3>
-                  <p className="mt-1 break-words font-mono text-[10px] text-[var(--uxa-color-ink-muted)]">
-                    {item.key}
-                  </p>
+
+          <div className="p-3 md:p-4">
+            {activeTab === "result" ? (
+              <div
+                aria-labelledby="blueprint-free-tab-result"
+                id="blueprint-free-panel-result"
+                role="tabpanel"
+              >
+                <section aria-label="Ficha de Proyecto Validado" id="blueprint-free-dossier">
+                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <UxaBadge tone="success">
+                          {byLanguage(language, {
+                            en: "Blueprint Free included",
+                            es: "Blueprint Free incluido",
+                            pt: "Blueprint Free incluido",
+                          })}
+                        </UxaBadge>
+                        <UxaBadge tone={statusTone}>{statusLabel}</UxaBadge>
+                        {feedback ? (
+                          <UxaBadge tone="info">
+                            {byLanguage(language, { en: "Copied", es: "Copiado", pt: "Copiado" })}
+                          </UxaBadge>
+                        ) : null}
+                      </div>
+                      <h2 className="mt-3 text-[24px] font-black leading-tight text-[var(--uxa-color-ink)]">
+                        {byLanguage(language, {
+                          en: "Your idea is now a validated agent project.",
+                          es: "Tu idea ya es un proyecto de agente validado.",
+                          pt: "Sua ideia ja e um projeto de agente validado.",
+                        })}
+                      </h2>
+                      <p className="mt-2 max-w-4xl text-[14px] leading-6 text-[var(--uxa-color-ink-soft)]">
+                        {byLanguage(language, {
+                          en: "LAB consolidated the problem, MVP scope, actors, estimate and minimum tools in an executive dossier. Engineering depth remains reserved for Blueprint Pro.",
+                          es: "LAB consolido el problema, alcance MVP, actores, estimacion y herramientas minimas en un dossier ejecutivo. La profundidad de ingenieria queda reservada para Blueprint Pro.",
+                          pt: "LAB consolidou o problema, escopo MVP, atores, estimativa e ferramentas minimas em um dossier executivo. A profundidade de engenharia fica reservada para Blueprint Pro.",
+                        })}
+                      </p>
+
+                      <BlueprintFreeAgentOrchestrationHero
+                        buildProgress={progress}
+                        language={language}
+                        sessionId={sessionId}
+                      />
+
+                      <div className="mt-4 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+                              {byLanguage(language, { en: "Live preparation", es: "Preparacion viva", pt: "Preparacao ao vivo" })}
+                            </p>
+                            <p className="mt-1 text-[12px] font-bold leading-5 text-[var(--uxa-color-ink-soft)]">
+                              {processingSummary}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-full border border-[var(--uxa-color-border)] bg-white px-3 py-1 text-[12px] font-black text-[var(--uxa-color-ink)]">
+                            {totalCount ? `${completedCount}/${totalCount}` : `${progress}%`}
+                          </span>
+                        </div>
+                        <div className="mt-3">
+                          <UxaProcessingStrip
+                            label={byLanguage(language, {
+                              en: "Blueprint Free preparation progress",
+                              es: "Progreso de preparacion Blueprint Free",
+                              pt: "Progresso de preparacao Blueprint Free",
+                            })}
+                            value={progress}
+                          />
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <aside className="space-y-3">
+                      <article className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-4">
+                        <UxaBadge tone="info">
+                          {byLanguage(language, { en: "Shareable one-pager", es: "One-Pager compartible", pt: "One-Pager compartilhavel" })}
+                        </UxaBadge>
+                        <h3 className="mt-3 text-[16px] font-black text-[var(--uxa-color-ink)]">
+                          {byLanguage(language, { en: "Agent executive sheet", es: "Ficha ejecutiva del agente", pt: "Ficha executiva do agente" })}
+                        </h3>
+                        <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                          {byLanguage(language, {
+                            en: "Free can be shared. Technical specification, contracts and professional download stay reserved for Pro.",
+                            es: "Free se puede compartir. La especificacion tecnica, contratos y descarga profesional quedan reservados para Pro.",
+                            pt: "Free pode ser compartilhado. A especificacao tecnica, contratos e download profissional ficam reservados para Pro.",
+                          })}
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <UxaButton onClick={() => void copyText(buildShareUrl(), "link")} size="sm" variant="secondary">
+                            <Link2 aria-hidden="true" className="h-4 w-4" />
+                            {byLanguage(language, { en: "Copy link", es: "Copiar enlace", pt: "Copiar link" })}
+                          </UxaButton>
+                          <UxaButton onClick={() => void copyText(buildMarkdown(), "markdown")} size="sm" variant="secondary">
+                            <ClipboardCopy aria-hidden="true" className="h-4 w-4" />
+                            {byLanguage(language, { en: "Copy Markdown", es: "Copiar Markdown", pt: "Copiar Markdown" })}
+                          </UxaButton>
+                          <UxaButton onClick={printOnePager} size="sm" variant="secondary">
+                            <Printer aria-hidden="true" className="h-4 w-4" />
+                            {byLanguage(language, { en: "Print", es: "Imprimir", pt: "Imprimir" })}
+                          </UxaButton>
+                        </div>
+                      </article>
+
+                      <div
+                        aria-label={byLanguage(language, {
+                          en: "Blueprint Free executive summary",
+                          es: "Resumen ejecutivo Blueprint Free",
+                          pt: "Resumo executivo Blueprint Free",
+                        })}
+                        className="space-y-2"
+                        role="group"
+                      >
+                        {resultHighlights.map((item) => (
+                          <article
+                            className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3"
+                            key={item.key}
+                          >
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">{item.title}</p>
+                            <p className="mt-1 line-clamp-3 text-[12px] leading-5 text-[var(--uxa-color-ink)]">{item.detail}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </aside>
+                  </div>
+                </section>
+              </div>
+            ) : null}
+
+            {activeTab === "tracking" ? (
+              <div
+                aria-labelledby="blueprint-free-tab-tracking"
+                id="blueprint-free-panel-tracking"
+                role="tabpanel"
+              >
+                <BlueprintBuildInspector
+                  productBuild={productBuild}
+                  productKey="blueprint_basic"
+                  productLabel="Blueprint"
+                  stableSummary="6/6"
+                  title={byLanguage(language, {
+                    en: "Prepare Validated Project Sheet",
+                    es: "Preparar Ficha de Proyecto Validado",
+                    pt: "Preparar Ficha de Projeto Validado",
+                  })}
+                />
+              </div>
+            ) : null}
+
+            {activeTab === "diagrams" ? (
+              <div
+                aria-labelledby="blueprint-free-tab-diagrams"
+                id="blueprint-free-panel-diagrams"
+                role="tabpanel"
+              >
+                <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+                      {byLanguage(language, { en: "Hook diagrams", es: "Diagramas gancho", pt: "Diagramas gancho" })}
+                    </p>
+                    <h2 className="mt-1 text-[20px] font-black text-[var(--uxa-color-ink)]">
+                      {byLanguage(language, {
+                        en: "Free diagrams inside the governed LAB viewer.",
+                        es: "Diagramas Free dentro del visor gobernado de LAB.",
+                        pt: "Diagramas Free dentro do visualizador governado de LAB.",
+                      })}
+                    </h2>
+                  </div>
+                  <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/diagrams`}>
+                    <ExternalLink aria-hidden="true" className="h-4 w-4" />
+                    {byLanguage(language, { en: "Open full viewer", es: "Abrir visor completo", pt: "Abrir visualizador completo" })}
+                  </a>
+                </div>
+                <DiagramCenterPage
+                  catalogFilter={diagramCatalogFilter}
+                  engineLabel={byLanguage(language, {
+                    en: "Governed viewer",
+                    es: "Visor gobernado",
+                    pt: "Visualizador governado",
+                  })}
+                  initialViewMode="list"
+                  projectId={sessionId}
+                  subtitle={byLanguage(language, {
+                    en: "Reusable diagram visualization component filtered to Blueprint Free.",
+                    es: "Componente reutilizado de visualizacion de diagramas filtrado a Blueprint Free.",
+                    pt: "Componente reutilizado de visualizacao de diagramas filtrado para Blueprint Free.",
+                  })}
+                  title={byLanguage(language, {
+                    en: "Blueprint Free diagrams",
+                    es: "Diagramas de Blueprint Free",
+                    pt: "Diagramas de Blueprint Free",
+                  })}
+                />
+              </div>
+            ) : null}
+
+            {activeTab === "deliverables" ? (
+              <div
+                aria-labelledby="blueprint-free-tab-deliverables"
+                aria-label="Entregables del Blueprint Free"
+                id="blueprint-free-panel-deliverables"
+                role="tabpanel"
+              >
+                <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <p className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+                      {byLanguage(language, { en: "Foundational package", es: "Paquete base", pt: "Pacote base" })}
+                    </p>
+                    <h2 className="mt-1 text-[20px] font-black text-[var(--uxa-color-ink)]">
+                      {byLanguage(language, {
+                        en: "6 foundational deliverables ready for the next decision.",
+                        es: "6 entregables fundamentales listos para la siguiente decision.",
+                        pt: "6 entregaveis fundamentais prontos para a proxima decisao.",
+                      })}
+                    </h2>
+                  </div>
+                  <span className="rounded-full border border-[var(--uxa-color-border)] bg-white px-3 py-1 text-[12px] font-black text-[var(--uxa-color-ink)]">
+                    12 {byLanguage(language, { en: "Free pieces", es: "piezas Free", pt: "pecas Free" })}
+                  </span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {BLUEPRINT_FREE_VALIDATED_ITEMS.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <article
+                        className="min-h-[132px] rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-4"
+                        key={item.key}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--uxa-radius-md)] bg-[var(--uxa-color-brand-soft)] text-[var(--uxa-color-brand)]">
+                            <Icon aria-hidden="true" className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <span className="font-mono text-[10px] font-black uppercase tracking-[0.12em] text-[var(--uxa-color-ink-muted)]">
+                              {item.key}
+                            </span>
+                            <h3 className="mt-1 text-[14px] font-black leading-5 text-[var(--uxa-color-ink)]">
+                              {byLanguage(language, item.label)}
+                            </h3>
+                          </div>
+                        </div>
+                        <p className="mt-3 line-clamp-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                          {byLanguage(language, {
+                            en: "Included in the executive Blueprint Free dossier and ready to support the next product decision.",
+                            es: "Incluido en el dossier ejecutivo Blueprint Free y listo para soportar la siguiente decision de producto.",
+                            pt: "Incluido no dossier executivo Blueprint Free e pronto para apoiar a proxima decisao de produto.",
+                          })}
+                        </p>
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="mt-4">
+                  <ProductDeliverableCatalog
+                    artifactCards={viewModel.artifactCards}
+                    currentStage="estimate"
+                    sessionId={sessionId}
+                    tierScope="blueprint"
+                  />
                 </div>
               </div>
-              <div className="mt-3">
-                <UxaBadge tone="success">{labels.ready}</UxaBadge>
+            ) : null}
+
+            {activeTab === "pro" ? (
+              <div
+                aria-labelledby="blueprint-free-tab-pro"
+                id="blueprint-free-panel-pro"
+                role="tabpanel"
+              >
+                <section aria-label="Delta hacia Blueprint Pro" id="blueprint-free-pro-delta">
+                  <div className="max-w-4xl">
+                    <UxaBadge tone="warning">
+                      {byLanguage(language, { en: "Engineering delta", es: "Delta de ingenieria", pt: "Delta de engenharia" })}
+                    </UxaBadge>
+                    <h2 className="mt-3 text-[21px] font-black leading-tight text-[var(--uxa-color-ink)]">
+                      {byLanguage(language, {
+                        en: "Your diagnosis is ready. To build it without improvising, you need the how.",
+                        es: "Tu diagnostico esta listo. Para construirlo sin improvisar, necesitas el como.",
+                        pt: "Seu diagnostico esta pronto. Para construir sem improvisar, voce precisa do como.",
+                      })}
+                    </h2>
+                  </div>
+                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-4">
+                      <h3 className="text-[15px] font-black text-[var(--uxa-color-ink)]">Blueprint Free - USD 0</h3>
+                      <div className="mt-3 space-y-3">
+                        {[
+                          byLanguage(language, { en: "Clear problem and opportunity", es: "Problema y oportunidad claros", pt: "Problema e oportunidade claros" }),
+                          byLanguage(language, { en: "MVP scope and success criteria", es: "Alcance MVP y criterios de exito", pt: "Escopo MVP e criterios de sucesso" }),
+                          byLanguage(language, { en: "Conceptual diagrams and economic hook", es: "Diagramas conceptuales y gancho economico", pt: "Diagramas conceituais e gancho economico" }),
+                        ].map((item, index) => (
+                          <div className="flex gap-3" key={item}>
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--uxa-color-muted-panel)] text-[12px] font-black">
+                              {index + 1}
+                            </span>
+                            <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{item}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-4">
+                      <h3 className="text-[15px] font-black text-[var(--uxa-color-ink)]">Blueprint Pro - USD 39</h3>
+                      <div className="mt-3 space-y-3">
+                        {[
+                          byLanguage(language, { en: "Technical architecture and memory strategy", es: "Arquitectura tecnica y estrategia de memoria", pt: "Arquitetura tecnica e estrategia de memoria" }),
+                          byLanguage(language, { en: "Additional professional diagrams and artifacts", es: "Diagramas y artefactos profesionales adicionales", pt: "Diagramas e artefatos profissionais adicionais" }),
+                          byLanguage(language, { en: "Downloadable professional document", es: "Documento profesional descargable", pt: "Documento profissional para download" }),
+                        ].map((item, index) => (
+                          <div className="flex gap-3" key={item}>
+                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-[12px] font-black text-[var(--uxa-color-brand)]">
+                              {index + 1}
+                            </span>
+                            <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{item}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {comparison ? (
+                        <p className="mt-4 rounded-[var(--uxa-radius-md)] bg-white/80 p-3 text-[12px] font-bold text-[var(--uxa-color-ink)]">
+                          {byLanguage(language, {
+                            en: `Estimated effort reduction: ${comparison.effortReductionPercent}%`,
+                            es: `Reduccion de esfuerzo estimada: ${comparison.effortReductionPercent}%`,
+                            pt: `Reducao de esforco estimada: ${comparison.effortReductionPercent}%`,
+                          })}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                </section>
               </div>
-            </article>
-          );
-        })}
-      </div>
-    </UxaSurface>
-  );
-}
+            ) : null}
+          </div>
+        </article>
+      </section>
 
-function BlueprintProductPage({
-  activeRoute,
-}: {
-  activeRoute: ProductExperienceRouteSnapshot | null;
-}) {
-  const { language } = useLanguage();
-  const searchParams = useSearchParams();
-  const commercialOnly = searchParams.get("surface") === "commercial";
-  const sessionId = activeRoute?.route.sessionId ?? "";
-  const viewModel = buildProductSaasViewModel({
-    activeRoute,
-    language,
-    section: "blueprint",
-  });
-
-  if (commercialOnly) {
-    return (
-      <div className="space-y-5">
-        {false ? (
-          <SectionHeader
-          badge={byLanguage(language, {
-            en: "Product 1 Â· Blueprint",
-            es: "Producto 1 Â· Blueprint",
-            pt: "Produto 1 Â· Blueprint",
-          })}
-          description={byLanguage(language, {
-            en: "Commercial result with the Blueprint artifacts and diagrams intended to demonstrate value before downloading or moving to premium deliverables.",
-            es: "Resultado comercial con los artefactos y diagramas del Blueprint destinados a demostrar valor antes de descargar o avanzar a entregables premium.",
-            pt: "Resultado comercial com os artefatos e diagramas do Blueprint destinados a demonstrar valor antes de baixar ou avancar para entregaveis premium.",
-          })}
-          title={byLanguage(language, {
-            en: "Blueprint commercial result",
-            es: "Resultado comercial del Blueprint",
-            pt: "Resultado comercial do Blueprint",
-          })}
-          />
-        ) : null}
-        <BlueprintFreeValidatedProjectCard
-          language={language}
-          projectTitle={viewModel.title}
-          sessionId={sessionId}
-        />
-        <CommercialBlueprintResult
-          activeRoute={activeRoute}
-          artifactCards={viewModel.artifactCards}
-          projectTitle={viewModel.title}
-          sessionId={sessionId}
-          tierScope="blueprint"
-        />
-        <UxaContextualActionDock
-          label={byLanguage(language, {
-            en: "Blueprint actions",
-            es: "Acciones de Blueprint",
-            pt: "Acoes de Blueprint",
-          })}
-          scope={{
-            helper: byLanguage(language, {
-              en: "Product CTAs",
-              es: "CTAs de este producto",
-              pt: "CTAs deste produto",
-            }),
-            label: "Blueprint Free",
-            tone: "info",
-          }}
-        >
-          <a
-            className="uxa-button uxa-button--secondary"
-            href={`/projects/${sessionId}/diagrams`}
-          >
-            <span>
-              {byLanguage(language, {
-                en: "Explore diagrams",
-                es: "Explorar diagramas",
-                pt: "Explorar diagramas",
-              })}
-            </span>
-          </a>
-          <a
-            className="uxa-button uxa-button--primary"
-            href={`/projects/${sessionId}/blueprint/pro`}
-          >
-            <span>
-              {byLanguage(language, {
-                en: "Get Blueprint Pro",
-                es: "Adquirir Blueprint Pro",
-                pt: "Adquirir Blueprint Pro",
-              })}
-            </span>
-          </a>
-        </UxaContextualActionDock>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      {false ? (
-        <SectionHeader
-        badge={byLanguage(language, {
-          en: "Product 1 · Blueprint",
-          es: "Producto 1 · Blueprint",
-          pt: "Produto 1 · Blueprint",
-        })}
-        description={byLanguage(language, {
-          en: "Protected view of the generated end-to-end design. The user can explore value, architecture, and estimates without downloading or extracting content outside the platform.",
-          es: "Vista protegida del diseno integral generado. El usuario puede explorar valor, arquitectura y estimacion sin descargar ni extraer contenido fuera de la plataforma.",
-          pt: "Vista protegida do design integral gerado. O usuario pode explorar valor, arquitetura e estimativa sem baixar nem extrair conteudo fora da plataforma.",
-        })}
-        title={byLanguage(language, {
-          en: "Blueprint outcome ready to demonstrate value",
-          es: "Resultado del Blueprint listo para demostrar valor",
-          pt: "Resultado do Blueprint pronto para demonstrar valor",
-        })}
-        />
-      ) : null}
-      <BlueprintFreeValidatedProjectCard
-        language={language}
-        projectTitle={viewModel.title}
-        sessionId={sessionId}
-      />
-      <CommercialBlueprintResult
-        activeRoute={activeRoute}
-        artifactCards={viewModel.artifactCards}
-        projectTitle={viewModel.title}
-        sessionId={sessionId}
-        tierScope="blueprint"
-      />
       <UxaContextualActionDock
         label={byLanguage(language, {
-          en: "Blueprint actions",
-          es: "Acciones de Blueprint",
-          pt: "Acoes de Blueprint",
+          en: "Blueprint Free actions",
+          es: "Acciones de Blueprint Free",
+          pt: "Acoes de Blueprint Free",
         })}
         scope={{
           helper: byLanguage(language, {
@@ -2259,27 +2955,39 @@ function BlueprintProductPage({
           tone: "info",
         }}
       >
-        <a
-          className="uxa-button uxa-button--secondary"
-          href={`/projects/${sessionId}/diagrams`}
-        >
+        <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/work/estimate`}>
           <span>
             {byLanguage(language, {
-              en: "Explore diagrams",
-              es: "Explorar diagramas",
-              pt: "Explorar diagramas",
+              en: "Back to Estimate",
+              es: "Volver a Estimacion",
+              pt: "Voltar para Estimativa",
             })}
           </span>
         </a>
-        <a
-          className="uxa-button uxa-button--primary"
-          href={`/projects/${sessionId}/blueprint/pro`}
-        >
+        <a className="uxa-button uxa-button--secondary" href={buildFreeHref("diagrams")}>
           <span>
             {byLanguage(language, {
-              en: "Get Blueprint Pro",
-              es: "Adquirir Blueprint Pro",
-              pt: "Adquirir Blueprint Pro",
+              en: "Open diagram viewer",
+              es: "Abrir visor de diagramas",
+              pt: "Abrir visualizador de diagramas",
+            })}
+          </span>
+        </a>
+        <button className="uxa-button uxa-button--secondary" onClick={() => void copyText(buildShareUrl(), "link")} type="button">
+          <span>
+            {byLanguage(language, {
+              en: "Copy sheet",
+              es: "Copiar ficha",
+              pt: "Copiar ficha",
+            })}
+          </span>
+        </button>
+        <a className="uxa-button uxa-button--primary" href={`/projects/${sessionId}/blueprint/pro`}>
+          <span>
+            {byLanguage(language, {
+              en: "Unlock Blueprint Pro - USD 39",
+              es: "Desbloquear Blueprint Pro - USD 39",
+              pt: "Desbloquear Blueprint Pro - USD 39",
             })}
           </span>
         </a>
@@ -2288,968 +2996,7 @@ function BlueprintProductPage({
   );
 }
 
-function EnrichmentInputModal({
-  item,
-  onClose,
-  onSubmit,
-  resolving,
-}: {
-  item: PremiumEnrichmentItem | null;
-  onClose: () => void;
-  onSubmit: (answer: string) => Promise<void>;
-  resolving: boolean;
-}) {
-  const { language } = useLanguage();
-  const [inputVal, setInputVal] = useState("");
-
-  useEffect(() => {
-    const timeoutId = globalThis.setTimeout(() => {
-      setInputVal(item?.entry.suggested_answer || "");
-    }, 0);
-    return () => globalThis.clearTimeout(timeoutId);
-  }, [item?.entry.id, item?.entry.suggested_answer]);
-
-  if (!item) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div
-        className="w-full max-w-xl rounded-[var(--uxa-radius-xl)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-surface)] p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--uxa-color-brand-muted)] text-[var(--uxa-color-brand)]">
-              <Edit3 className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-[17px] font-black">
-                {byLanguage(language, {
-                  en: "Enrich with client input",
-                  es: "Enriquecer con input del cliente",
-                  pt: "Enriquecer com input do cliente",
-                })}
-              </h3>
-              <p className="text-[11px] text-[var(--uxa-color-ink-muted)]">
-                {byLanguage(language, {
-                  en: "Personalized context is analyzed first. Deliverables are reconciled only when you explicitly run the queue.",
-                  es: "El contexto personalizado se analiza primero. Los entregables solo se reconcilian cuando ejecutas la cola explícitamente.",
-                  pt: "O contexto personalizado e analisado primeiro. Os entregaveis so sao reconciliados quando voce executa a fila explicitamente.",
-                })}
-              </p>
-            </div>
-          </div>
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--uxa-color-ink-soft)] hover:bg-[var(--uxa-color-muted-panel)]"
-            onClick={onClose}
-            type="button"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="mt-4 rounded-[var(--uxa-radius-lg)] bg-[var(--uxa-color-muted-panel)] p-4 text-[13px]">
-          <p className="font-bold text-[var(--uxa-color-ink-rich)]">{item.entry.title}</p>
-          <p className="mt-1 text-[12px] text-[var(--uxa-color-ink-soft)]">{item.priority_reason}</p>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-[12px] font-bold text-[var(--uxa-color-ink-rich)] mb-1.5">
-            {byLanguage(language, {
-              en: "Client input / Custom context:",
-              es: "Input del cliente / Contexto personalizado:",
-              pt: "Input do cliente / Contexto personalizado:",
-            })}
-          </label>
-          <textarea
-            className="w-full min-h-[110px] rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-surface)] p-3 text-[13px] leading-relaxed text-[var(--uxa-color-ink-rich)] placeholder:text-[var(--uxa-color-ink-muted)] focus:outline-hidden focus:ring-2 focus:ring-[var(--uxa-color-brand)]"
-            placeholder={byLanguage(language, {
-              en: "Enter specific requirements, business rules, or clarification...",
-              es: "Escribe aquí los requerimientos específicos, reglas de negocio o aclaraciones...",
-              pt: "Insira aqui os requisitos específicos, regras de negócio ou esclarecimentos...",
-            })}
-            value={inputVal}
-            onChange={(e) => setInputVal(e.target.value)}
-          />
-        </div>
-
-        {item.entry.answer_options.length > 0 ? (
-          <div className="mt-3">
-            <p className="text-[11px] font-bold text-[var(--uxa-color-ink-muted)] uppercase tracking-wider mb-1.5">
-              {byLanguage(language, {
-                en: "Suggested shortcuts:",
-                es: "Sugerencias rápidas:",
-                pt: "Sugestões rápidas:",
-              })}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {item.entry.answer_options.map((opt) => (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => setInputVal(opt.label + (opt.description ? ` - ${opt.description}` : ""))}
-                  className="rounded-md border border-[var(--uxa-color-border)] bg-[var(--uxa-color-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--uxa-color-ink-soft)] hover:border-[var(--uxa-color-brand)] hover:text-[var(--uxa-color-brand)]"
-                >
-                  {opt.recommended ? "★ " : ""}
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-6 flex items-center justify-end gap-2.5">
-          <button
-            className="uxa-button uxa-button--secondary"
-            disabled={resolving}
-            onClick={onClose}
-            type="button"
-          >
-            {byLanguage(language, { en: "Cancel", es: "Cancelar", pt: "Cancelar" })}
-          </button>
-          <button
-            className="uxa-button uxa-button--primary"
-            disabled={resolving || !inputVal.trim()}
-            onClick={() => void onSubmit(inputVal)}
-            type="button"
-          >
-            {resolving
-              ? byLanguage(language, { en: "Analyzing impact...", es: "Analizando impacto...", pt: "Analisando impacto..." })
-              : byLanguage(language, {
-                  en: "Save and Analyze Impact",
-                  es: "Guardar y Analizar Impacto",
-                  pt: "Salvar e Analisar Impacto",
-                })}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PremiumEnrichmentPanel({
-  activeRoute,
-  unlocked,
-}: {
-  activeRoute: ProductExperienceRouteSnapshot | null;
-  unlocked: boolean;
-}) {
-  const { language } = useLanguage();
-  const sessionId = activeRoute?.route.sessionId ?? "";
-  const [workspace, setWorkspace] = useState<PremiumEnrichmentWorkspace | null>(null);
-  const [result, setResult] = useState<PremiumSelectiveReprocessResult | null>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error" | "resolving">("idle");
-  const [error, setError] = useState("");
-  const [resolvingId, setResolvingId] = useState("");
-  const [modalItem, setModalItem] = useState<PremiumEnrichmentItem | null>(null);
-  const [activeTab, setActiveTab] = useState<"prioritized" | "deferred" | "resolved">("prioritized");
-  const resultReconciliationDecision = normalizeReconciliationDecision(
-    result?.reconciliation_decision ?? result?.reprocess_decision,
-  );
-  const resultReconciliationStatus = result?.reconciliation_status ?? result?.queue_status ?? "not_required";
-  const resultHasExecutedReconciliation = Boolean(
-    result &&
-      (["running", "completed", "completed_with_errors", "failed", "cancelled"].includes(resultReconciliationStatus) ||
-        ((result.reconciliation_job_ids ?? result.generation_job_ids ?? []).length > 0) ||
-        ((result.queue_completed ?? 0) > 0)),
-  );
-  const resultNeedsExplicitReconciliation = Boolean(
-    result && result.material_impact && resultReconciliationStatus === "pending_user_confirmation",
-  );
-  const resultDecisionTone =
-    resultReconciliationDecision === "structural_reconciliation"
-      ? ("warning" as const)
-      : resultReconciliationDecision === "localized_reconciliation"
-      ? ("success" as const)
-      : ("neutral" as const);
-  const resultDecisionLabel = result ? getReconciliationLabel(language, resultReconciliationDecision) : "";
-  const resultBannerTitle = result
-    ? resultHasExecutedReconciliation
-      ? byLanguage(language, {
-          en: "Deliverable reconciliation completed",
-          es: "Reconciliación de entregables completada",
-          pt: "Reconciliação de entregáveis concluída",
-        })
-      : result.material_impact
-      ? byLanguage(language, {
-          en: "Impact plan ready",
-          es: "Plan de impacto listo",
-          pt: "Plano de impacto pronto",
-        })
-      : byLanguage(language, {
-          en: "Decision documented without reconciliation",
-          es: "Decisión documentada sin reconciliación",
-          pt: "Decisão documentada sem reconciliação",
-        })
-    : "";
-  const resultActionLabel = result
-    ? resultReconciliationDecision === "structural_reconciliation"
-      ? byLanguage(language, {
-          en: "Reconcile impacted deliverables",
-          es: "Reconciliar entregables impactados",
-          pt: "Reconciliar entregáveis impactados",
-        })
-      : byLanguage(language, {
-          en: "Reconcile affected deliverables",
-          es: "Reconciliar entregables afectados",
-          pt: "Reconciliar entregáveis afetados",
-        })
-    : "";
-  const resultItem = result ? workspace?.items.find((item) => item.entry.id === result.resolved_entry.id) ?? null : null;
-  const decisionCounters = useMemo(() => {
-    return (workspace?.items ?? []).reduce(
-      (accumulator, item) => {
-        if (item.entry.status === "deferred" || item.entry.disposition === "defer") {
-          accumulator.delegated += 1;
-        } else if (item.entry.disposition === "block") {
-          accumulator.blocking += 1;
-        } else if (item.entry.status === "resolved") {
-          accumulator.answered += 1;
-        } else if (item.entry.disposition === "infer") {
-          accumulator.inferred += 1;
-        } else {
-          accumulator.pending += 1;
-        }
-        if (item.reconciliation_status === "pending_user_confirmation") {
-          accumulator.reconciliationPending += 1;
-        }
-        return accumulator;
-      },
-      {
-        answered: 0,
-        blocking: 0,
-        delegated: 0,
-        inferred: 0,
-        pending: 0,
-        reconciliationPending: 0,
-      },
-    );
-  }, [workspace?.items]);
-
-  useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
-    if (!unlocked) {
-      let alive = true;
-      deferStateUpdate(() => {
-        if (!alive) {
-          return;
-        }
-        setWorkspace(null);
-        setResult(null);
-        setStatus("ready");
-        setError("");
-      });
-      return () => {
-        alive = false;
-      };
-    }
-    let alive = true;
-    deferStateUpdate(() => {
-      if (alive) {
-        setStatus("loading");
-        setError("");
-      }
-    });
-    premiumEnrichmentApi
-      .getWorkspace(sessionId, 6)
-      .then((data) => {
-        if (!alive) {
-          return;
-        }
-        setWorkspace(data);
-        setStatus("ready");
-      })
-      .catch(() => {
-        if (!alive) {
-          return;
-        }
-        setWorkspace(null);
-        setError(
-          byLanguage(language, {
-            en: "Premium enrichment workspace could not be loaded.",
-            es: "No se pudo cargar el workspace de enriquecimiento Premium.",
-            pt: "Nao foi possivel carregar o workspace de enriquecimento Premium.",
-          }),
-        );
-        setStatus("error");
-      });
-    return () => {
-      alive = false;
-    };
-  }, [language, sessionId, unlocked]);
-
-  if (!unlocked) {
-    return (
-      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-        <UxaBadge tone="warning">
-          {byLanguage(language, {
-            en: "Step 2 locked",
-            es: "Paso 2 bloqueado",
-            pt: "Passo 2 bloqueado",
-          })}
-        </UxaBadge>
-        <h2 className="mt-3 text-[20px] font-black">
-          {byLanguage(language, {
-            en: "Premium enrichment starts only after Blueprint Pro activation",
-            es: "El enriquecimiento Pro inicia solo después de activar Blueprint Pro",
-            pt: "O enriquecimento Pro so comeca depois de ativar o Blueprint Pro",
-          })}
-        </h2>
-        <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
-          {byLanguage(language, {
-            en: "This workspace will load prioritized questions, impact analysis, and explicit deliverable reconciliation only after the professional entitlement is granted. Until then, Lean keeps the free Blueprint visible and explains the next commercial step.",
-            es: "Este workspace cargara preguntas priorizadas, analisis de impacto y reconciliacion explicita de entregables solo cuando el entitlement profesional este activo. Mientras tanto, Lean mantiene visible el Blueprint Free y explica el siguiente paso comercial.",
-            pt: "Este workspace carregara perguntas priorizadas, analise de impacto e reconciliacao explicita de entregaveis somente quando o entitlement profissional estiver ativo. Enquanto isso, o Lean mantem o Blueprint Free visivel e explica o proximo passo comercial.",
-          })}
-        </p>
-      </UxaSurface>
-    );
-  }
-
-  async function resolveItem(
-    item: PremiumEnrichmentItem,
-    selectedOptionKey = "",
-    customAnswer = "",
-    executionMode: "analyze_only" | "apply_reconciliation" = "analyze_only",
-  ) {
-    if (!sessionId || !unlocked) {
-      return;
-    }
-    const suggestedAnswer =
-      customAnswer ||
-      item.entry.assumed_answer ||
-      (selectedOptionKey
-        ? ""
-        : item.entry.suggested_answer ||
-          item.entry.answer_options.find((option) => option.recommended)?.label ||
-          "");
-    const maxDeliverables =
-      executionMode === "apply_reconciliation" ? Math.max(1, Math.min(item.ordered_regeneration_keys.length || 1, 12)) : 5;
-    setStatus("resolving");
-    setResolvingId(item.entry.id);
-    setError("");
-    try {
-      const data = await premiumEnrichmentApi.resolveItem(sessionId, item.entry.id, {
-        answer: suggestedAnswer,
-        execution_mode: executionMode,
-        selected_option_key: selectedOptionKey,
-        regenerate: executionMode === "apply_reconciliation",
-        max_deliverables: maxDeliverables,
-      });
-      const refreshed = await premiumEnrichmentApi.getWorkspace(sessionId, 6);
-      setResult(data);
-      setWorkspace(refreshed);
-      setStatus("ready");
-      setModalItem(null);
-    } catch {
-      setError(
-        byLanguage(language, {
-          en:
-            executionMode === "apply_reconciliation"
-              ? "The deliverable reconciliation could not be completed. Check backend availability and retry."
-              : "The answer could not be registered or analyzed. Check entitlement, permissions, or backend availability.",
-          es:
-            executionMode === "apply_reconciliation"
-              ? "No se pudo completar la reconciliación de entregables. Revisa el backend y vuelve a intentarlo."
-              : "No se pudo registrar o analizar la respuesta. Revisa entitlement, permisos o disponibilidad del backend.",
-          pt:
-            executionMode === "apply_reconciliation"
-              ? "Nao foi possivel concluir a reconciliacao de entregaveis. Revise o backend e tente novamente."
-              : "Nao foi possivel registrar ou analisar a resposta. Revise entitlement, permissoes ou disponibilidade do backend.",
-        }),
-      );
-      setStatus("error");
-    } finally {
-      setResolvingId("");
-    }
-  }
-
-  async function applySuggestedReconciliation() {
-    if (!result || !resultItem) {
-      return;
-    }
-    await resolveItem(
-      resultItem,
-      "",
-      resultItem.entry.assumed_answer || result.resolved_entry.assumed_answer || resultItem.entry.suggested_answer || "",
-      "apply_reconciliation",
-    );
-  }
-
-  async function deferItemToAcp(item: PremiumEnrichmentItem) {
-    if (!sessionId || !unlocked) {
-      return;
-    }
-    setStatus("resolving");
-    setResolvingId(item.entry.id);
-    setError("");
-    try {
-      await premiumEnrichmentApi.deferToAcp(sessionId, item.entry.id);
-      const refreshed = await premiumEnrichmentApi.getWorkspace(sessionId, 6);
-      setWorkspace(refreshed);
-      setStatus("ready");
-    } catch {
-      setError(
-        byLanguage(language, {
-          en: "Could not defer item to ACP.",
-          es: "No se pudo diferir el ítem al ACP.",
-          pt: "Não foi possível adiar o item para o ACP.",
-        }),
-      );
-      setStatus("error");
-    } finally {
-      setResolvingId("");
-    }
-  }
-
-  async function dismissItem(item: PremiumEnrichmentItem) {
-    if (!sessionId || !unlocked) {
-      return;
-    }
-    setStatus("resolving");
-    setResolvingId(item.entry.id);
-    setError("");
-    try {
-      await premiumEnrichmentApi.dismissItem(sessionId, item.entry.id);
-      const refreshed = await premiumEnrichmentApi.getWorkspace(sessionId, 6);
-      setWorkspace(refreshed);
-      setStatus("ready");
-    } catch {
-      setError(
-        byLanguage(language, {
-          en: "Could not dismiss item.",
-          es: "No se pudo descartar el ítem.",
-          pt: "Não foi possível descartar o item.",
-        }),
-      );
-      setStatus("error");
-    } finally {
-      setResolvingId("");
-    }
-  }
-
-  const displayedItems = (workspace?.items ?? []).filter((item) => {
-    if (activeTab === "deferred") {
-      return item.entry.status === "deferred" || item.entry.disposition === "defer";
-    }
-    if (activeTab === "resolved") {
-      return item.entry.status === "resolved";
-    }
-    return (
-      item.entry.status !== "deferred" &&
-      item.entry.status !== "resolved" &&
-      item.entry.status !== "dismissed" &&
-      item.entry.disposition !== "defer"
-    );
-  });
-
-  return (
-    <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-      {modalItem ? (
-        <EnrichmentInputModal
-          item={modalItem}
-          onClose={() => setModalItem(null)}
-          onSubmit={(customAnswer) => resolveItem(modalItem, "", customAnswer)}
-          resolving={status === "resolving" && resolvingId === modalItem.entry.id}
-        />
-      ) : null}
-
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <UxaBadge tone={unlocked ? "success" : "warning"}>
-            {byLanguage(language, {
-              en: "Premium enrichment",
-              es: "Enriquecimiento Premium",
-              pt: "Enriquecimento Premium",
-            })}
-          </UxaBadge>
-          <h2 className="mt-3 text-[20px] font-black">
-            {byLanguage(language, {
-              en: "Resolve only what improves the professional Blueprint",
-              es: "Resuelve solo lo que mejora el Blueprint profesional",
-              pt: "Resolva apenas o que melhora o Blueprint profissional",
-            })}
-          </h2>
-          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
-            {workspace?.value_summary ??
-              byLanguage(language, {
-                en: "Basic findings become prioritized opportunities for Premium. The system enriches selectively instead of asking everything again.",
-                es: "Los hallazgos de Basico se convierten en oportunidades priorizadas para Premium. El sistema enriquece selectivamente sin preguntar todo otra vez.",
-                pt: "Os achados do Basico viram oportunidades priorizadas para Premium. O sistema enriquece seletivamente sem perguntar tudo de novo.",
-              })}
-          </p>
-        </div>
-        <div className="grid min-w-[280px] grid-cols-3 gap-2">
-          {[
-            {
-              key: "prioritized",
-              count: workspace?.prioritized_count ?? 0,
-              label: byLanguage(language, { en: "Prioritized", es: "Priorizadas", pt: "Priorizadas" }),
-            },
-            {
-              key: "deferred",
-              count: workspace?.deferred_count ?? 0,
-              label: byLanguage(language, { en: "Deferred", es: "Diferidas", pt: "Diferidas" }),
-            },
-            {
-              key: "resolved",
-              count: workspace?.resolved_count ?? 0,
-              label: byLanguage(language, { en: "Resolved", es: "Resueltas", pt: "Resolvidas" }),
-            },
-          ].map(({ key, count, label }) => {
-            const isActive = activeTab === key;
-            return (
-              <button
-                type="button"
-                onClick={() => setActiveTab(key as "prioritized" | "deferred" | "resolved")}
-                className={`cursor-pointer rounded-[var(--uxa-radius-lg)] p-3 text-center transition-all ${
-                  isActive
-                    ? "bg-[var(--uxa-color-brand)] text-white shadow-sm ring-2 ring-[var(--uxa-color-brand)]"
-                    : "bg-[var(--uxa-color-muted-panel)] hover:bg-[var(--uxa-color-border)]"
-                }`}
-                key={key}
-              >
-                <p className={`text-[18px] font-black ${isActive ? "text-white" : ""}`}>{count}</p>
-                <p
-                  className={`mt-1 text-[10px] font-black uppercase tracking-[0.14em] ${
-                    isActive ? "text-white/90" : "text-[var(--uxa-color-ink-muted)]"
-                  }`}
-                >
-                  {label}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/75 p-3.5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--uxa-color-ink-muted)]">
-              {byLanguage(language, {
-                en: "Decision policy",
-                es: "Politica de decisiones",
-                pt: "Politica de decisoes",
-              })}
-            </p>
-            <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-              {byLanguage(language, {
-                en: "Answering saves and analyzes impact. Deliverables are reconciled only when you confirm the queue. Delegated decisions travel to ACP/implementation without hidden generation.",
-                es: "Responder guarda y analiza impacto. Los entregables solo se reconcilian cuando confirmas la cola. Las decisiones delegadas viajan a ACP/implementacion sin generacion oculta.",
-                pt: "Responder salva e analisa impacto. Entregaveis so sao reconciliados quando voce confirma a fila. Decisoes delegadas seguem para ACP/implementacao sem geracao oculta.",
-              })}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <UxaBadge tone={decisionCounters.blocking ? "danger" : "neutral"}>
-              {decisionCounters.blocking} {byLanguage(language, { en: "blocking", es: "bloqueante(s)", pt: "bloqueante(s)" })}
-            </UxaBadge>
-            <UxaBadge tone={decisionCounters.pending ? "warning" : "neutral"}>
-              {decisionCounters.pending} {byLanguage(language, { en: "pending", es: "pendiente(s)", pt: "pendente(s)" })}
-            </UxaBadge>
-            <UxaBadge tone={decisionCounters.inferred ? "info" : "neutral"}>
-              {decisionCounters.inferred} {byLanguage(language, { en: "inferred", es: "inferida(s)", pt: "inferida(s)" })}
-            </UxaBadge>
-            <UxaBadge tone={decisionCounters.delegated ? "warning" : "neutral"}>
-              {decisionCounters.delegated} {byLanguage(language, { en: "delegated", es: "delegada(s)", pt: "delegada(s)" })}
-            </UxaBadge>
-            <UxaBadge tone={decisionCounters.reconciliationPending ? "warning" : "neutral"}>
-              {decisionCounters.reconciliationPending}{" "}
-              {byLanguage(language, { en: "to reconcile", es: "por reconciliar", pt: "para reconciliar" })}
-            </UxaBadge>
-          </div>
-        </div>
-      </div>
-
-      {status === "loading" ? (
-        <p className="mt-4 text-[13px] text-[var(--uxa-color-ink-soft)]">
-          {byLanguage(language, {
-            en: "Loading prioritized enrichment backlog...",
-            es: "Cargando backlog priorizado de enriquecimiento...",
-            pt: "Carregando backlog priorizado de enriquecimento...",
-          })}
-        </p>
-      ) : null}
-
-      {error ? (
-        <p className="mt-4 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)] px-4 py-3 text-[13px] text-[var(--uxa-color-ink-soft)]">
-          {error}
-        </p>
-      ) : null}
-
-      {/* Visual FIFO reconciliation queue progress banner. */}
-      {result ? (
-        <div className="mt-4 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-brand-muted)] bg-[var(--uxa-color-muted-panel)] p-4.5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "flex h-2.5 w-2.5 rounded-full",
-                  resultHasExecutedReconciliation
-                    ? "bg-[var(--uxa-color-brand)] animate-pulse"
-                    : result.material_impact
-                    ? "bg-[var(--uxa-color-brand)]"
-                    : "bg-[var(--uxa-state-success)]",
-                )}
-              />
-              <p className="text-[13px] font-bold text-[var(--uxa-color-ink-rich)]">
-                {resultBannerTitle}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <UxaBadge tone={resultDecisionTone}>{resultDecisionLabel}</UxaBadge>
-              <UxaBadge tone="info">
-                {result.ordered_regeneration_keys.length}{" "}
-                {byLanguage(language, {
-                  en: "deliverables under review",
-                  es: "entregables bajo revisión",
-                  pt: "entregaveis em revisao",
-                })}
-              </UxaBadge>
-              {resultHasExecutedReconciliation ? (
-                <>
-                  <UxaBadge tone="success">
-                    {(result.reconciled_deliverable_keys ?? result.regenerated_deliverable_keys).length}{" "}
-                    {byLanguage(language, { en: "reconciled", es: "reconciliados", pt: "reconciliados" })}
-                  </UxaBadge>
-                  <UxaBadge tone="neutral">
-                    {result.preserved_deliverable_keys.length}{" "}
-                    {byLanguage(language, { en: "preserved", es: "conservados", pt: "preservados" })}
-                  </UxaBadge>
-                </>
-              ) : null}
-            </div>
-          </div>
-
-          {resultHasExecutedReconciliation && result.queue_total ? (
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-[11px] font-medium text-[var(--uxa-color-ink-muted)] mb-1">
-                <span>
-                  {byLanguage(language, {
-                    en: `Completed: ${result.queue_completed ?? 0} of ${result.queue_total} deliverables in FIFO order`,
-                    es: `Completado: ${result.queue_completed ?? 0} de ${result.queue_total} entregables en orden FIFO`,
-                    pt: `Concluído: ${result.queue_completed ?? 0} de ${result.queue_total} entregas em ordem FIFO`,
-                  })}
-                </span>
-                <span>
-                  {Math.round(((result.queue_completed ?? 0) / Math.max(1, result.queue_total)) * 100)}%
-                </span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--uxa-color-border)]">
-                <div
-                  className="h-full bg-[var(--uxa-color-brand)] transition-all duration-500 ease-out"
-                  style={{
-                    width: `${Math.round(((result.queue_completed ?? 0) / Math.max(1, result.queue_total)) * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
-          ) : null}
-
-          <p className="mt-2.5 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-            {result.impact_summary || result.comparison_summary}
-          </p>
-          {result.impact_summary && result.impact_summary !== result.comparison_summary ? (
-            <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">{result.comparison_summary}</p>
-          ) : null}
-          {result.ordered_regeneration_keys.length ? (
-            <details className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/80 px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
-              <summary className="cursor-pointer font-black text-[var(--uxa-color-brand)]">
-                {byLanguage(language, {
-                  en: "View impact before reconciling",
-                  es: "Ver impacto antes de reconciliar",
-                  pt: "Ver impacto antes de reconciliar",
-                })}
-              </summary>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {result.ordered_regeneration_keys.map((key) => (
-                  <UxaBadge key={key} tone="neutral">{formatToken(key)}</UxaBadge>
-                ))}
-              </div>
-            </details>
-          ) : null}
-          {resultNeedsExplicitReconciliation ? (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/70 px-3.5 py-3">
-              <p className="text-[12px] leading-5 text-[var(--uxa-color-ink-rich)]">{result.recommended_action}</p>
-              {resultItem ? (
-                <button
-                  className="uxa-button uxa-button--primary justify-center gap-1.5"
-                  disabled={!unlocked || status === "resolving"}
-                  onClick={() => void applySuggestedReconciliation()}
-                  type="button"
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  {status === "resolving" && resolvingId === resultItem.entry.id
-                    ? byLanguage(language, {
-                        en: "Reconciling...",
-                        es: "Reconciliando...",
-                        pt: "Reconciliando...",
-                      })
-                    : resultActionLabel}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="mt-5 grid gap-3">
-        {displayedItems.length ? (
-          displayedItems.map((item) => {
-            const isResolvingThis = resolvingId === item.entry.id;
-            const dispositionBadge = getPremiumDispositionBadge(language, item);
-            const reconciliationBadge = getPremiumReconciliationBadge(language, item);
-            const itemNeedsReconciliation =
-              item.entry.status === "resolved" &&
-              Boolean(item.material_impact) &&
-              item.reconciliation_status === "pending_user_confirmation";
-            return (
-              <div
-                className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-surface)] p-4.5 transition-shadow hover:shadow-xs"
-                key={item.entry.id}
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <UxaBadge tone={item.entry.status === "resolved" ? "success" : item.entry.status === "deferred" ? "warning" : "info"}>
-                        {formatToken(item.entry.status)}
-                      </UxaBadge>
-                      <UxaBadge tone={dispositionBadge.tone}>{dispositionBadge.label}</UxaBadge>
-                      <UxaBadge tone={reconciliationBadge.tone}>{reconciliationBadge.label}</UxaBadge>
-                      <UxaBadge tone="neutral">{formatToken(item.entry.source_stage)}</UxaBadge>
-                      <UxaBadge tone="success">{Math.round(item.priority_score)}%</UxaBadge>
-                    </div>
-                    <h3 className="mt-2.5 text-[15px] font-black text-[var(--uxa-color-ink-rich)]">
-                      {item.entry.title}
-                    </h3>
-                    <p className="mt-1 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-                      {item.priority_reason}
-                    </p>
-                    {item.entry.assumed_answer ? (
-                      <div className="mt-2.5 rounded-[var(--uxa-radius-md)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-rich)] border-l-2 border-[var(--uxa-color-brand)]">
-                        <span className="font-semibold text-[var(--uxa-color-brand)]">
-                          {byLanguage(language, { en: "Resolved answer: ", es: "Respuesta registrada: ", pt: "Resposta registrada: " })}
-                        </span>
-                        {item.entry.assumed_answer}
-                      </div>
-                    ) : item.entry.suggested_answer ? (
-                      <div className="mt-2.5 rounded-[var(--uxa-radius-md)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)] border-l-2 border-[var(--uxa-color-brand)]">
-                        <span className="font-semibold text-[var(--uxa-color-brand)]">
-                          {byLanguage(language, { en: "Suggestion: ", es: "Sugerencia: ", pt: "Sugestão: " })}
-                        </span>
-                        {item.entry.suggested_answer}
-                      </div>
-                    ) : null}
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <UxaBadge tone="info">
-                        {item.ordered_regeneration_keys.length}{" "}
-                        {byLanguage(language, { en: "affected deliverables", es: "entregables afectados", pt: "entregas afetadas" })}
-                      </UxaBadge>
-                      <UxaBadge tone="neutral">
-                        {item.unaffected_deliverable_count}{" "}
-                        {byLanguage(language, { en: "preserved", es: "conservados", pt: "preservados" })}
-                      </UxaBadge>
-                      {itemNeedsReconciliation ? (
-                        <UxaBadge tone="warning">
-                          {byLanguage(language, {
-                            en: "Reconciliation pending",
-                            es: "Reconciliación pendiente",
-                            pt: "Reconciliação pendente",
-                          })}
-                        </UxaBadge>
-                      ) : null}
-                    </div>
-                    <details className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white/70 px-3 py-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
-                      <summary className="cursor-pointer font-black text-[var(--uxa-color-brand)]">
-                        {byLanguage(language, {
-                          en: "View impact",
-                          es: "Ver impacto",
-                          pt: "Ver impacto",
-                        })}
-                      </summary>
-                      <div className="mt-2 grid gap-2 md:grid-cols-2">
-                        <div>
-                          <p className="font-black text-[var(--uxa-color-ink-rich)]">
-                            {byLanguage(language, { en: "Affected deliverables", es: "Entregables afectados", pt: "Entregaveis afetados" })}
-                          </p>
-                          <div className="mt-1 flex flex-wrap gap-1.5">
-                            {(item.ordered_regeneration_keys.length ? item.ordered_regeneration_keys : item.affected_deliverable_keys).map((key) => (
-                              <UxaBadge key={key} tone="neutral">{formatToken(key)}</UxaBadge>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <p className="font-black text-[var(--uxa-color-ink-rich)]">
-                            {byLanguage(language, { en: "Dependencies", es: "Dependencias", pt: "Dependencias" })}
-                          </p>
-                          <div className="mt-1 flex flex-wrap gap-1.5">
-                            {(item.changed_dependency_keys.length ? item.changed_dependency_keys : item.entry.dependency_keys).map((key) => (
-                              <UxaBadge key={key} tone="info">{formatToken(key)}</UxaBadge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </details>
-                  </div>
-
-                  {/* 3 Opciones Clave Requeridas */}
-                  <div className="flex min-w-[240px] flex-col gap-2 shrink-0">
-                    {/* Opción 1: Enriquecer con input del cliente / Modificar respuesta */}
-                    <button
-                      className="uxa-button uxa-button--primary justify-center gap-1.5"
-                      disabled={!unlocked || status === "resolving"}
-                      onClick={() => setModalItem(item)}
-                      type="button"
-                    >
-                      <Edit3 className="h-3.5 w-3.5" />
-                      {item.entry.status === "resolved"
-                        ? byLanguage(language, {
-                            en: "Edit answer",
-                            es: "Modificar respuesta",
-                            pt: "Modificar resposta",
-                          })
-                        : item.entry.status === "deferred"
-                        ? byLanguage(language, {
-                            en: "Resolve now",
-                            es: "Resolver ahora",
-                            pt: "Resolver agora",
-                          })
-                        : byLanguage(language, {
-                            en: "Answer and analyze",
-                            es: "Responder y analizar",
-                            pt: "Responder e analisar",
-                          })}
-                    </button>
-
-                    {itemNeedsReconciliation ? (
-                      <button
-                        className="uxa-button uxa-button--secondary justify-center gap-1.5 text-[var(--uxa-color-brand)] border-[var(--uxa-color-brand-muted)] hover:bg-[var(--uxa-color-brand-muted)]/20"
-                        disabled={!unlocked || status === "resolving"}
-                        onClick={() =>
-                          void resolveItem(
-                            item,
-                            "",
-                            item.entry.assumed_answer || item.entry.suggested_answer || "",
-                            "apply_reconciliation",
-                          )
-                        }
-                        type="button"
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        {isResolvingThis
-                          ? byLanguage(language, {
-                              en: "Reconciling...",
-                              es: "Reconciliando...",
-                              pt: "Reconciliando...",
-                            })
-                          : byLanguage(language, {
-                              en: "Reconcile affected deliverables",
-                              es: "Reconciliar entregables afectados",
-                              pt: "Reconciliar entregáveis afetados",
-                            })}
-                      </button>
-                    ) : null}
-
-                    {/* Opción 2: Diferir a ACP */}
-                    {item.entry.status !== "deferred" && item.entry.status !== "resolved" ? (
-                      <button
-                        className="uxa-button uxa-button--secondary justify-center gap-1.5 text-[var(--uxa-color-brand)] border-[var(--uxa-color-brand-muted)] hover:bg-[var(--uxa-color-brand-muted)]/20"
-                        disabled={!unlocked || status === "resolving"}
-                        onClick={() => void deferItemToAcp(item)}
-                        type="button"
-                      >
-                        <FastForward className="h-3.5 w-3.5" />
-                        {isResolvingThis
-                          ? byLanguage(language, { en: "Deferring...", es: "Diriendo...", pt: "Adiado..." })
-                          : byLanguage(language, {
-                              en: "Defer to ACP",
-                              es: "Diferir a ACP",
-                              pt: "Adiar para ACP",
-                            })}
-                      </button>
-                    ) : null}
-
-                    {/* Opción 3: Descartar */}
-                    <button
-                      className="uxa-button uxa-button--secondary justify-center gap-1.5 text-[var(--uxa-state-danger)] border-[var(--uxa-color-border)] hover:bg-[var(--uxa-state-danger-bg)] hover:border-[var(--uxa-state-danger)]"
-                      disabled={!unlocked || status === "resolving"}
-                      onClick={() => void dismissItem(item)}
-                      type="button"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      {isResolvingThis
-                        ? byLanguage(language, { en: "Dismissing...", es: "Descartando...", pt: "Descartando..." })
-                        : byLanguage(language, {
-                            en: "Dismiss",
-                            es: "Descartar",
-                            pt: "Descartar",
-                          })}
-                    </button>
-
-                    {/* Usar sugerencia directa (acelerador) */}
-                    {item.entry.suggested_answer && item.entry.status !== "resolved" ? (
-                      <button
-                        className="mt-1 flex items-center justify-center gap-1 text-[11px] font-bold text-[var(--uxa-color-brand)] hover:underline"
-                        disabled={!unlocked || status === "resolving"}
-                        onClick={() => void resolveItem(item)}
-                        type="button"
-                      >
-                        <Zap className="h-3 w-3" />
-                        {byLanguage(language, {
-                          en: "Use suggestion and analyze",
-                          es: "Usar sugerencia y analizar",
-                          pt: "Usar sugestao e analisar",
-                        })}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        ) : (
-          <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] p-8 text-center">
-            <p className="text-[15px] font-bold text-[var(--uxa-color-ink-rich)]">
-              {activeTab === "prioritized"
-                ? byLanguage(language, {
-                    en: "All clear! No prioritized items pending for the professional Blueprint.",
-                    es: "¡Excelente! No hay pendientes prioritarios por resolver para el Blueprint profesional.",
-                    pt: "Excelente! Não há itens prioritários pendentes para o Blueprint profissional.",
-                  })
-                : activeTab === "deferred"
-                ? byLanguage(language, {
-                    en: "No items deferred to ACP.",
-                    es: "No hay ítems diferidos al ACP.",
-                    pt: "Nenhum item adiado para o ACP.",
-                  })
-                : byLanguage(language, {
-                    en: "No resolved items yet.",
-                    es: "Aún no hay ítems resueltos.",
-                    pt: "Ainda não há itens resolvidos.",
-                  })}
-            </p>
-            <p className="mt-1.5 text-[12px] text-[var(--uxa-color-ink-soft)]">
-              {activeTab === "prioritized"
-                ? byLanguage(language, {
-                    en: "All questions have been resolved or deferred to ACP.",
-                    es: "Todas las preguntas han sido resueltas o diferidas al paquete de construcción (ACP).",
-                    pt: "Todas as perguntas foram resolvidas ou adiadas para o pacote de construção (ACP).",
-                  })
-                : null}
-            </p>
-          </div>
-        )}
-      </div>
-    </UxaSurface>
-  );
-}
-
-function BlueprintProLifecyclePanel({
-  canOpenAcp,
+function BlueprintProAccessGate({
   checkoutState,
   downloadGate,
   premiumAssetCount,
@@ -3258,7 +3005,6 @@ function BlueprintProLifecyclePanel({
   requestSent,
   unlocked,
 }: {
-  canOpenAcp: boolean;
   checkoutState?: string | null;
   downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
   premiumAssetCount: number;
@@ -3269,36 +3015,6 @@ function BlueprintProLifecyclePanel({
 }) {
   const { language } = useLanguage();
   const canSelfActivate = checkoutState === "available" || checkoutState === "pending";
-  const badgeTone = !unlocked
-    ? requestSent
-      ? "info"
-      : "warning"
-    : downloadGate.allowed
-      ? "success"
-      : "warning";
-  const badgeLabel = !unlocked
-    ? requestSent
-      ? byLanguage(language, {
-          en: "Access requested",
-          es: "Acceso solicitado",
-          pt: "Acesso solicitado",
-        })
-      : byLanguage(language, {
-          en: "Step 1 · Activate Blueprint Pro",
-          es: "Paso 1 · Activar Blueprint Pro",
-          pt: "Passo 1 · Ativar Blueprint Pro",
-        })
-    : downloadGate.allowed
-      ? byLanguage(language, {
-          en: "Ready to download",
-          es: "Listo para descargar",
-          pt: "Pronto para baixar",
-        })
-      : byLanguage(language, {
-          en: "Download permission required",
-          es: "Permiso de descarga requerido",
-          pt: "Permissao de download obrigatoria",
-        });
   const title = !unlocked
     ? requestSent
       ? byLanguage(language, {
@@ -3310,171 +3026,81 @@ function BlueprintProLifecyclePanel({
         ? byLanguage(language, {
             en: "Activate Blueprint Pro before opening the professional workspace",
             es: "Activa Blueprint Pro antes de abrir el workspace profesional",
-            pt: "Ative o Blueprint Pro antes de abrir o workspace profissional",
+            pt: "Ative Blueprint Pro antes de abrir o workspace profissional",
           })
         : byLanguage(language, {
             en: "Request Blueprint Pro access before continuing",
             es: "Solicita acceso a Blueprint Pro antes de continuar",
-            pt: "Solicite acesso ao Blueprint Pro antes de continuar",
+            pt: "Solicite acesso a Blueprint Pro antes de continuar",
           })
-    : downloadGate.allowed
-      ? canOpenAcp
-        ? byLanguage(language, {
-          en: "Blueprint Pro is active and ready to download or continue to ACP",
-          es: "Blueprint Pro esta activo y listo para descargar o continuar a ACP",
-          pt: "Blueprint Pro esta ativo e pronto para baixar ou continuar para ACP",
-        })
-        : byLanguage(language, {
-            en: "Blueprint Pro is active and preparing professional results",
-            es: "Blueprint Pro esta activo y preparando resultados profesionales",
-            pt: "Blueprint Pro esta ativo e preparando resultados profissionais",
-          })
-      : byLanguage(language, {
-          en: "The professional workspace is active, but export is still protected",
-          es: "El workspace profesional esta activo, pero la exportacion sigue protegida",
-          pt: "O workspace profissional esta ativo, mas a exportacao ainda esta protegida",
-        });
+    : byLanguage(language, {
+        en: "The professional workspace is active, but export is still protected",
+        es: "El workspace profesional esta activo, pero la exportacion sigue protegida",
+        pt: "O workspace profissional esta ativo, mas a exportacao segue protegida",
+      });
   const description = !unlocked
     ? requestSent
       ? byLanguage(language, {
-          en: "The request was already registered. The professional workspace, generated assets, and authenticated ZIP download will appear only after approval or activation is completed.",
-          es: "La solicitud ya fue registrada. El workspace profesional, los activos generados y la descarga ZIP autenticada apareceran solo cuando termine la aprobacion o activacion.",
-          pt: "A solicitacao ja foi registrada. O workspace profissional, os ativos gerados e o download ZIP autenticado aparecerao apenas quando a aprovacao ou ativacao terminar.",
+          en: "The request was registered. The professional workspace appears when approval or activation completes.",
+          es: "La solicitud fue registrada. El workspace profesional aparece cuando termine la aprobacion o activacion.",
+          pt: "A solicitacao foi registrada. O workspace profissional aparece quando a aprovacao ou ativacao terminar.",
         })
       : canSelfActivate
         ? byLanguage(language, {
-            en: "Blueprint Free remains visible, but the professional enrichment backlog and downloadable bundle are gated until the upgrade is completed.",
-            es: "Blueprint Free sigue visible, pero el backlog de enriquecimiento profesional y el bundle descargable permanecen protegidos hasta completar el upgrade.",
-            pt: "O Blueprint Free continua visivel, mas o backlog de enriquecimento profissional e o bundle para download permanecem protegidos ate concluir o upgrade.",
+            en: "Blueprint Free remains visible while checkout enables the professional workspace, diagrams and authenticated ZIP download.",
+            es: "Blueprint Free sigue visible mientras el checkout habilita el workspace profesional, diagramas y descarga ZIP autenticada.",
+            pt: "Blueprint Free continua visivel enquanto o checkout habilita o workspace profissional, diagramas e download ZIP autenticado.",
           })
         : byLanguage(language, {
-            en: "This workspace requires an explicit approval flow before the premium experience can start.",
-            es: "Este workspace requiere un flujo de aprobacion explicita antes de iniciar la experiencia premium.",
-            pt: "Este workspace exige um fluxo de aprovacao explicita antes de iniciar a experiencia premium.",
+            en: "This workspace requires explicit approval before the premium experience can start.",
+            es: "Este workspace requiere aprobacion explicita antes de iniciar la experiencia premium.",
+            pt: "Este workspace exige aprovacao explicita antes de iniciar a experiencia premium.",
           })
-    : downloadGate.allowed
-      ? byLanguage(language, {
-          en: "Review the generated professional assets and download the governed ZIP when it is ready. ACP remains the next commercial step for implementation questions and construction assets.",
-          es: "Revisa los activos profesionales generados y descarga el ZIP gobernado cuando este listo. ACP sigue siendo el siguiente paso comercial para preguntas de implementacion y activos de construccion.",
-          pt: "Revise os ativos profissionais gerados e baixe o ZIP governado quando estiver pronto. O ACP continua sendo o proximo passo comercial para perguntas de implementacao e ativos de construcao.",
-        })
-      : downloadGate.detail;
-  const nextStepLabel = !unlocked
-    ? requestSent
-      ? byLanguage(language, {
-          en: "Waiting for approval",
-          es: "Esperando aprobacion",
-          pt: "Aguardando aprovacao",
-        })
-      : canSelfActivate
-        ? byLanguage(language, {
-            en: "Next: acquire Blueprint Pro",
-            es: "Siguiente: adquirir Blueprint Pro",
-            pt: "Proximo: adquirir Blueprint Pro",
-          })
-        : byLanguage(language, {
-            en: "Next: request access",
-            es: "Siguiente: solicitar acceso",
-            pt: "Proximo: solicitar acesso",
-          })
-    : canOpenAcp
-      ? byLanguage(language, {
-          en: "Next: continue to ACP when you decide to build",
-          es: "Siguiente: continuar a ACP cuando decidas construir",
-          pt: "Proximo: continuar para ACP quando decidir construir",
-        })
-      : downloadGate.allowed
-        ? byLanguage(language, {
-            en: "Next: download or request ACP",
-            es: "Siguiente: descargar o solicitar ACP",
-            pt: "Proximo: baixar ou solicitar ACP",
-          })
-        : byLanguage(language, {
-            en: "Next: review workspace export permissions",
-            es: "Siguiente: revisar permisos de exportacion del workspace",
-            pt: "Proximo: revisar permissoes de exportacao do workspace",
-          });
-  const progress = Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round(
-        !unlocked
-          ? requestSent
-            ? 35
-            : 22
-          : downloadGate.allowed
-            ? 100
-            : Math.max(productProgress, 68),
-      ),
-    ),
-  );
+    : downloadGate.detail;
+  const progress = Math.max(0, Math.min(100, Math.round(unlocked ? Math.max(productProgress, 68) : requestSent ? 35 : 22)));
 
   return (
-    <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <UxaSurface className="p-4">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <UxaBadge tone={badgeTone}>{badgeLabel}</UxaBadge>
-            <span className="md:hidden text-[12px] font-semibold text-[var(--uxa-color-ink-soft)]">
-              {downloadGate.label} • {premiumAssetCount} {byLanguage(language, { en: "assets ready", es: "activos listos", pt: "ativos prontos" })}
-            </span>
+            <UxaBadge tone={!unlocked ? (requestSent ? "info" : "warning") : "warning"}>
+              {!unlocked
+                ? requestSent
+                  ? byLanguage(language, { en: "Access requested", es: "Acceso solicitado", pt: "Acesso solicitado" })
+                  : byLanguage(language, { en: "Activate Blueprint Pro", es: "Activar Blueprint Pro", pt: "Ativar Blueprint Pro" })
+                : downloadGate.label}
+            </UxaBadge>
+            {purchasing ? (
+              <UxaBadge tone="info">
+                {byLanguage(language, { en: "Processing", es: "Procesando", pt: "Processando" })}
+              </UxaBadge>
+            ) : null}
           </div>
-          <h2 className="mt-3 text-[20px] font-black">{title}</h2>
-          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{description}</p>
+          <h2 className="mt-3 text-[20px] font-black text-[var(--uxa-color-ink)]">{title}</h2>
+          <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{description}</p>
         </div>
-        <div className="hidden md:grid min-w-[280px] grid-cols-2 gap-2">
-          {[
-            {
-              label: byLanguage(language, { en: "Current state", es: "Estado actual", pt: "Estado atual" }),
-              value: purchasing
-                ? byLanguage(language, { en: "Processing", es: "Procesando", pt: "Processando" })
-                : unlocked
-                  ? byLanguage(language, { en: "Active", es: "Activo", pt: "Ativo" })
-                  : requestSent
-                    ? byLanguage(language, { en: "Requested", es: "Solicitado", pt: "Solicitado" })
-                    : byLanguage(language, { en: "Pending", es: "Pendiente", pt: "Pendente" }),
-            },
-            {
-              label: byLanguage(language, { en: "Premium assets", es: "Activos premium", pt: "Ativos premium" }),
-              value: String(premiumAssetCount),
-            },
-            {
-              label: byLanguage(language, { en: "Download gate", es: "Gate de descarga", pt: "Gate de download" }),
-              value: downloadGate.label,
-            },
-            {
-              label: byLanguage(language, { en: "What follows", es: "Lo que sigue", pt: "O que vem depois" }),
-              value: canOpenAcp
-                ? "ACP"
-                : unlocked
-                  ? byLanguage(language, { en: "ACP request", es: "Solicitud ACP", pt: "Solicitacao ACP" })
-                  : byLanguage(language, { en: "Activation", es: "Activacion", pt: "Ativacao" }),
-            },
-          ].map((metric) => (
-            <div
-              className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white/75 p-4"
-              key={metric.label}
-            >
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--uxa-color-ink-muted)]">
-                {metric.label}
-              </p>
-              <p className="mt-2 text-[16px] font-black text-[var(--uxa-color-ink)]">{metric.value}</p>
-            </div>
-          ))}
+        <div className="grid min-w-[240px] grid-cols-2 gap-2">
+          <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
+              {byLanguage(language, { en: "Progress", es: "Progreso", pt: "Progresso" })}
+            </p>
+            <p className="mt-1 text-[16px] font-black">{progress}%</p>
+          </div>
+          <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
+              {byLanguage(language, { en: "Assets", es: "Activos", pt: "Ativos" })}
+            </p>
+            <p className="mt-1 text-[16px] font-black">{premiumAssetCount}</p>
+          </div>
         </div>
       </div>
-
-      <div className="mt-5">
-        <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-semibold text-[var(--uxa-color-ink-soft)]">
-          <span>{nextStepLabel}</span>
-          <span>{progress}%</span>
-        </div>
+      <div className="mt-4">
         <UxaProcessingStrip
           label={byLanguage(language, {
-            en: "Blueprint Pro lifecycle progress",
-            es: "Progreso del ciclo de vida de Blueprint Pro",
-            pt: "Progresso do ciclo de vida do Blueprint Pro",
+            en: "Blueprint Pro access progress",
+            es: "Progreso de acceso Blueprint Pro",
+            pt: "Progresso de acesso Blueprint Pro",
           })}
           value={progress}
         />
@@ -3483,142 +3109,90 @@ function BlueprintProLifecyclePanel({
   );
 }
 
-function BlueprintProTrackingStrip({
+function BlueprintProPostUpgradeExperience({
+  canOpenAcp,
+  checkoutState,
   downloadGate,
-  onProcessPending,
-  onRetryFailed,
   premiumAssetCount,
-  processingDisabled,
+  productBuild,
   productProgress,
-  status,
+  purchasing,
+  requestSent,
+  sessionId,
   unlocked,
+  viewModel,
 }: {
+  canOpenAcp: boolean;
+  checkoutState?: string | null;
   downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
-  onProcessPending: () => void | Promise<unknown>;
-  onRetryFailed: () => void | Promise<unknown>;
   premiumAssetCount: number;
-  processingDisabled: boolean;
+  productBuild: ProductBuildStatusView;
   productProgress: number;
-  status: ProductBuildStatus | null;
+  purchasing: boolean;
+  requestSent: boolean;
+  sessionId: string;
   unlocked: boolean;
+  viewModel: ReturnType<typeof buildProductSaasViewModel>;
 }) {
   const { language } = useLanguage();
-  const queue = status?.processing_queue ?? null;
-  const failedCount =
-    queue?.failed_count ??
-    status?.deliverables.filter((item) => item.state === "error").length ??
-    0;
-  const pendingCount =
-    queue?.pending_count ??
-    status?.deliverables.filter((item) => item.state === "pending" || item.state === "stale").length ??
-    0;
-  const activeCount =
-    queue?.processing_count ??
-    status?.deliverables.filter((item) => item.state === "queued" || item.state === "generating").length ??
-    0;
-  const availableCount =
-    status?.deliverables.filter((item) => item.state === "available").length ??
-    premiumAssetCount;
-  const totalCount = status?.progress.total_units || status?.deliverables.length || premiumAssetCount;
-  const progress = Math.max(
-    0,
-    Math.min(100, Math.round(status?.progress.percent ?? productProgress)),
-  );
-  const isRunning =
-    queue?.active ||
-    status?.lifecycle === "queued" ||
-    status?.lifecycle === "preparing" ||
-    status?.lifecycle === "running";
-  const shouldOpen = Boolean(isRunning || failedCount > 0 || (!downloadGate.allowed && unlocked));
-  const statusTone = failedCount
-    ? "danger"
-    : isRunning
-      ? "info"
-      : downloadGate.allowed
-        ? "success"
-        : "warning";
-  const statusLabel = failedCount
-    ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
-    : isRunning
-      ? byLanguage(language, { en: "Generation running", es: "Generacion en curso", pt: "Geracao em andamento" })
-      : downloadGate.allowed
-        ? byLanguage(language, { en: "Download ready", es: "Descarga lista", pt: "Download pronto" })
-        : byLanguage(language, { en: "Package in preparation", es: "Paquete en preparacion", pt: "Pacote em preparacao" });
-  const [isOpen, setIsOpen] = useState(shouldOpen);
-
-  if (!unlocked) {
-    return null;
-  }
+  const showAccessGate = !unlocked;
 
   return (
-    <details
-      className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white shadow-[var(--uxa-shadow-card)]"
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
-      open={isOpen}
-    >
-      <summary className="flex cursor-pointer list-none flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between [&::-webkit-details-marker]:hidden">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <UxaBadge tone={statusTone}>{statusLabel}</UxaBadge>
-          <span className="text-[13px] font-black text-[var(--uxa-color-ink)]">
-            {byLanguage(language, {
-              en: "Prepare professional Blueprint results",
-              es: "Preparar resultados profesionales del Blueprint",
-              pt: "Preparar resultados profissionais do Blueprint",
-            })}
-          </span>
-          <span className="text-[12px] text-[var(--uxa-color-ink-soft)]">
-            {availableCount}/{totalCount || availableCount} {byLanguage(language, { en: "assets", es: "activos", pt: "ativos" })}
-          </span>
-        </div>
-        <div className="flex min-w-0 items-center gap-3 md:min-w-[320px]">
-          <div className="min-w-[140px] flex-1">
-            <UxaProcessingStrip
-              label={byLanguage(language, {
-                en: "Blueprint Pro preparation progress",
-                es: "Progreso de preparacion Blueprint Pro",
-                pt: "Progresso de preparacao Blueprint Pro",
-              })}
-              value={progress}
-            />
-          </div>
-          <span className="text-[12px] font-black text-[var(--uxa-color-ink)]">{progress}%</span>
-          <span className="text-[11px] font-semibold text-[var(--uxa-color-ink-muted)]">
-            {byLanguage(language, { en: "Details", es: "Detalle", pt: "Detalhe" })}
-          </span>
-        </div>
-      </summary>
-      <div className="border-t border-[var(--uxa-color-border-soft)] p-4">
-        <div className="grid gap-3 md:grid-cols-4">
-          {[
-            [byLanguage(language, { en: "Available", es: "Disponibles", pt: "Disponiveis" }), availableCount],
-            [byLanguage(language, { en: "Pending", es: "Pendientes", pt: "Pendentes" }), pendingCount],
-            [byLanguage(language, { en: "Processing", es: "En proceso", pt: "Em processo" }), activeCount],
-            [byLanguage(language, { en: "Failed", es: "Fallidos", pt: "Falhos" }), failedCount],
-          ].map(([label, value]) => (
-            <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] px-3 py-2" key={String(label)}>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">{label}</p>
-              <p className="mt-1 text-[16px] font-black text-[var(--uxa-color-ink)]">{value}</p>
-            </div>
-          ))}
-        </div>
-        {canRenderBuildTracker(status) ? (
-          <div className="mt-3">
-            <DeliverableGenerationLiveTracker
-              productKey="blueprint_pro"
-              productLabel="Blueprint Pro"
-              status={status}
-              onProcessPending={onProcessPending}
-              onRetryFailed={onRetryFailed}
-              processingDisabled={processingDisabled}
-            />
-          </div>
-        ) : (
-          <p className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-            {downloadGate.detail}
-          </p>
-        )}
-      </div>
-    </details>
+    <div className="space-y-5">
+      <h1 className="sr-only">Blueprint Pro</h1>
+
+      {showAccessGate ? (
+        <BlueprintProAccessGate
+          checkoutState={checkoutState}
+          downloadGate={downloadGate}
+          premiumAssetCount={premiumAssetCount}
+          productProgress={productProgress}
+          purchasing={purchasing}
+          requestSent={requestSent}
+          unlocked={unlocked}
+        />
+      ) : null}
+
+      <BlueprintPostUpgradeWorkbench
+        artifactCards={viewModel.artifactCards}
+        downloadGate={downloadGate}
+        productBuild={productBuild}
+        sessionId={sessionId}
+        tierScope="blueprint_pro"
+      />
+
+      {canOpenAcp ? (
+        <p className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+          {byLanguage(language, {
+            en: "ACP is enabled for this workspace. Continue from the persistent action dock when you are ready to build.",
+            es: "ACP esta habilitado para este workspace. Continua desde el dock persistente cuando estes listo para construir.",
+            pt: "ACP esta habilitado para este workspace. Continue pelo dock persistente quando estiver pronto para construir.",
+          })}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function BlueprintProductPage({
+  activeRoute,
+}: {
+  activeRoute: ProductExperienceRouteSnapshot | null;
+}) {
+  const { language } = useLanguage();
+  const sessionId = activeRoute?.route.sessionId ?? "";
+  const viewModel = buildProductSaasViewModel({
+    activeRoute,
+    language,
+    section: "blueprint",
+  });
+
+  return (
+    <BlueprintFreePostUpgradeExperience
+      language={language}
+      sessionId={sessionId}
+      viewModel={viewModel}
+    />
   );
 }
 
@@ -3663,39 +3237,20 @@ function BlueprintProPage({
     staleWhileRevalidating: true,
   });
 
-  const showLifecyclePanel = !unlocked || !viewModel.blueprintDownload.allowed;
-
   return (
     <div className="space-y-5">
-      {showLifecyclePanel ? (
-        <BlueprintProLifecyclePanel
-          canOpenAcp={canOpenAcp}
-          checkoutState={viewModel.access?.checkout_state}
-          downloadGate={viewModel.blueprintDownload}
-          premiumAssetCount={premiumAssetCount}
-          productProgress={blueprintProProgress}
-          purchasing={purchasing}
-          requestSent={blueprintProRequestSent}
-          unlocked={unlocked}
-        />
-      ) : null}
-      <BlueprintProTrackingStrip
+      <BlueprintProPostUpgradeExperience
+        canOpenAcp={canOpenAcp}
+        checkoutState={viewModel.access?.checkout_state}
         downloadGate={viewModel.blueprintDownload}
-        onProcessPending={() => productBuild.executeCommand("process_pending", { allow_llm: true })}
-        onRetryFailed={() => productBuild.executeCommand("retry_failed", { allow_llm: true })}
         premiumAssetCount={premiumAssetCount}
-        processingDisabled={productBuild.isFetching}
+        productBuild={productBuild}
         productProgress={blueprintProProgress}
-        status={productBuild.data}
-        unlocked={unlocked}
-      />
-      <CommercialBlueprintResult
-        activeRoute={activeRoute}
-        artifactCards={viewModel.artifactCards}
-        projectTitle={viewModel.title}
+        purchasing={purchasing}
+        requestSent={blueprintProRequestSent}
         sessionId={sessionId}
-        tierScope="blueprint_pro"
         unlocked={unlocked}
+        viewModel={viewModel}
       />
       <InlineNoticeBanner notice={downloadNotice} />
       <UxaContextualActionDock
@@ -4476,10 +4031,8 @@ function AcpProductPage({
               })}
             </span>
           </div>
-          <CommercialBlueprintResult
-            activeRoute={activeRoute}
+          <BlueprintPostUpgradeWorkbench
             artifactCards={viewModel.artifactCards}
-            projectTitle={viewModel.title}
             sessionId={sessionId}
             tierScope="blueprint_pro"
           />

@@ -275,7 +275,7 @@ describe("ProjectWorkspaceShell UXA5", () => {
     expect(screen.getAllByRole("navigation", { name: "Ruta LEAN" })).toHaveLength(1);
     expect(container.querySelectorAll(".uxa-button--primary")).toHaveLength(1);
     expect(screen.getByRole("region", { name: "Contexto actual del proyecto" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Recursos del proyecto")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Recursos del proyecto")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Abrir Segmento de Atencion/ })).toHaveLength(2);
     expect(getLinkByHref("/projects/session-uxa5/blueprint/pro")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Validar/ })).not.toBeInTheDocument();
@@ -290,9 +290,25 @@ describe("ProjectWorkspaceShell UXA5", () => {
       </ProjectWorkspaceShell>,
     );
 
-    expect(screen.getByRole("link", { name: /Diagramas/ })).toHaveAttribute(
+    expect(screen.queryByRole("link", { name: /Diagramas/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Recursos del proyecto" }));
+
+    const resourcesMenu = screen.getByRole("menu", { name: "Recursos del proyecto" });
+    expect(within(resourcesMenu).getByRole("menuitem", { name: /Diagramas/ })).toHaveAttribute(
       "href",
       "/projects/session-uxa5/diagrams",
+    );
+    expect(within(resourcesMenu).getByRole("menuitem", { name: /Artefactos/ })).toHaveAttribute(
+      "href",
+      "/projects/session-uxa5/artifacts",
+    );
+    expect(within(resourcesMenu).getByRole("menuitem", { name: /Atencion/ })).toHaveAttribute(
+      "href",
+      "/projects/session-uxa5/attention",
+    );
+    expect(within(resourcesMenu).getByRole("menuitem", { name: /Actividad/ })).toHaveAttribute(
+      "href",
+      "/projects/session-uxa5/activity",
     );
     expect(screen.queryByRole("link", { name: /Resumen Blueprint/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Resumen Pro/ })).not.toBeInTheDocument();
