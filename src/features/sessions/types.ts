@@ -36,6 +36,7 @@ import type {
   CommercialPackageRecommendationResponse,
 } from "@/features/hotmart/hotmart-contracts";
 import type { CommercePaymentProviderKey } from "@/features/commerce-providers/provider-contracts";
+import type { MarketingContext } from "@/core/analytics/contracts";
 
 export type SessionStage =
   | "draft_capture"
@@ -162,12 +163,17 @@ export type CommercialAccessSnapshotV2 = {
 export type CommercialCheckoutSessionRequest = {
   cancel_url?: string;
   idempotency_key?: string;
+  marketing_context?: MarketingContext;
   package_code?: string;
   price_code?: string;
   product_key: string;
   provider?: CommercePaymentProviderKey;
   session_id: string;
   success_url?: string;
+};
+
+export type SessionCreateRequest = {
+  marketing_context?: MarketingContext;
 };
 
 export type CommercialCheckoutCompletionRequest = {

@@ -24,6 +24,7 @@ import {
   TextField,
 } from "@/components/lean/ui";
 import { apiClient } from "@/core/api";
+import { trackSignUp } from "@/core/analytics/analytics-client";
 import { useAuth } from "@/core/auth/auth-context";
 import { clearLegacyStoredToken, setStoredToken } from "@/core/auth/token-store";
 import type { LoginResponse } from "@/core/auth/types";
@@ -197,6 +198,7 @@ export function RegisterPage() {
         );
       }
 
+      trackSignUp();
       const tokenPersisted = setStoredToken(response.access_token);
       if (!tokenPersisted) {
         throw new Error(
@@ -937,9 +939,9 @@ export function RegisterPage() {
                   </p>
                   <p>
                     {localize(
-                      "We use strictly necessary technical and session cookies to authenticate your access and preserve your interface preferences.",
-                      "Utilizamos cookies técnicas y de sesión estrictamente necesarias para autenticar tu ingreso y mantener tus preferencias de interfaz.",
-                      "Utilizamos cookies técnicas e de sessão estritamente necessárias para autenticar seu acesso e manter suas preferências de interface.",
+                      "We use strictly necessary technical cookies for access and preferences. Analytics and advertising measurement are optional and only activated after your separate preference.",
+                      "Utilizamos cookies tecnicas estrictamente necesarias para acceso y preferencias. La medicion de analitica y publicidad es opcional y solo se activa despues de tu preferencia separada.",
+                      "Utilizamos cookies tecnicas estritamente necessarias para acesso e preferencias. A medicao de analitica e publicidade e opcional e so e ativada apos sua preferencia separada.",
                     )}
                   </p>
                 </>

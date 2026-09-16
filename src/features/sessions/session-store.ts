@@ -1,4 +1,6 @@
 import { ApiError } from "@/core/api";
+import { getMarketingContext } from "@/core/analytics/attribution";
+import { trackBeginCheckout, trackProjectCreated } from "@/core/analytics/analytics-client";
 import { sessionsApi, type SessionsApi } from "@/features/sessions/session-api";
 import type {
   ApprovalResolutionRequest,
@@ -81,6 +83,7 @@ type CheckoutProductOptions = {
 
 type CreateSessionOptions = {
   loadSnapshot?: boolean;
+  marketingEntryPoint?: "diagnosis" | "direct";
 };
 
 const ACTIVE_SESSION_STORAGE_KEY = "lean-builder.active-session-id";
@@ -336,8 +339,8 @@ export function createSessionsStore({
   }
 
   async function createSession(options: CreateSessionOptions = {}) {
-    const { loadSnapshot: shouldLoadSnapshot = true } = options;
-    const created = await client.create();
+    const { loadSnapshot: shouldLoadSnapshot = true, marketingEntryPoint = "direct" } = options;
+    const created = await client.create({ marketing_context: getMarketingContext() });
 
     updateState((currentState) => ({
       ...currentState,
@@ -348,6 +351,10 @@ export function createSessionsStore({
     }));
 
     persistActiveSessionId(created.id);
+    trackProjectCreated({
+      entrypoint: marketingEntryPoint,
+      language: typeof document === "undefined" ? "" : document.documentElement.lang || "es",
+    });
 
     if (shouldLoadSnapshot) {
       await loadSnapshot(created.id, true);
@@ -748,7 +755,18 @@ export function createSessionsStore({
   }
 
   async function createCheckoutSession(payload: CommercialCheckoutSessionRequest) {
-    return client.createCheckoutSession(payload);
+    const checkout = await client.createCheckoutSession({
+      ...payload,
+      marketing_context: payload.marketing_context || getMarketingContext(),
+    });
+    trackBeginCheckout({
+      checkout_ref: checkout.checkout_ref,
+      currency: checkout.currency,
+      product_key: checkout.product_key,
+      provider: checkout.provider,
+      value: checkout.total_cents / 100,
+    });
+    return checkout;
   }
 
   async function completeSandboxCheckout(checkoutRef: string, payload: CommercialCheckoutCompletionRequest = { outcome: "success" }) {

@@ -237,6 +237,35 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
     };
   }, [enabled, refreshRoute]);
 
+  useEffect(() => {
+    if (!enabled || typeof window === "undefined") {
+      return;
+    }
+
+    const revalidateRoute = () => {
+      void refreshRoute({ force: true }).catch((error: unknown) => {
+        if (!isAbortLikeError(error)) {
+          setLoadError(error instanceof Error ? error : new Error("No se pudo rehidratar la experiencia de producto."));
+        }
+      });
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        revalidateRoute();
+      }
+    };
+
+    window.addEventListener("focus", revalidateRoute);
+    window.addEventListener("online", revalidateRoute);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", revalidateRoute);
+      window.removeEventListener("online", revalidateRoute);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [enabled, refreshRoute]);
+
   const activeRoute = state.active?.route.sessionId === stableRoute.sessionId ? state.active : null;
   const currentActionState = stableRoute.currentStage === "discover" ? discoveryAction : stageAction;
   const serverOperation = useMemo(

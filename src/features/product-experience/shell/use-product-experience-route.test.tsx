@@ -112,6 +112,33 @@ describe("useProductExperienceRoute UXA10", () => {
     expect(result.current.loadError).toBeNull();
   });
 
+  it("revalidates the complete route on focus, network recovery and visible document without starting work", async () => {
+    const { result } = renderHook(() =>
+      useProductExperienceRoute({
+        currentStage: "estimate",
+        sessionId: "session-uxa10",
+      }),
+    );
+
+    await waitFor(() => expect(mockStore.loadRoute).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+      globalThis.dispatchEvent(new Event("online"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    await waitFor(() => expect(mockStore.loadRoute).toHaveBeenCalledTimes(4));
+    expect(mockStore.loadRoute).toHaveBeenLastCalledWith(
+      { currentStage: "estimate", sessionId: "session-uxa10" },
+      { force: true },
+    );
+    expect(mockStore.startDefineRequirements).not.toHaveBeenCalled();
+    expect(mockStore.startProposeDesign).not.toHaveBeenCalled();
+    expect(mockStore.generateEstimationReport).not.toHaveBeenCalled();
+    expect(result.current.stageAction.status).toBe("idle");
+  });
+
   it("deduplicates concurrent stage mutations and exposes an observable operation", async () => {
     const request = deferred<ProductExperienceStageOperation>();
     mockStore.startDefineRequirements.mockReturnValue(request.promise);

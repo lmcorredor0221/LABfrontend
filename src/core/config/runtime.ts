@@ -72,3 +72,15 @@ export function getLongRunningApiRequestTimeoutMs() {
     DEFAULT_LONG_RUNNING_API_TIMEOUT_MS,
   );
 }
+
+export function isAnalyticsEnabled() {
+  return parseBoolean(process.env.NEXT_PUBLIC_ANALYTICS_ENABLED, false);
+}
+
+export function getGoogleTagManagerId() {
+  return (process.env.NEXT_PUBLIC_GTM_ID ?? "").trim();
+}
+
+export function getGoogleAnalyticsMeasurementId() {
+  return (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "").trim();
+}

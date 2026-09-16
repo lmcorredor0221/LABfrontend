@@ -151,6 +151,29 @@ describe("useProductBuildStatus", () => {
     expect(api.getProductBuildStatus).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshes a build when the browser regains focus without executing work", async () => {
+    const api = {
+      getProductBuildStatus: vi.fn(async () => createStatus("completed")),
+      listProductBuildStatuses: vi.fn(),
+    };
+
+    renderHook(() =>
+      useProductBuildStatus("session-1", "blueprint_basic", {
+        api,
+        polling: false,
+      }),
+    );
+
+    await waitFor(() => expect(api.getProductBuildStatus).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      globalThis.dispatchEvent(new Event("focus"));
+    });
+
+    await waitFor(() => expect(api.getProductBuildStatus).toHaveBeenCalledTimes(2));
+    expect(api.executeProductBuildAction).toBeUndefined();
+  });
+
   it("classifies only active lifecycles as polling candidates", () => {
     expect(shouldPollProductBuildStatus(createStatus("queued"))).toBe(true);
     expect(shouldPollProductBuildStatus(createStatus("preparing"))).toBe(true);

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { AnalyticsProvider } from "@/core/analytics/analytics-provider";
 import { AuthProvider } from "@/core/auth/auth-context";
 import { CurrencyProvider } from "@/core/commerce/currency-context";
 import { type SupportedLanguage } from "@/core/i18n/language-config";
@@ -16,11 +17,13 @@ export function AppProviders({
 }) {
   return (
     <LanguageProvider initialLanguage={initialLanguage}>
-      <AuthProvider>
-        <CurrencyProvider>
-          <SessionsProvider>{children}</SessionsProvider>
-        </CurrencyProvider>
-      </AuthProvider>
+      <AnalyticsProvider>
+        <AuthProvider>
+          <CurrencyProvider>
+            <SessionsProvider>{children}</SessionsProvider>
+          </CurrencyProvider>
+        </AuthProvider>
+      </AnalyticsProvider>
     </LanguageProvider>
   );
 }

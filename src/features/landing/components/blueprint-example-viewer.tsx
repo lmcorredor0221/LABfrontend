@@ -315,7 +315,7 @@ export function BlueprintExampleViewer({ mode = "pro" }: BlueprintExampleViewerP
                       <rect width="900" height="320" rx="16" fill="#090d16" />
                       {/* Boundary Box */}
                       <rect x="220" y="30" width="460" height="260" rx="12" stroke="#334155" strokeDasharray="4 4" fill="#0f172a" fillOpacity="0.5" />
-                      <text x="240" y="55" fill="#94a3b8" fontSize="11" fontWeight="700" fontFamily="monospace">// BOUNDARY: LAB AGENT SYSTEM</text>
+                      <text x="240" y="55" fill="#94a3b8" fontSize="11" fontWeight="700" fontFamily="monospace">BOUNDARY: LAB AGENT SYSTEM</text>
                       
                       {/* Nodes */}
                       {/* Cliente */}
@@ -382,7 +382,7 @@ export function BlueprintExampleViewer({ mode = "pro" }: BlueprintExampleViewerP
                       
                       {/* Subgraph Orquestacion */}
                       <rect x="30" y="30" width="250" height="260" rx="12" stroke="#4338ca" fill="#1e1b4b" fillOpacity="0.4" />
-                      <text x="45" y="55" fill="#a5b4fc" fontSize="11" fontWeight="800">// CONTROL LAYER</text>
+                      <text x="45" y="55" fill="#a5b4fc" fontSize="11" fontWeight="800">CONTROL LAYER</text>
                       <g transform="translate(50, 75)">
                         <rect width="210" height="70" rx="8" fill="#312e81" stroke="#6366f1" />
                         <text x="105" y="32" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="700">Agente Supervisor HTN</text>
@@ -396,7 +396,7 @@ export function BlueprintExampleViewer({ mode = "pro" }: BlueprintExampleViewerP
 
                       {/* Subgraph Especialistas */}
                       <rect x="320" y="30" width="260" height="260" rx="12" stroke="#047857" fill="#064e3b" fillOpacity="0.3" />
-                      <text x="335" y="55" fill="#6ee7b7" fontSize="11" fontWeight="800">// SPECIALIST WORKERS</text>
+                      <text x="335" y="55" fill="#6ee7b7" fontSize="11" fontWeight="800">SPECIALIST WORKERS</text>
                       <g transform="translate(345, 75)">
                         <rect width="210" height="70" rx="8" fill="#065f46" stroke="#10b981" />
                         <text x="105" y="32" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="700">PDF Field Parser</text>
@@ -410,7 +410,7 @@ export function BlueprintExampleViewer({ mode = "pro" }: BlueprintExampleViewerP
 
                       {/* Subgraph Governance */}
                       <rect x="610" y="30" width="260" height="260" rx="12" stroke="#b45309" fill="#451a03" fillOpacity="0.3" />
-                      <text x="625" y="55" fill="#fcd34d" fontSize="11" fontWeight="800">// GOVERNANCE & HITL</text>
+                      <text x="625" y="55" fill="#fcd34d" fontSize="11" fontWeight="800">GOVERNANCE & HITL</text>
                       <g transform="translate(635, 75)">
                         <rect width="210" height="70" rx="8" fill="#78350f" stroke="#f59e0b" />
                         <text x="105" y="32" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="700">Gate de Aprobación Sensible</text>
@@ -583,7 +583,7 @@ export function BlueprintExampleViewer({ mode = "pro" }: BlueprintExampleViewerP
               </div>
             ) : (
               <div className="p-5 rounded-2xl bg-slate-950 text-slate-200 font-mono text-xs overflow-x-auto border border-slate-800 space-y-2">
-                <div className="text-indigo-400 font-bold">// EXECUTABLE MERMAID SPECIFICATION ({currentDiagramObj.badge})</div>
+                <div className="text-indigo-400 font-bold">EXECUTABLE MERMAID SPECIFICATION ({currentDiagramObj.badge})</div>
                 <pre className="text-emerald-400 font-mono leading-relaxed whitespace-pre-wrap">
                   {currentDiagramObj.mmdCode}
                 </pre>
@@ -596,7 +596,7 @@ export function BlueprintExampleViewer({ mode = "pro" }: BlueprintExampleViewerP
           <div className="space-y-6 font-mono text-xs">
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
               <div className="text-indigo-600 dark:text-indigo-400 font-bold mb-1">
-                // AGENT CHARTER & DETERMINISTIC SCOPE
+                AGENT CHARTER & DETERMINISTIC SCOPE
               </div>
               <p className="text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-xs">
                 <strong>Caso Real:</strong> Conciliación automatizada de facturas PDF recibidas por correo electrónico contra órdenes de compra registradas en el ERP SAP S/4HANA con límites estrictos de SLA y supervisión humana explícita.

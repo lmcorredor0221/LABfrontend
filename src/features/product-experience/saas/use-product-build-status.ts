@@ -227,6 +227,31 @@ export function useProductBuildStatus(
   }, [refresh]);
 
   useEffect(() => {
+    if (!enabled || !sessionId || !productKey || typeof window === "undefined") {
+      return;
+    }
+
+    const revalidate = () => {
+      void refresh();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        revalidate();
+      }
+    };
+
+    window.addEventListener("focus", revalidate);
+    window.addEventListener("online", revalidate);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", revalidate);
+      window.removeEventListener("online", revalidate);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [enabled, productKey, refresh, sessionId]);
+
+  useEffect(() => {
     if (!enabled || !polling || state.isFetching) {
       return;
     }

@@ -6,14 +6,12 @@ import {
   ArrowRight,
   Bot,
   CheckCircle2,
-  Cpu,
-  Layers,
   RotateCcw,
   ShieldAlert,
   Sparkles,
-  Zap,
 } from "lucide-react";
 import { useLanguage } from "@/core/i18n/language-context";
+import { trackIdeaEvaluated } from "@/core/analytics/analytics-client";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import {
   evaluateInitiativeApi,
@@ -111,6 +109,12 @@ export function ValidateIdeaSection({
         language: language as "es" | "en" | "pt",
       });
       setEvalResult(evaluation);
+      trackIdeaEvaluated({
+        input_type: examplePrompts.some((item) => item.text === promptText) ? "example" : "custom",
+        language,
+        readiness_score: evaluation.readiness_score,
+        verdict_badge: evaluation.verdict_badge,
+      });
       onShowToast(
         byLanguage(language, {
           es: "Diagnóstico Lean completado con éxito ($0 USD)",
@@ -380,7 +384,11 @@ export function ValidateIdeaSection({
                   onClick={() => {
                     if (evalResult?.prefilled_project_data && typeof window !== "undefined") {
                       try {
-                        const payload = JSON.stringify(evalResult.prefilled_project_data);
+                        const payload = JSON.stringify({
+                          ...evalResult.prefilled_project_data,
+                          evaluation_id: evalResult.evaluation_id,
+                          evaluation_source: "landing_diagnosis",
+                        });
                         window.sessionStorage.setItem("pending_initiative_prefill", payload);
                         window.localStorage.setItem("pending_initiative_prefill", payload);
                       } catch {

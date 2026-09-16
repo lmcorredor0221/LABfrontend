@@ -51,7 +51,10 @@ export default function NewProjectPage() {
         }
 
         // Create the session
-        const session = await sessions.createSession({ loadSnapshot: false });
+        const session = await sessions.createSession({
+          loadSnapshot: false,
+          marketingEntryPoint: prefillData ? "diagnosis" : "direct",
+        });
 
         // Save prefill associated with created session
         if (prefillData && typeof window !== "undefined") {

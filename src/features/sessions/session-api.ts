@@ -93,6 +93,7 @@ import type {
   ProductOfferResponse,
   ProductOverviewResponse,
   SessionApprovalEntry,
+  SessionCreateRequest,
   SessionListResponse,
   SessionSnapshot,
   SessionStage,
@@ -205,8 +206,9 @@ export function createSessionsApi(client = apiClient) {
     checkIntegrations(sessionId: string) {
       return client.post<SessionSnapshot>(`/api/v1/sessions/${sessionId}/integrations/check`);
     },
-    create() {
-      return client.post<SessionSummary>("/api/v1/sessions");
+    create(payload: SessionCreateRequest = {}) {
+      const options = Object.keys(payload).length ? { body: payload } : undefined;
+      return client.post<SessionSummary>("/api/v1/sessions", options);
     },
     enrichBlueprint(sessionId: string) {
       return client.post<BlueprintEnvelope>(`/api/v1/sessions/${sessionId}/enrich-blueprint`, {
