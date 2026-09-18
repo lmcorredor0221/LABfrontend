@@ -499,7 +499,9 @@ function ToolCard({
         <div className="min-w-0 lg:pr-2">
           <h4 className="truncate text-[14px] font-black text-[var(--uxa-color-ink)]">{tool.tool_label}</h4>
           <p className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--uxa-color-ink-muted)]">
-            {tool.tool_key}
+            {tool.contract_seed?.name && tool.contract_seed.name !== tool.tool_key
+              ? `${tool.contract_seed.name} • ${tool.tool_key}`
+              : tool.tool_key}
           </p>
         </div>
         <div>
