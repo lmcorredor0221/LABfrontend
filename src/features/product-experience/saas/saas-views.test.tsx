@@ -1289,7 +1289,7 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.queryByText("Cargando backlog priorizado de enriquecimiento...")).not.toBeInTheDocument();
   });
 
-  it("sends the selected checkout market package when purchasing Blueprint Pro", async () => {
+  it("uses the Colombia checkout package when purchasing Blueprint Pro", async () => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams("market=mx"));
     mockSessionsApi.createCheckoutSession.mockResolvedValueOnce({
       checkout_ref: "rapyd-checkout-1",
@@ -1310,19 +1310,22 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_pro" />);
 
-    expect(screen.getByRole("radio", { name: "mx" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "co" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("radio", { name: "mx" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "ar" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Adquirir Blueprint Pro" }));
 
     await waitFor(() =>
       expect(mockSessionsApi.createCheckoutSession).toHaveBeenCalledWith(
         expect.objectContaining({
-          package_code: "blueprint_pro_mx",
+          package_code: "blueprint_pro_co",
           product_key: "blueprint_pro",
           session_id: "session-uxa11",
         }),
       ),
     );
     expect(mockSessionsApi.completeSandboxCheckout).not.toHaveBeenCalled();
+    expect(mockSessionsApi.createAccessRequest).not.toHaveBeenCalled();
   });
 
   it("does not keep a stale Blueprint Pro request label after the entitlement unlocks", async () => {
@@ -1501,13 +1504,15 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
 
-    expect(screen.getByRole("radio", { name: "ar" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "co" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("radio", { name: "mx" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "ar" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Adquirir ACP" }));
 
     await waitFor(() =>
       expect(mockSessionsApi.createCheckoutSession).toHaveBeenCalledWith(
         expect.objectContaining({
-          package_code: "acp_ar",
+          package_code: "acp_co",
           product_key: "acp",
           session_id: "session-uxa11",
         }),

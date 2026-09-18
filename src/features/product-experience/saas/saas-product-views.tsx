@@ -70,7 +70,7 @@ import { AcpReconciliationStage } from "@/features/acp/components/acp-reconcilia
 import { AcpPackageStage } from "@/features/acp/components/acp-package-stage";
 import { productExperienceStore } from "@/features/product-experience/shell/use-product-experience-route";
 
-type CheckoutMarketCode = "co" | "mx" | "ar";
+type CheckoutMarketCode = "co";
 type AcpLoadStatus = "idle" | "loading" | "ready" | "error";
 
 const CHECKOUT_MARKET_STORAGE_KEY = "lean_checkout_market";
@@ -146,14 +146,10 @@ const CHECKOUT_MARKETS: Array<{
   label: Record<SupportedLanguage, string>;
 }> = [
   { code: "co", label: { en: "Colombia", es: "Colombia", pt: "Colombia" } },
-  { code: "mx", label: { en: "Mexico", es: "Mexico", pt: "Mexico" } },
-  { code: "ar", label: { en: "Argentina", es: "Argentina", pt: "Argentina" } },
 ];
 
 function normalizeCheckoutMarket(value: string | null | undefined): CheckoutMarketCode {
-  const candidate = String(value || "").trim().toLowerCase();
-  if (candidate === "mx" || candidate === "mexico" || candidate === "méxico") return "mx";
-  if (candidate === "ar" || candidate === "argentina") return "ar";
+  void value;
   return "co";
 }
 
@@ -3451,10 +3447,7 @@ function BlueprintProPage({
               if (purchasing) return;
               setPurchasing(true);
               try {
-                if (
-                  viewModel.access?.checkout_state === "available" ||
-                  viewModel.access?.checkout_state === "pending"
-                ) {
+                if (canCheckout) {
                   await executeProductCheckout({
                     sessionId,
                     packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
@@ -3490,8 +3483,7 @@ function BlueprintProPage({
                     es: "Solicitud enviada",
                     pt: "Solicitacao enviada",
                   })
-                : viewModel.access?.checkout_state === "available" ||
-                  viewModel.access?.checkout_state === "pending"
+                : canCheckout
                 ? byLanguage(language, {
                     en: "Get Blueprint Pro",
                     es: "Adquirir Blueprint Pro",
