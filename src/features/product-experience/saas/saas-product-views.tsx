@@ -3257,7 +3257,8 @@ function BlueprintProPage({
   ).length;
   const canCheckout =
     viewModel.access?.checkout_state === "available" ||
-    viewModel.access?.checkout_state === "pending";
+    viewModel.access?.checkout_state === "pending" ||
+    viewModel.access?.checkout_state === "failed";
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSentProduct, setRequestSentProduct] = useState<"blueprint_pro" | "acp" | null>(null);
@@ -3562,7 +3563,8 @@ function AcpProductPage({
     Boolean(viewModel.access?.can_build_acp);
   const canCheckout =
     viewModel.access?.checkout_state === "available" ||
-    viewModel.access?.checkout_state === "pending";
+    viewModel.access?.checkout_state === "pending" ||
+    viewModel.access?.checkout_state === "failed";
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
