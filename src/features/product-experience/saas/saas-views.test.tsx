@@ -1304,7 +1304,7 @@ describe("UXA11 SaaS product views", () => {
       provider: "rapyd",
       session_id: "session-uxa11",
       status: "pending",
-      total_cents: 4900,
+      total_cents: 3900,
       workspace_id: "workspace-1",
     });
 
@@ -1495,7 +1495,7 @@ describe("UXA11 SaaS product views", () => {
       provider: "rapyd",
       session_id: "session-uxa11",
       status: "pending",
-      total_cents: 14900,
+      total_cents: 9900,
       workspace_id: "workspace-1",
     });
 

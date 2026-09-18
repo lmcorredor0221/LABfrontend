@@ -140,7 +140,7 @@ function formatPrice(
     return { price: "$0", detail: copy("Free per project", "Gratis por proyecto", "Gratis por projeto") };
   }
   const usdCents = (price as { unit_amount_usd_cents?: number }).unit_amount_usd_cents || price.unit_amount_cents;
-  const usdAmount = usdCents > 1000 ? usdCents / 100 : (product?.tier === "acp" ? 149 : 49);
+  const usdAmount = usdCents > 1000 ? usdCents / 100 : (product?.tier === "acp" ? 99 : 39);
 
   if (currency === "USD") {
     const formatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(usdAmount);
@@ -184,11 +184,11 @@ function buildPlanDefinitions(
 
     if (activeTier === "blueprint_pro" && tier === "acp") {
       const blueprintProduct = products.find((entry) => entry.tier === "blueprint_pro");
-      const bpUsdCents = (blueprintProduct?.price as { unit_amount_usd_cents?: number })?.unit_amount_usd_cents || blueprintProduct?.price?.unit_amount_cents || 4900;
-      const bpUsd = bpUsdCents > 1000 ? bpUsdCents / 100 : 49;
+      const bpUsdCents = (blueprintProduct?.price as { unit_amount_usd_cents?: number })?.unit_amount_usd_cents || blueprintProduct?.price?.unit_amount_cents || 3900;
+      const bpUsd = bpUsdCents > 1000 ? bpUsdCents / 100 : 39;
 
-      const acpUsdCents = (product?.price as { unit_amount_usd_cents?: number })?.unit_amount_usd_cents || product?.price?.unit_amount_cents || 14900;
-      const acpUsd = acpUsdCents > 1000 ? acpUsdCents / 100 : 149;
+      const acpUsdCents = (product?.price as { unit_amount_usd_cents?: number })?.unit_amount_usd_cents || product?.price?.unit_amount_cents || 9900;
+      const acpUsd = acpUsdCents > 1000 ? acpUsdCents / 100 : 99;
 
       const netUsd = Math.max(0, acpUsd - bpUsd);
       if (currency === "USD") {

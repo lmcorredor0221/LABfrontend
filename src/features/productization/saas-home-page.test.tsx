@@ -65,7 +65,7 @@ const CATALOG: ProductCatalogResponse[] = [
       billing_period: "one_time",
       currency: "COP",
       price_code: "blueprint-pro-cop-v1",
-      unit_amount_cents: 4900,
+      unit_amount_cents: 3900,
       version: 1,
     },
     product_key: "blueprint_pro",
@@ -84,7 +84,7 @@ const CATALOG: ProductCatalogResponse[] = [
       billing_period: "one_time",
       currency: "USD",
       price_code: "acp-premium-cop-v1",
-      unit_amount_cents: 14900,
+      unit_amount_cents: 9900,
       version: 1,
     },
     product_key: "acp",
@@ -143,8 +143,8 @@ describe("SaasHomePage", () => {
     expect(screen.queryByText("Nueva entrada SaaS")).not.toBeInTheDocument();
     expect(screen.queryByText("Paleta heredada")).not.toBeInTheDocument();
 
-    expect((await screen.findAllByText(/\$\s*155\.425/)).length).toBeGreaterThan(0);
-    expect(screen.getByText(/\$\s*472\.618/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/\$\s*123\.705/)).length).toBeGreaterThan(0);
+    expect(screen.getByText(/\$\s*314\.021/)).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Crear Blueprint gratis" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Crear proyecto primero" })).toHaveLength(2);
 
@@ -309,7 +309,7 @@ describe("SaasHomePage", () => {
     await waitFor(() => expect(mocks.getProductJourneyOverview).toHaveBeenCalledWith("session-1"));
     expect((await screen.findAllByText(/Blueprint Pro|Blueprint Profesional/i)).length).toBeGreaterThan(0);
     expect(screen.getByText("41%")).toBeInTheDocument();
-    expect((await screen.findAllByText(/\$\s*155\.425/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/\$\s*123\.705/)).length).toBeGreaterThan(0);
     expect(screen.getByText(/Blueprint Pro esta habilitado para enriquecimiento, generacion y descarga/i)).toBeInTheDocument();
     expect(screen.getByText("Continuar herramientas")).toBeInTheDocument();
 

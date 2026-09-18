@@ -37,7 +37,7 @@ vi.mock("@/core/api", () => ({
 
 vi.mock("@/core/commerce/trm-service", () => ({
   DEFAULT_TRM: { unit_usd: 1, trm_cop: 3171.93, date: "2026-08-23", source: "TRM test" },
-  DEFAULT_BASE_PRICES: { blueprint_pro_usd: 49, acp_premium_usd: 149, lab_builder_monthly_usd: 149 },
+  DEFAULT_BASE_PRICES: { blueprint_pro_usd: 39, acp_premium_usd: 99, lab_builder_monthly_usd: 89 },
   fetchTRM: vi.fn().mockResolvedValue({
     unit_usd: 1,
     trm_cop: 3171.93,
@@ -45,9 +45,9 @@ vi.mock("@/core/commerce/trm-service", () => ({
     source: "TRM test",
   }),
   fetchBasePrices: vi.fn().mockResolvedValue({
-    blueprint_pro_usd: 49,
-    acp_premium_usd: 149,
-    lab_builder_monthly_usd: 149,
+    blueprint_pro_usd: 39,
+    acp_premium_usd: 99,
+    lab_builder_monthly_usd: 89,
   }),
   formatPriceValue: vi.fn(() => "$0"),
 }));

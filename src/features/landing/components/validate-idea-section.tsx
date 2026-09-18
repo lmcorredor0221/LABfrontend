@@ -240,7 +240,7 @@ export function ValidateIdeaSection({
                     <span>
                       {evalStep === 1 && byLanguage(language, { es: "1. Extrayendo variables de negocio y orígenes de datos...", en: "1. Extracting business variables and data sources...", pt: "1. Extraindo variáveis de negócio e fontes de dados..." })}
                       {evalStep === 2 && byLanguage(language, { es: "2. Evaluando ambigüedad, herramientas y nivel de autonomía...", en: "2. Evaluating ambiguity, tools, and autonomy level...", pt: "2. Avaliando ambiguidade, ferramentas e nível de autonomia..." })}
-                      {evalStep >= 3 && byLanguage(language, { es: "3. Calculando score de viabilidad y precarga de Blueprint...", en: "3. Computing feasibility score and prefilling Blueprint...", pt: "3. Calculando pontuação de viabilidade e pré-carregamento..." })}
+                      {evalStep >= 3 && byLanguage(language, { es: "3. Preparando tu diseño inicial...", en: "3. Preparing your initial design...", pt: "3. Preparando seu desenho inicial..." })}
                     </span>
                   </div>
                 </div>
@@ -401,9 +401,9 @@ export function ValidateIdeaSection({
                 >
                   <span>
                     {byLanguage(language, {
-                      es: "Crear Blueprint Free con este diagnóstico →",
-                      en: "Create Free Blueprint with this diagnosis →",
-                      pt: "Criar Blueprint Free com este diagnóstico →",
+                      es: "Crear mi proyecto con este diagnóstico →",
+                      en: "Create my project with this diagnosis →",
+                      pt: "Criar meu projeto com este diagnóstico →",
                     })}
                   </span>
                   <ArrowRight className="h-4 w-4" />

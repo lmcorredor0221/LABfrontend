@@ -178,25 +178,49 @@ export function LabLandingPage() {
             </button>
 
             <span className="px-2.5 py-1 rounded-md bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 text-xs font-bold font-mono uppercase">
-              Ejemplo de Output Real — LAB Blueprint
+              {byLanguage(language, { es: "Ejemplo de output real — LAB Blueprint", en: "Real output example — LAB Blueprint", pt: "Exemplo de output real — LAB Blueprint" })}
             </span>
 
             <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-2 mb-4">
-              Caso: Conciliador de Pagos B2B
+              {byLanguage(language, { es: "Caso: Conciliador de pagos B2B", en: "Case: B2B payment reconciler", pt: "Caso: Conciliador de pagamentos B2B" })}
             </h3>
 
             <div className="space-y-4 text-xs text-slate-600 dark:text-slate-300 font-mono">
               <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
-                <strong className="text-indigo-600 dark:text-indigo-400">1. Necesidad:</strong> Matchear automáticamente comprobantes bancarios PDF recibidos por correo con facturas emitidas en el ERP SAP.
+                <strong className="text-indigo-600 dark:text-indigo-400">
+                  {byLanguage(language, { es: "1. Necesidad:", en: "1. Need:", pt: "1. Necessidade:" })}
+                </strong>{" "}
+                {byLanguage(language, {
+                  es: "Matchear automáticamente comprobantes bancarios PDF recibidos por correo con facturas emitidas en el ERP SAP.",
+                  en: "Automatically match PDF bank receipts received by email with invoices issued in SAP ERP.",
+                  pt: "Conciliar automaticamente comprovantes bancários em PDF recebidos por e-mail com faturas emitidas no ERP SAP.",
+                })}
               </div>
               <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
-                <strong className="text-indigo-600 dark:text-indigo-400">2. Viabilidad Agéntica:</strong> 92% (Alta). Tarea repetitiva con reglas claras de verificación cruzada.
+                <strong className="text-indigo-600 dark:text-indigo-400">
+                  {byLanguage(language, { es: "2. Viabilidad agéntica:", en: "2. Agentic viability:", pt: "2. Viabilidade agêntica:" })}
+                </strong>{" "}
+                {byLanguage(language, {
+                  es: "92% (alta). Tarea repetitiva con reglas claras de verificación cruzada.",
+                  en: "92% (high). Repetitive task with clear cross-checking rules.",
+                  pt: "92% (alta). Tarefa repetitiva com regras claras de verificação cruzada.",
+                })}
               </div>
               <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
-                <strong className="text-indigo-600 dark:text-indigo-400">3. Human-in-the-Loop:</strong> El agente liquida automáticamente si la coincidencia es &gt;98%. Si hay discrepancia &gt;$10 USD, escala a tesorería.
+                <strong className="text-indigo-600 dark:text-indigo-400">3. Human-in-the-Loop:</strong>{" "}
+                {byLanguage(language, {
+                  es: "El agente liquida automáticamente si la coincidencia es >98%. Si hay discrepancia >$10 USD, escala a tesorería.",
+                  en: "The agent clears automatically if the match is >98%. If the discrepancy is >$10 USD, it escalates to treasury.",
+                  pt: "O agente liquida automaticamente se a correspondência for >98%. Se houver discrepância >$10 USD, escala para tesouraria.",
+                })}
               </div>
               <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
-                <strong className="text-indigo-600 dark:text-indigo-400">4. ACP Status:</strong> Paquete de contexto y reglas formateado para Cursor.
+                <strong className="text-indigo-600 dark:text-indigo-400">4. ACP Status:</strong>{" "}
+                {byLanguage(language, {
+                  es: "Paquete de contexto y reglas formateado para Cursor.",
+                  en: "Context and rules package formatted for Cursor.",
+                  pt: "Pacote de contexto e regras formatado para Cursor.",
+                })}
               </div>
             </div>
 
@@ -210,7 +234,7 @@ export function LabLandingPage() {
                 }}
                 className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-600/20"
               >
-                Probar un caso similar en el validador →
+                {byLanguage(language, { es: "Probar un caso similar en el validador →", en: "Try a similar case in the validator →", pt: "Testar um caso similar no validador →" })}
               </button>
             </div>
           </div>
@@ -229,16 +253,27 @@ export function LabLandingPage() {
               <X className="h-5 w-5" />
             </button>
             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-              Generar {modalPlanData.title}
+              {byLanguage(language, { es: "Solicitar", en: "Request", pt: "Solicitar" })} {modalPlanData.title}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-              Inversión total: ${modalPlanData.usdPrice} USD por proyecto. Sin renovaciones automáticas.
+              {byLanguage(language, {
+                es: `Inversión total: $${modalPlanData.usdPrice} USD por proyecto. Sin renovaciones automáticas.`,
+                en: `Total investment: $${modalPlanData.usdPrice} USD per project. No automatic renewals.`,
+                pt: `Investimento total: $${modalPlanData.usdPrice} USD por projeto. Sem renovações automáticas.`,
+              })}
             </p>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 setActiveModal(null);
-                showToast("Redirigiendo a pasarela de pago segura...", "emerald");
+                showToast(
+                  byLanguage(language, {
+                    es: "Redirigiendo a pasarela de pago segura...",
+                    en: "Redirecting to secure checkout...",
+                    pt: "Redirecionando para checkout seguro...",
+                  }),
+                  "emerald",
+                );
                 if (user) {
                   router.push("/projects/new");
                 } else {
@@ -248,16 +283,20 @@ export function LabLandingPage() {
               className="space-y-4"
             >
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Nombre Completo</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {byLanguage(language, { es: "Nombre completo", en: "Full name", pt: "Nome completo" })}
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="Tu nombre completo"
+                  placeholder={byLanguage(language, { es: "Tu nombre completo", en: "Your full name", pt: "Seu nome completo" })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Correo Electrónico</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {byLanguage(language, { es: "Correo electrónico", en: "Email", pt: "E-mail" })}
+                </label>
                 <input
                   type="email"
                   required
@@ -269,7 +308,7 @@ export function LabLandingPage() {
                 type="submit"
                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-indigo-600/20 transition-all mt-2"
               >
-                Continuar al Checkout Seguro
+                {byLanguage(language, { es: "Continuar al checkout seguro", en: "Continue to secure checkout", pt: "Continuar para checkout seguro" })}
               </button>
             </form>
           </div>
@@ -287,29 +326,46 @@ export function LabLandingPage() {
             >
               <X className="h-5 w-5" />
             </button>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Suscripción LAB Builder</h3>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
+              {byLanguage(language, { es: "Suscripción LAB Builder", en: "LAB Builder subscription", pt: "Assinatura LAB Builder" })}
+            </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-              $89 USD / mes — Incluye 3 Blueprints y 1 ACP mensuales.
+              {byLanguage(language, {
+                es: "$89 USD / mes — Incluye 3 Blueprints y 1 ACP mensuales.",
+                en: "$89 USD / month — Includes 3 Blueprints and 1 ACP per month.",
+                pt: "$89 USD / mês — Inclui 3 Blueprints e 1 ACP por mês.",
+              })}
             </p>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 setActiveModal(null);
-                showToast("Solicitud recibida. Nos pondremos en contacto hoy.", "indigo");
+                showToast(
+                  byLanguage(language, {
+                    es: "Solicitud recibida. Nos pondremos en contacto hoy.",
+                    en: "Request received. We will contact you today.",
+                    pt: "Solicitação recebida. Entraremos em contato hoje.",
+                  }),
+                  "indigo",
+                );
               }}
               className="space-y-4"
             >
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Nombre o Nombre de la Agencia</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {byLanguage(language, { es: "Nombre o nombre de la agencia", en: "Name or agency name", pt: "Nome ou nome da agência" })}
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="Nombre de la agencia"
+                  placeholder={byLanguage(language, { es: "Nombre de la agencia", en: "Agency name", pt: "Nome da agência" })}
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Correo de Contacto</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {byLanguage(language, { es: "Correo de contacto", en: "Contact email", pt: "E-mail de contato" })}
+                </label>
                 <input
                   type="email"
                   required
@@ -321,7 +377,7 @@ export function LabLandingPage() {
                 type="submit"
                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-indigo-600/20 transition-all mt-2"
               >
-                Activar Plan Builder
+                {byLanguage(language, { es: "Activar plan Builder", en: "Activate Builder plan", pt: "Ativar plano Builder" })}
               </button>
             </form>
           </div>
@@ -341,18 +397,31 @@ export function LabLandingPage() {
             </button>
             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">LAB Factory B2B</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-              Cotización para la construcción y despliegue delegado del agente.
+              {byLanguage(language, {
+                es: "Cotización para la construcción y despliegue delegado del agente.",
+                en: "Quote for delegated agent build and deployment.",
+                pt: "Cotação para construção e implantação delegada do agente.",
+              })}
             </p>
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 setActiveModal(null);
-                showToast("Solicitud recibida. Nos pondremos en contacto hoy.", "indigo");
+                showToast(
+                  byLanguage(language, {
+                    es: "Solicitud recibida. Nos pondremos en contacto hoy.",
+                    en: "Request received. We will contact you today.",
+                    pt: "Solicitação recebida. Entraremos em contato hoje.",
+                  }),
+                  "indigo",
+                );
               }}
               className="space-y-4"
             >
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Empresa / Proyecto</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {byLanguage(language, { es: "Empresa / Proyecto", en: "Company / Project", pt: "Empresa / Projeto" })}
+                </label>
                 <input
                   type="text"
                   required
@@ -361,7 +430,9 @@ export function LabLandingPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Correo Corporativo</label>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {byLanguage(language, { es: "Correo corporativo", en: "Work email", pt: "E-mail corporativo" })}
+                </label>
                 <input
                   type="email"
                   required
@@ -373,7 +444,7 @@ export function LabLandingPage() {
                 type="submit"
                 className="w-full py-3.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all mt-2"
               >
-                Enviar Solicitud de Cotización
+                {byLanguage(language, { es: "Enviar solicitud de cotización", en: "Send quote request", pt: "Enviar solicitação de cotação" })}
               </button>
             </form>
           </div>

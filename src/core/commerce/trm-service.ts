@@ -23,8 +23,8 @@ const DEFAULT_TRM: TRMData = {
 
 export const DEFAULT_BASE_PRICES: BasePricesData = {
   blueprint_free_usd: 0.0,
-  blueprint_pro_usd: 49.0,
-  acp_premium_usd: 149.0,
+  blueprint_pro_usd: 39.0,
+  acp_premium_usd: 99.0,
   trm_cop: 3171.93,
 };
 
@@ -56,8 +56,8 @@ export async function fetchBasePrices(): Promise<BasePricesData> {
       if (data?.blueprint_pro_usd !== undefined) {
         return {
           blueprint_free_usd: 0.0,
-          blueprint_pro_usd: Number(data.blueprint_pro_usd ?? 49.0),
-          acp_premium_usd: Number(data.acp_premium_usd ?? 149.0),
+          blueprint_pro_usd: Number(data.blueprint_pro_usd ?? 39.0),
+          acp_premium_usd: Number(data.acp_premium_usd ?? 99.0),
           trm_cop: Number(data.trm_cop ?? 3171.93),
         };
       }

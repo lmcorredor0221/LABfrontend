@@ -14,23 +14,23 @@ export function DeliverablesSection() {
         <div className="text-center max-w-3xl mx-auto mb-14">
           <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider">
             {byLanguage(language, {
-              es: "Entregables Tangibles",
-              en: "Tangible Deliverables",
-              pt: "Entregáveis Tangíveis",
+              es: "Lo que recibes",
+              en: "What you get",
+              pt: "O que você recebe",
             })}
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white mt-3">
             {byLanguage(language, {
-              es: "Blueprints claros y código estructurado para tu agente",
-              en: "Clear blueprints and structured code for your AI agent",
-              pt: "Blueprints claros e código estruturado para seu agente de IA",
+              es: "Tu agente diseñado y listo para construir",
+              en: "Your agent designed and ready to build",
+              pt: "Seu agente desenhado e pronto para construir",
             })}
           </h2>
           <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base mt-3 leading-relaxed">
             {byLanguage(language, {
-              es: "No entregamos conceptos vagos. Generamos planos estratégicos para líderes de negocio y paquetes técnicos estandarizados para ingenieros.",
-              en: "We don't deliver vague concepts. We generate strategic blueprints for business leaders and standardized technical packages for engineers.",
-              pt: "Não entregamos conceitos vagos. Geramos planos estratégicos para líderes de negócios e pacotes técnicos padronizados para engenheiros.",
+              es: "Primero entiendes cómo debe funcionar. Luego, si decides construir, recibes el paquete técnico para que desarrollo avance sin interpretar desde cero.",
+              en: "First you understand how it should work. Then, if you decide to build, you receive the technical package so development does not start from scratch.",
+              pt: "Primeiro você entende como deve funcionar. Depois, se decidir construir, recebe o pacote técnico para o desenvolvimento não começar do zero.",
             })}
           </p>
         </div>
@@ -41,25 +41,25 @@ export function DeliverablesSection() {
             <div>
               <div className="flex items-center justify-between gap-4 mb-4">
                 <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 text-xs font-bold font-mono">
-                  {byLanguage(language, { es: "PLANO ESTRATÉGICO (BLUEPRINT)", en: "STRATEGIC BLUEPRINT", pt: "PLANTA ESTRATÉGICA (BLUEPRINT)" })}
+                  {byLanguage(language, { es: "TU AGENTE DISEÑADO", en: "YOUR AGENT DESIGNED", pt: "SEU AGENTE DESENHADO" })}
                 </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                  {byLanguage(language, { es: "Para Negocio & Producto", en: "For Business & Product", pt: "Para Negócios & Produto" })}
+                  {byLanguage(language, { es: "Blueprint Pro", en: "Blueprint Pro", pt: "Blueprint Pro" })}
                 </span>
               </div>
 
               <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-3">
                 {byLanguage(language, {
                   es: "El mapa completo de decisiones y flujos",
-                  en: "The complete map of decisions and workflows",
+                  en: "The complete map of decisions and flows",
                   pt: "O mapa completo de decisões e fluxos",
                 })}
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                 {byLanguage(language, {
-                  es: "Especificación ejecutable que define exactamente qué hará el agente, qué APIs consultará, cuándo intervendrá un humano y qué límites de presupuesto tendrá.",
-                  en: "Executable specification defining exactly what the agent will do, which APIs it will query, when a human intervenes, and what budget limits apply.",
-                  pt: "Especificação executável que define exatamente o que o agente fará, quais APIs consultará, quando um humano intervirá e quais limites de orçamento terá.",
+                  es: "El diseño completo antes de programar: arquitectura, flujos, herramientas, memoria, reglas de intervención humana y costes estimados.",
+                  en: "The complete design before coding: architecture, flows, tools, memory, human intervention rules, and estimated costs.",
+                  pt: "O desenho completo antes de programar: arquitetura, fluxos, ferramentas, memória, regras de intervenção humana e custos estimados.",
                 })}
               </p>
 
@@ -106,25 +106,25 @@ export function DeliverablesSection() {
             <div>
               <div className="flex items-center justify-between gap-4 mb-4">
                 <span className="px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 text-xs font-bold font-mono">
-                  {byLanguage(language, { es: "PAQUETE TÉCNICO (ACP)", en: "TECHNICAL PACKAGE (ACP)", pt: "PACOTE TÉCNICO (ACP)" })}
+                  {byLanguage(language, { es: "LISTO PARA CONSTRUIR", en: "READY TO BUILD", pt: "PRONTO PARA CONSTRUIR" })}
                 </span>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-semibold">
-                  {byLanguage(language, { es: "Para Desarrolladores & IA", en: "For Developers & AI", pt: "Para Desenvolvedores & IA" })}
+                  {byLanguage(language, { es: "ACP", en: "ACP", pt: "ACP" })}
                 </span>
               </div>
 
               <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mb-3">
                 {byLanguage(language, {
-                  es: "El ZIP estandarizado listo para implementar",
-                  en: "The standardized ZIP ready to implement",
-                  pt: "O ZIP padronizado pronto para implementar",
+                  es: "El paquete técnico para implementación",
+                  en: "The technical package for implementation",
+                  pt: "O pacote técnico para implementação",
                 })}
               </h3>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                 {byLanguage(language, {
-                  es: "Un archivo .zip descargable con especificaciones técnicas completas, contratos de herramientas en JSON Schema, prompts versionados y datasets de prueba.",
-                  en: "A downloadable .zip package with complete technical specs, JSON Schema tool contracts, versioned prompts, and evaluation datasets.",
-                  pt: "Um arquivo .zip para download com especificações técnicas completas, contratos JSON Schema, prompts versionados e datasets de teste.",
+                  es: "Convierte el Blueprint en especificaciones técnicas completas: contratos de herramientas, prompts versionados, guardrails y pruebas.",
+                  en: "Turns the Blueprint into complete technical specs: tool contracts, versioned prompts, guardrails, and tests.",
+                  pt: "Converte o Blueprint em especificações técnicas completas: contratos de ferramentas, prompts versionados, guardrails e testes.",
                 })}
               </p>
 
