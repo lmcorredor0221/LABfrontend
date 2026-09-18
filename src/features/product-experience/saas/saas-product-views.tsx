@@ -18,6 +18,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { ApiError } from "@/core/api/errors";
 import { useLanguage, type SupportedLanguage } from "@/core/i18n/language-context";
 import { DiagramCenterPage } from "@/features/diagram-center";
 import { useDiagramCenter } from "@/features/diagram-center/application/use-diagram-center";
@@ -325,6 +326,43 @@ async function executeAccessRequest({
     reason: `Access request for ${productKey}`,
     session_id: sessionId,
   });
+}
+
+function isCheckoutAvailableAccessConflict(error: unknown, productKey: "blueprint_pro" | "acp") {
+  if (!(error instanceof ApiError) || error.status !== 409) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return message.includes("checkout") && message.includes(productKey);
+}
+
+async function executeAccessRequestWithCheckoutFallback({
+  sessionId,
+  productKey,
+  packageCode,
+}: {
+  sessionId: string;
+  productKey: "blueprint_pro" | "acp";
+  packageCode?: string;
+}) {
+  try {
+    return {
+      response: await executeAccessRequest({ sessionId, productKey }),
+      type: "access_request" as const,
+    };
+  } catch (error) {
+    if (isCheckoutAvailableAccessConflict(error, productKey)) {
+      await executeProductCheckout({
+        sessionId,
+        packageCode,
+        productKey,
+      });
+      return { response: null, type: "checkout" as const };
+    }
+
+    throw error;
+  }
 }
 
 async function executeBlueprintProDownload({
@@ -3391,11 +3429,15 @@ function BlueprintProPage({
                         productKey: "acp",
                       });
                     } else {
-                      const accessResponse = await executeAccessRequest({
+                      const accessResult = await executeAccessRequestWithCheckoutFallback({
                         sessionId,
+                        packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
                         productKey: "acp",
                       });
-                      if (accessResponse && accessResponse.status === "approved") {
+                      if (accessResult.type === "checkout") {
+                        return;
+                      }
+                      if (accessResult.response && accessResult.response.status === "approved") {
                         productExperienceStore.invalidateSession(sessionId);
                         window.location.assign(`/projects/${sessionId}/acp`);
                         return;
@@ -3454,11 +3496,15 @@ function BlueprintProPage({
                     productKey: "blueprint_pro",
                   });
                 } else {
-                  const accessResponse = await executeAccessRequest({
+                  const accessResult = await executeAccessRequestWithCheckoutFallback({
                     sessionId,
+                    packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
                     productKey: "blueprint_pro",
                   });
-                  if (accessResponse && accessResponse.status === "approved") {
+                  if (accessResult.type === "checkout") {
+                    return;
+                  }
+                  if (accessResult.response && accessResult.response.status === "approved") {
                     window.location.reload();
                     return;
                   }
@@ -3838,11 +3884,15 @@ function AcpProductPage({
                     productKey: "acp",
                   });
                 } else {
-                  const accessResponse = await executeAccessRequest({
+                  const accessResult = await executeAccessRequestWithCheckoutFallback({
                     sessionId,
+                    packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
                     productKey: "acp",
                   });
-                  if (accessResponse && accessResponse.status === "approved") {
+                  if (accessResult.type === "checkout") {
+                    return;
+                  }
+                  if (accessResult.response && accessResult.response.status === "approved") {
                     productExperienceStore.invalidateSession(sessionId);
                     window.location.assign(`/projects/${sessionId}/acp`);
                     return;

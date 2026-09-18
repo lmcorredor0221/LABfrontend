@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
+import { ApiError } from "@/core/api/errors";
 import { LanguageProvider } from "@/core/i18n/language-context";
 import { deliverableCatalogApi } from "@/features/deliverables/infrastructure/deliverable-catalog-api";
 import { premiumEnrichmentApi } from "@/features/product-experience/saas/premium-enrichment-api";
@@ -1326,6 +1327,54 @@ describe("UXA11 SaaS product views", () => {
     );
     expect(mockSessionsApi.completeSandboxCheckout).not.toHaveBeenCalled();
     expect(mockSessionsApi.createAccessRequest).not.toHaveBeenCalled();
+  });
+
+  it("falls back to Colombia checkout when Blueprint Pro access request is rejected because checkout is available", async () => {
+    const lockedRoute = createRoute("blueprint");
+    lockedRoute.snapshot.data!.commercial_access = {
+      ...lockedRoute.snapshot.data!.commercial_access!,
+      checkout_state: "not_started",
+    };
+    mockSessionsApi.createAccessRequest.mockRejectedValueOnce(
+      new ApiError({
+        code: "CONFLICT",
+        message:
+          "El checkout para blueprint_pro esta disponible con mercadopago; usa el flujo de pago en lugar de crear una solicitud administrativa.",
+        source: "backend",
+        status: 409,
+      }),
+    );
+    mockSessionsApi.createCheckoutSession.mockResolvedValueOnce({
+      checkout_ref: "mercadopago-checkout-1",
+      checkout_url: "",
+      contract_version: "commerce-checkout-session.v1",
+      currency: "COP",
+      entitlement: null,
+      expires_at: null,
+      next_action: "redirect",
+      order_id: "order-mercadopago-1",
+      product_key: "blueprint_pro",
+      provider: "mercadopago",
+      session_id: "session-uxa11",
+      status: "pending",
+      total_cents: 19900000,
+      workspace_id: "workspace-1",
+    });
+
+    renderWithLanguage(<ProductSaasView activeRoute={lockedRoute} section="blueprint_pro" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Solicitar acceso" }));
+
+    await waitFor(() =>
+      expect(mockSessionsApi.createCheckoutSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          package_code: "blueprint_pro_co",
+          product_key: "blueprint_pro",
+          session_id: "session-uxa11",
+        }),
+      ),
+    );
+    expect(mockSessionsApi.createAccessRequest).toHaveBeenCalledTimes(1);
   });
 
   it("does not keep a stale Blueprint Pro request label after the entitlement unlocks", async () => {
