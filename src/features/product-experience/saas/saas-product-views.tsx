@@ -3266,6 +3266,7 @@ function BlueprintProPage({
   const acpRequestSent = requestSentProduct === "acp" && !canOpenAcp;
   const [downloading, setDownloading] = useState(false);
   const [downloadNotice, setDownloadNotice] = useState<InlineNotice | null>(null);
+  const [checkoutNotice, setCheckoutNotice] = useState<InlineNotice | null>(null);
   const { market: checkoutMarket, setMarket: setCheckoutMarket } = useCheckoutMarketSelection();
   const productBuild = useProductBuildStatus(sessionId, "blueprint_pro", {
     polling: true,
@@ -3287,7 +3288,7 @@ function BlueprintProPage({
         unlocked={unlocked}
         viewModel={viewModel}
       />
-      <InlineNoticeBanner notice={downloadNotice} />
+      <InlineNoticeBanner notice={downloadNotice || checkoutNotice} />
       <UxaContextualActionDock
         label={byLanguage(language, {
           en: "Blueprint Pro actions",
@@ -3422,6 +3423,7 @@ function BlueprintProPage({
                 onClick={async () => {
                   if (purchasing) return;
                   setPurchasing(true);
+                  setCheckoutNotice(null);
                   try {
                     if (canCheckout) {
                       await executeProductCheckout({
@@ -3445,6 +3447,16 @@ function BlueprintProPage({
                       }
                       setRequestSentProduct("acp");
                     }
+                  } catch (err) {
+                    const message = err instanceof Error ? err.message : "Error al iniciar checkout";
+                    setCheckoutNotice({
+                      message: byLanguage(language, {
+                        en: `Could not initiate payment: ${message}`,
+                        es: `No se pudo iniciar el pago: ${message}`,
+                        pt: `Não foi possível iniciar o pagamento: ${message}`,
+                      }),
+                      tone: "danger",
+                    });
                   } finally {
                     setPurchasing(false);
                   }
@@ -3489,6 +3501,7 @@ function BlueprintProPage({
             onClick={async () => {
               if (purchasing) return;
               setPurchasing(true);
+              setCheckoutNotice(null);
               try {
                 if (canCheckout) {
                   await executeProductCheckout({
@@ -3511,6 +3524,16 @@ function BlueprintProPage({
                   }
                   setRequestSentProduct("blueprint_pro");
                 }
+              } catch (err) {
+                const message = err instanceof Error ? err.message : "Error al iniciar checkout";
+                setCheckoutNotice({
+                  message: byLanguage(language, {
+                    en: `Could not initiate payment: ${message}`,
+                    es: `No se pudo iniciar el pago: ${message}`,
+                    pt: `Não foi posible iniciar o pagamento: ${message}`,
+                  }),
+                  tone: "danger",
+                });
               } finally {
                 setPurchasing(false);
               }
