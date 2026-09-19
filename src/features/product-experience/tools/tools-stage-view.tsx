@@ -503,6 +503,18 @@ function ToolCard({
               ? `${tool.contract_seed.name} • ${tool.tool_key}`
               : tool.tool_key}
           </p>
+          {tool.categories && tool.categories.length > 0 ? (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {tool.categories.map((cat) => (
+                <span
+                  key={cat}
+                  className="inline-block rounded bg-[var(--uxa-color-brand)]/10 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[var(--uxa-color-brand)]"
+                >
+                  {cat}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div>
           <UxaBadge tone={tone}>{getToolClassificationLabel(language, tool.classification)}</UxaBadge>
@@ -543,6 +555,18 @@ function ToolCard({
               {byLanguage(language, { en: "Why it was selected", es: "Por que se propone", pt: "Por que foi proposta" })}
             </p>
             <p className="mt-1 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{tool.decision_reason}</p>
+            {tool.detected_source_signals && tool.detected_source_signals.length > 0 ? (
+              <div className="mt-2 rounded bg-amber-500/10 p-2 text-[11px] text-amber-900">
+                <span className="font-bold">
+                  {byLanguage(language, {
+                    en: "Detected signals in case: ",
+                    es: "Señales detectadas en el caso: ",
+                    pt: "Sinais detectados no caso: ",
+                  })}
+                </span>
+                <span className="font-mono">{tool.detected_source_signals.join(", ")}</span>
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-col gap-2 lg:items-end">
             {onToggleOptional ? (
@@ -1024,6 +1048,18 @@ function ResourceDrawer({ tool }: { tool: ToolRecommendationEntry | null }) {
           <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
             {tool.tool_key}
           </p>
+          {tool.categories && tool.categories.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {tool.categories.map((cat) => (
+                <span
+                  key={cat}
+                  className="inline-block rounded bg-[var(--uxa-color-brand)]/10 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--uxa-color-brand)]"
+                >
+                  {cat}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
         <UxaBadge tone={tool.classification === "mandatory" ? "success" : tool.classification === "optional" ? "warning" : "neutral"}>
           {getToolClassificationLabel(language, tool.classification)}
@@ -1060,7 +1096,19 @@ function ResourceDrawer({ tool }: { tool: ToolRecommendationEntry | null }) {
           {tool.capability_covered}
         </DetailField>
         <DetailField label={byLanguage(language, { en: "Selection rationale", es: "Justificacion de seleccion", pt: "Justificativa de selecao" })}>
-          {tool.decision_reason}
+          <p>{tool.decision_reason}</p>
+          {tool.detected_source_signals && tool.detected_source_signals.length > 0 ? (
+            <div className="mt-2 rounded bg-amber-500/10 p-2 text-[11px] text-amber-900">
+              <span className="font-bold">
+                {byLanguage(language, {
+                  en: "Detected signals in case: ",
+                  es: "Señales detectadas en el caso: ",
+                  pt: "Sinais detectados no caso: ",
+                })}
+              </span>
+              <span className="font-mono">{tool.detected_source_signals.join(", ")}</span>
+            </div>
+          ) : null}
         </DetailField>
       </div>
 

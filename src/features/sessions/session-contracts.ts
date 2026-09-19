@@ -437,6 +437,8 @@ export type BlueprintTool = {
   approval_reason: string;
   approval_policy?: string;
   archetype?: string;
+  categories?: string[];
+  connector_key?: string | null;
   audit_rules?: string[];
   auth_reference?: string;
   compensation_strategy: string;
@@ -758,6 +760,8 @@ export type ToolRecommendationEntry = {
   source_evidence: string[];
   tool_key: string;
   tool_label: string;
+  categories?: string[];
+  detected_source_signals?: string[];
 };
 
 export type ToolRequirementCoverageEntry = {
