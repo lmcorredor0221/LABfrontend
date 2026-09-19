@@ -208,7 +208,7 @@ function ScenarioComparison({
   scenarioCtaBusy?: boolean;
 }) {
   const router = useRouter();
-  const { currency, formatPrice, trm } = useCurrency();
+  const { basePrices, currency, formatPrice, trm } = useCurrency();
   const { language } = useLanguage();
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
   const snapshot = activeRoute?.snapshot.data ?? null;
@@ -232,9 +232,9 @@ function ScenarioComparison({
       return {
         href: productHref("blueprint_pro"),
         label: copy(
-          `Unlock Blueprint Pro for ${formatPrice(49)}`,
-          `Desbloquear Blueprint Pro por ${formatPrice(49)}`,
-          `Desbloquear Blueprint Pro por ${formatPrice(49)}`,
+          `Unlock Blueprint Pro for ${formatPrice(basePrices.blueprint_pro_usd)}`,
+          `Desbloquear Blueprint Pro por ${formatPrice(basePrices.blueprint_pro_usd)}`,
+          `Desbloquear Blueprint Pro por ${formatPrice(basePrices.blueprint_pro_usd)}`,
         ),
         variant: "secondary",
       };
@@ -260,9 +260,9 @@ function ScenarioComparison({
       return {
         href: productHref("acp"),
         label: copy(
-          `Unlock this speed for ${formatPrice(149)}`,
-          `Desbloquear esta velocidad por ${formatPrice(149)}`,
-          `Desbloquear esta velocidade por ${formatPrice(149)}`,
+          `Unlock this speed for ${formatPrice(basePrices.acp_premium_usd)}`,
+          `Desbloquear esta velocidad por ${formatPrice(basePrices.acp_premium_usd)}`,
+          `Desbloquear esta velocidade por ${formatPrice(basePrices.acp_premium_usd)}`,
         ),
         variant: "primary",
       };
@@ -413,7 +413,7 @@ function ScenarioComparison({
 export function EstimateStageView({ actionState, activeRoute, actions }: StageViewProps) {
   const router = useRouter();
   const { language } = useLanguage();
-  const { currency, setCurrency, trm } = useCurrency();
+  const { basePrices, currency, setCurrency, trm } = useCurrency();
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
   const snapshot = activeRoute?.snapshot.data ?? null;
   const report = snapshot?.estimation_report ?? null;
@@ -490,6 +490,7 @@ export function EstimateStageView({ actionState, activeRoute, actions }: StageVi
       ) : null}
       {report ? (
         <EstimateRoiHifiMockup
+          basePrices={basePrices}
           currency={currency}
           embedded
           isStale={report.is_stale}

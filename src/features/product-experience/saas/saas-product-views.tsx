@@ -3969,6 +3969,7 @@ function AcpProductPage({
   activeRoute: ProductExperienceRouteSnapshot | null;
 }) {
   const { language } = useLanguage();
+  const { basePrices, currency, formatPrice, trm } = useCurrency();
   const searchParams = useSearchParams();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({ activeRoute, language, section: "acp" });
@@ -3979,6 +3980,26 @@ function AcpProductPage({
     viewModel.access?.checkout_state === "available" ||
     viewModel.access?.checkout_state === "pending" ||
     viewModel.access?.checkout_state === "failed";
+  const hasBlueprintProCredit = hasTier(viewModel.accessTier, "blueprint_pro") && !hasTier(viewModel.accessTier, "acp");
+  const acpUpgradeUsd = Math.max(basePrices.acp_premium_usd - basePrices.blueprint_pro_usd, 0);
+  const blueprintProPricing = getProductPricingDisplay({
+    currency,
+    formatPrice,
+    trmCop: trm.trm_cop,
+    usdAmount: basePrices.blueprint_pro_usd,
+  });
+  const acpPricing = getProductPricingDisplay({
+    currency,
+    formatPrice,
+    trmCop: trm.trm_cop,
+    usdAmount: basePrices.acp_premium_usd,
+  });
+  const acpUpgradePricing = getProductPricingDisplay({
+    currency,
+    formatPrice,
+    trmCop: trm.trm_cop,
+    usdAmount: acpUpgradeUsd,
+  });
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSent, setRequestSent] = useState(false);
@@ -4262,18 +4283,22 @@ function AcpProductPage({
           {canCheckout ? (
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
-                <span className="text-[13px] line-through text-[var(--uxa-color-ink-muted)]">
-                  $199 USD
-                </span>
-                <UxaBadge tone="success">
-                  {byLanguage(language, {
-                    en: "Blueprint Pro credit: -$49 USD",
-                    es: "Crédito Blueprint Pro: -$49 USD",
-                    pt: "Crédito Blueprint Pro: -$49 USD",
-                  })}
-                </UxaBadge>
+                {hasBlueprintProCredit ? (
+                  <>
+                    <span className="text-[13px] line-through text-[var(--uxa-color-ink-muted)]">
+                      {acpPricing.primaryLabel}
+                    </span>
+                    <UxaBadge tone="success">
+                      {byLanguage(language, {
+                        en: `Blueprint Pro credit: -${blueprintProPricing.primaryLabel}`,
+                        es: `Crédito Blueprint Pro: -${blueprintProPricing.primaryLabel}`,
+                        pt: `Credito Blueprint Pro: -${blueprintProPricing.primaryLabel}`,
+                      })}
+                    </UxaBadge>
+                  </>
+                ) : null}
                 <span className="text-[16px] font-black text-[var(--uxa-color-ink)]">
-                  $150 USD
+                  {hasBlueprintProCredit ? acpUpgradePricing.primaryLabel : acpPricing.primaryLabel}
                 </span>
               </div>
               <CheckoutMarketSelector

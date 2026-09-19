@@ -335,6 +335,7 @@ export const en: Record<TranslationKey, string> = {
   "operation.synthetic.step.sync": "Result sync",
   "operation.synthetic.detail.received": "Payload and context prepared for backend.",
   "operation.synthetic.detail.sync": "Snapshot, artifacts, and Attention refresh when the run completes.",
+  "operation.synthetic.detail.expired": "The operation stopped sending heartbeat updates and must be retried.",
   "operation.synthetic.current.queued": "Request received",
   "operation.synthetic.current.running": "Processing in backend",
   "operation.synthetic.current.waiting": "Waiting for user intervention",

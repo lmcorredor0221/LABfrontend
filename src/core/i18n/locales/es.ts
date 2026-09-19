@@ -333,6 +333,7 @@ export const es = {
   "operation.synthetic.step.sync": "Sincronizacion de resultado",
   "operation.synthetic.detail.received": "Payload y contexto preparados para backend.",
   "operation.synthetic.detail.sync": "Snapshot, artefactos y Segmento de Atencion se refrescan al terminar.",
+  "operation.synthetic.detail.expired": "La operacion quedo sin actualizacion de heartbeat y debe reintentarse.",
   "operation.synthetic.current.queued": "Solicitud recibida",
   "operation.synthetic.current.running": "Procesando en backend",
   "operation.synthetic.current.waiting": "Esperando intervencion del usuario",

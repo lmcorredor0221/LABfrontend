@@ -5,6 +5,7 @@ import {
   failMutationOperationEnvelope,
   normalizeOperationStatus,
 } from "@/features/product-experience/operations/operation-model";
+import type { ProductExperienceStageOperation } from "@/features/product-experience/core/server-state";
 import { createToolsRouteFixture } from "@/features/product-experience/tools/tools-memory-test-fixtures";
 
 function createRuntimeAttentionItem(overrides: Partial<AttentionItemV2> = {}): AttentionItemV2 {
@@ -141,5 +142,66 @@ describe("operation model UXA10", () => {
     expect(failed?.detail).toContain("umbral operativo");
     expect(failed?.actionHint).toContain("Recarga");
     expect(failed?.steps.find((step) => step.key === "processing")?.status).toBe("failed");
+  });
+
+  it("treats expired active server operations as recoverable instead of endlessly running", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-19T20:50:00Z"));
+    try {
+      const route = createToolsRouteFixture();
+      const activeRoute = {
+        ...route,
+        operation: {
+          ...route.operation,
+          data: {
+            ...route.operation.data!,
+            stageOperation: {
+              action: "generate_estimation_report",
+              attempt_count: 1,
+              can_cancel: true,
+              can_retry: false,
+              cancel_requested_at: null,
+              cancel_url: "/api/cancel",
+              completed_at: null,
+              created_at: "2026-09-19T20:17:22Z",
+              current_step: "analysis",
+              detail: "Calculando esfuerzo, riesgo, ROI y politica de avance al paquete.",
+              error_message: "",
+              expires_at: "2026-09-19T20:47:23Z",
+              heartbeat_at: "2026-09-19T20:17:23Z",
+              id: "operation-estimate",
+              idempotency_key: "estimate-once",
+              is_stale: false,
+              recover_url: "/api/recover",
+              result: null,
+              result_artifact_id: null,
+              retry_url: "",
+              session_id: "session-uxa10",
+              stage_key: "estimate",
+              status: "running",
+              steps: [
+                { detail: "", key: "queued", label: "Solicitud recibida", status: "completed" },
+                { detail: "", key: "inputs", label: "Insumos deterministas", status: "completed" },
+                { detail: "", key: "analysis", label: "Analisis de esfuerzo y riesgo", status: "active" },
+                { detail: "", key: "persist", label: "Publicacion de estimacion", status: "pending" },
+              ],
+              technical_detail: "",
+              updated_at: "2026-09-19T20:17:23Z",
+              workspace_id: "workspace-1",
+            } satisfies ProductExperienceStageOperation,
+          },
+        },
+      };
+
+      const operation = buildProductOperationEnvelope({ activeRoute, actionState: null });
+
+      expect(operation?.status).toBe("failed");
+      expect(operation?.canRetry).toBe(true);
+      expect(operation?.canCancel).toBe(false);
+      expect(operation?.detailKey).toBe("operation.synthetic.detail.expired");
+      expect(operation?.steps.find((step) => step.key === "analysis")?.status).toBe("failed");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

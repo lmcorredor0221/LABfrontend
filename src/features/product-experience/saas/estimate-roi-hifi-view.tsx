@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { AlertTriangle, ArrowDown, ArrowRight, ChevronLeft, ChevronRight, Check, RefreshCcw } from "lucide-react";
+import { DEFAULT_BASE_PRICES, type BasePricesData } from "@/core/commerce/trm-service";
 import { cn } from "@/lib/utils";
 
 type Currency = "COP" | "USD";
@@ -23,6 +24,7 @@ export type EstimateRoiHifiScenario = {
 };
 
 export type EstimateRoiHifiMockupProps = {
+  basePrices?: Pick<BasePricesData, "blueprint_pro_usd" | "acp_premium_usd">;
   currency?: Currency;
   embedded?: boolean;
   isStale?: boolean;
@@ -70,7 +72,7 @@ const SCENARIOS: Scenario[] = [
     duration: 1.6,
     human: 68,
     key: "blueprint_premium",
-    label: "Blueprint Premium",
+    label: "Blueprint Pro",
     savings: 39,
     totalCostCop: 30521423,
     totalHours: 194,
@@ -135,8 +137,9 @@ const TECHNICAL_METRICS = [
 ];
 
 const OFFER_KEYS = ["blueprint_basic", "blueprint_premium", "acp_agentic", "factory"] as const;
+type OfferKey = (typeof OFFER_KEYS)[number];
 
-const OFFER_COPY: Record<(typeof OFFER_KEYS)[number], {
+const OFFER_COPY: Record<OfferKey, {
   cta: string;
   price: string;
   subtitle: string;
@@ -151,15 +154,15 @@ const OFFER_COPY: Record<(typeof OFFER_KEYS)[number], {
     value: "Visualiza el diseno inicial, supuestos y oportunidad de ahorro sin bloquear el flujo.",
   },
   blueprint_premium: {
-    cta: "Comprar por $49 USD",
-    price: "$49 USD",
+    cta: "Comprar por $39 USD",
+    price: "$39 USD",
     subtitle: "Documento profesional",
     title: "Blueprint Pro",
     value: "Descarga el Blueprint profesional y enriquece decisiones relevantes con reconciliacion selectiva de entregables.",
   },
   acp_agentic: {
-    cta: "Desbloquear por $149 USD",
-    price: "$149 USD",
+    cta: "Desbloquear por $99 USD",
+    price: "$99 USD",
     subtitle: "Maximo ahorro",
     title: "Blueprint Pro + ACP",
     value: "Incluye el paquete portable de construccion para ejecutar con herramientas agenticas.",
@@ -172,6 +175,39 @@ const OFFER_COPY: Record<(typeof OFFER_KEYS)[number], {
     value: "Nosotros lo construimos con el ACP; herramientas externas o legacy se cotizan aparte.",
   },
 };
+
+function usdPriceLabel(usdAmount: number) {
+  const normalized = Number.isFinite(usdAmount) ? usdAmount : 0;
+  const formatted = normalized.toLocaleString("en-US", {
+    maximumFractionDigits: Number.isInteger(normalized) ? 0 : 2,
+    minimumFractionDigits: 0,
+  });
+  return `$${formatted} USD`;
+}
+
+function offerCopyFor(
+  key: OfferKey,
+  basePrices: Pick<BasePricesData, "blueprint_pro_usd" | "acp_premium_usd"> = DEFAULT_BASE_PRICES,
+) {
+  const copy = OFFER_COPY[key];
+  if (key === "blueprint_premium") {
+    const price = usdPriceLabel(basePrices.blueprint_pro_usd);
+    return {
+      ...copy,
+      cta: `Comprar por ${price}`,
+      price,
+    };
+  }
+  if (key === "acp_agentic") {
+    const price = usdPriceLabel(basePrices.acp_premium_usd);
+    return {
+      ...copy,
+      cta: `Desbloquear por ${price}`,
+      price,
+    };
+  }
+  return copy;
+}
 
 function money(valueCop: number, currency: Currency, trmRate = TRM) {
   if (currency === "USD") {
@@ -345,9 +381,11 @@ function ComparisonScenarioCard({
 }
 
 export function OfferCarouselSummary({
+  basePrices = DEFAULT_BASE_PRICES,
   currency,
   traditional,
 }: {
+  basePrices?: Pick<BasePricesData, "blueprint_pro_usd" | "acp_premium_usd">;
   currency: Currency;
   traditional: Scenario;
 }) {
@@ -357,7 +395,7 @@ export function OfferCarouselSummary({
       throw new Error(`Missing scenario for offer ${key}`);
     }
     return {
-      ...OFFER_COPY[key],
+      ...offerCopyFor(key, basePrices),
       scenario,
     };
   });
@@ -489,6 +527,7 @@ export function OfferCarouselSummary({
 }
 
 function CommercialOfferCarousel({
+  basePrices = DEFAULT_BASE_PRICES,
   currency,
   onScenarioCta,
   scenarioCtaBusy = false,
@@ -496,6 +535,7 @@ function CommercialOfferCarousel({
   traditional,
   trm = TRM,
 }: {
+  basePrices?: Pick<BasePricesData, "blueprint_pro_usd" | "acp_premium_usd">;
   currency: Currency;
   onScenarioCta?: (scenarioKey: string) => void;
   scenarioCtaBusy?: boolean;
@@ -509,7 +549,7 @@ function CommercialOfferCarousel({
       throw new Error(`Missing scenario for offer ${key}`);
     }
     return {
-      ...OFFER_COPY[key],
+      ...offerCopyFor(key, basePrices),
       scenario,
     };
   });
@@ -859,6 +899,7 @@ function resolveScenarios(overrides: Scenario[] = []) {
 }
 
 export function EstimateRoiHifiMockup({
+  basePrices = DEFAULT_BASE_PRICES,
   currency: controlledCurrency,
   embedded = false,
   isStale = true,
@@ -901,6 +942,7 @@ export function EstimateRoiHifiMockup({
         {isStale ? <InlineAlert onRefresh={onRefresh} /> : null}
 
         <CommercialOfferCarousel
+          basePrices={basePrices}
           currency={currency}
           onScenarioCta={onScenarioCta}
           scenarioCtaBusy={scenarioCtaBusy}

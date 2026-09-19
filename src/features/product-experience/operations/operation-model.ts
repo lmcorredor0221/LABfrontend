@@ -401,9 +401,24 @@ function operationFromStageOperation(activeRoute: ProductExperienceRouteSnapshot
   return operationFromStageOperationRecord(operation);
 }
 
-export function operationFromStageOperationRecord(operation: ProductExperienceStageOperation): ProductOperationEnvelope {
+function isExpiredActiveStageOperation(operation: ProductExperienceStageOperation) {
   const status = normalizeOperationStatus(operation.status);
-  const detail = operation.error_message || operation.detail || operation.technical_detail || nextStepFor(status);
+  if (status !== "queued" && status !== "running") {
+    return false;
+  }
+  if (!operation.expires_at) {
+    return false;
+  }
+  const expiresAt = Date.parse(operation.expires_at);
+  return Number.isFinite(expiresAt) && expiresAt <= Date.now();
+}
+
+export function operationFromStageOperationRecord(operation: ProductExperienceStageOperation): ProductOperationEnvelope {
+  const expiredActiveOperation = isExpiredActiveStageOperation(operation);
+  const status: ProductOperationStatus = expiredActiveOperation ? "failed" : normalizeOperationStatus(operation.status);
+  const detail = expiredActiveOperation
+    ? "La operacion quedo sin actualizacion de heartbeat y debe reintentarse."
+    : operation.error_message || operation.detail || operation.technical_detail || nextStepFor(status);
   const currentStep =
     operation.steps.find((step) => step.key === operation.current_step)?.label ||
     currentStepFor(status);
@@ -413,12 +428,15 @@ export function operationFromStageOperationRecord(operation: ProductExperienceSt
     action: operation.action,
     actionHint: cancelRequested
       ? "La cancelacion fue solicitada; el runtime se detendra en el siguiente checkpoint seguro."
-      : nextStepFor(status),
-    actionHintKey: cancelRequested ? undefined : nextStepKeyFor(status),
-    canCancel: operation.can_cancel,
-    canRetry: operation.can_retry,
+      : expiredActiveOperation
+        ? "Recarga para verificar si backend termino en segundo plano; si sigue fallando, reintenta desde la accion principal."
+        : nextStepFor(status),
+    actionHintKey: cancelRequested ? undefined : expiredActiveOperation ? "operation.synthetic.hint.timeout" : nextStepKeyFor(status),
+    canCancel: expiredActiveOperation ? false : operation.can_cancel,
+    canRetry: expiredActiveOperation ? true : operation.can_retry,
     cancelHref: operation.cancel_url || undefined,
     currentStep,
+    detailKey: expiredActiveOperation ? "operation.synthetic.detail.expired" : undefined,
     detail,
     id: operation.id,
     lastUpdatedAt: operation.heartbeat_at ?? operation.updated_at,
@@ -434,7 +452,7 @@ export function operationFromStageOperationRecord(operation: ProductExperienceSt
           detail: step.detail,
           key: step.key,
           label: step.label,
-          status: normalizeStepStatus(step.status),
+          status: expiredActiveOperation && step.key === operation.current_step ? "failed" : normalizeStepStatus(step.status),
         }))
       : stepsForStatus(status, detail),
     title: labelForAction(operation.action),
