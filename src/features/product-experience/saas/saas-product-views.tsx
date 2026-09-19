@@ -3133,9 +3133,9 @@ function BlueprintFreePostUpgradeExperience({
                         </UxaBadge>
                       </div>
                       <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
-                        {byLanguage(language, { en: "Traditional AI Architect:", es: "Arquitecto Senior tradicional:", pt: "Arquiteto Senior tradicional:" })}
+                        {byLanguage(language, { en: "Traditional senior design (01 + 02):", es: "Diseño y arquitectura tradicional (01 + 02):", pt: "Design e arquitetura tradicional (01 + 02):" })}
                       </p>
-                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~{effort.proAdditionalSavedHours} {byLanguage(language, { en: "man-hours", es: "horas-hombre", pt: "horas-homem" })}</p>
+                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~{effort.proTotalSavedHours} {byLanguage(language, { en: "man-hours", es: "horas-hombre", pt: "horas-homem" })}</p>
                       <p className="mt-2 rounded-[var(--uxa-radius-sm)] bg-white px-2 py-1 text-[11px] font-black text-[var(--uxa-color-brand)] shadow-xs">
                         ⚡ {byLanguage(language, { en: `Design it now · ${proPricing.combinedCtaLabel}`, es: `Diseñar ahora · ${proPricing.combinedCtaLabel}`, pt: `Desenhar agora · ${proPricing.primaryLabel}` })}
                       </p>

@@ -164,7 +164,7 @@ export function getProjectEffortMetrics(
       traditionalHours * 0.65,
   );
   const proAdditionalSavedHours = Math.max(1, Math.round(freeHours - proHours));
-  const proTotalSavedHours = Math.max(1, Math.round(traditionalHours - proHours));
+  const proTotalSavedHours = freeSavedHours + proAdditionalSavedHours;
 
   const acpAgenticHours = Math.round(
     report.agentic?.estimated_hours_total ||
