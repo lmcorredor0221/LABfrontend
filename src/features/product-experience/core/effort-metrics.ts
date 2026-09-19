@@ -23,6 +23,8 @@ export interface ProjectEffortMetrics {
   proAdditionalSavedDisplay: string;
   proTotalSavedHours: number;
   proTotalSavedDisplay: string;
+  developmentTraditionalHours: number;
+  developmentTraditionalHoursDisplay: string;
   acpAgenticHours: number;
   acpAgenticHoursDisplay: string;
   acpSavedHours: number;
@@ -71,6 +73,8 @@ export function getProjectEffortMetrics(
       proAdditionalSavedDisplay: `~${FALLBACK_PRO_ADDITIONAL_SAVED_HOURS} h-h`,
       proTotalSavedHours: FALLBACK_FREE_SAVED_HOURS + FALLBACK_PRO_ADDITIONAL_SAVED_HOURS,
       proTotalSavedDisplay: `~${FALLBACK_FREE_SAVED_HOURS + FALLBACK_PRO_ADDITIONAL_SAVED_HOURS} h-h`,
+      developmentTraditionalHours: FALLBACK_TRADITIONAL_HOURS - (FALLBACK_FREE_SAVED_HOURS + FALLBACK_PRO_ADDITIONAL_SAVED_HOURS),
+      developmentTraditionalHoursDisplay: `~${FALLBACK_TRADITIONAL_HOURS - (FALLBACK_FREE_SAVED_HOURS + FALLBACK_PRO_ADDITIONAL_SAVED_HOURS)} h-h`,
       acpAgenticHours: 184,
       acpAgenticHoursDisplay: "~184 h-h",
       acpSavedHours: FALLBACK_ACP_SAVED_HOURS,
@@ -172,6 +176,7 @@ export function getProjectEffortMetrics(
       traditionalHours * 0.53,
   );
   const acpSavedHours = Math.max(1, Math.round(traditionalHours - acpAgenticHours));
+  const developmentTraditionalHours = Math.max(1, traditionalHours - proTotalSavedHours);
 
   // Proportional breakdown for Free items that strictly sum to freeSavedHours
   const freeItem1 = Math.max(1, Math.round(freeSavedHours * (8 / 18)));
@@ -197,6 +202,8 @@ export function getProjectEffortMetrics(
     proAdditionalSavedDisplay: `~${proAdditionalSavedHours} h-h`,
     proTotalSavedHours,
     proTotalSavedDisplay: `~${proTotalSavedHours} h-h`,
+    developmentTraditionalHours,
+    developmentTraditionalHoursDisplay: `~${developmentTraditionalHours} h-h`,
     acpAgenticHours,
     acpAgenticHoursDisplay: `~${acpAgenticHours} h-h`,
     acpSavedHours,

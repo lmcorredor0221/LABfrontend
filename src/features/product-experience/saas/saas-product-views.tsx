@@ -3153,7 +3153,10 @@ function BlueprintFreePostUpgradeExperience({
                       <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
                         {byLanguage(language, { en: "Traditional Full-Stack Dev:", es: "Desarrollo tradicional:", pt: "Desenvolvimento tradicional:" })}
                       </p>
-                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~{effort.traditionalHours} {byLanguage(language, { en: "man-hours", es: "horas-hombre", pt: "horas-homem" })}</p>
+                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~{effort.developmentTraditionalHours} {byLanguage(language, { en: "man-hours", es: "horas-hombre", pt: "horas-homem" })}</p>
+                      <p className="mt-1 font-mono text-[10px] text-[var(--uxa-color-ink-muted)]">
+                        {byLanguage(language, { en: `(Total project: ~${effort.traditionalHours} h-h)`, es: `(Total proyecto: ~${effort.traditionalHours} h-h)`, pt: `(Total projeto: ~${effort.traditionalHours} h-h)` })}
+                      </p>
                       <p className="mt-2 rounded-[var(--uxa-radius-sm)] bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700">
                         🔒 {byLanguage(language, { en: "Ready-to-build agentic package", es: "Paquete listo para construir", pt: "Pacote pronto para construir" })}
                       </p>
@@ -3188,7 +3191,7 @@ function BlueprintFreePostUpgradeExperience({
                           ✔ {byLanguage(language, {
                             en: "Available in your current workspace",
                             es: "Disponible en tu workspace actual",
-                            pt: "Disponivel no seu workspace atual",
+                            pt: "Disponivel no seu workspace actual",
                           })}
                         </p>
                       </div>
@@ -3212,7 +3215,7 @@ function BlueprintFreePostUpgradeExperience({
                             </div>
                           </div>
                           <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-black text-[var(--uxa-color-brand)] shadow-xs">
-                            {effort.proAdditionalSavedDisplay} {byLanguage(language, { en: "ready to save", es: "por ahorrar", pt: "a poupar" })}
+                            {effort.proTotalSavedDisplay} {byLanguage(language, { en: `total design (~${effort.proAdditionalSavedHours} h-h to save)`, es: `diseño total (~${effort.proAdditionalSavedHours} h-h por ahorrar)`, pt: `design total (~${effort.proAdditionalSavedHours} h-h a poupar)` })}
                           </span>
                         </div>
 
@@ -3451,6 +3454,9 @@ function BlueprintProAccessGate({
                   {byLanguage(language, { en: "Save Pro", es: "Por ahorrar Pro", pt: "A poupar Pro" })}
                 </p>
                 <p className="mt-1 text-[15px] font-black text-[var(--uxa-color-brand)]">{effort.proAdditionalSavedDisplay}</p>
+                <p className="mt-0.5 text-[9px] font-bold text-[var(--uxa-color-ink-muted)]">
+                  {byLanguage(language, { en: `Total: ~${effort.proTotalSavedHours} h-h`, es: `Total: ~${effort.proTotalSavedHours} h-h`, pt: `Total: ~${effort.proTotalSavedHours} h-h` })}
+                </p>
               </div>
             </div>
             {onCheckout ? (
