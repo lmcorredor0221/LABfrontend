@@ -4,6 +4,7 @@ import {
   canDownloadBlueprintProfessional,
   resolveBlueprintProfessionalDownloadState,
 } from "@/features/blueprint/blueprint-results-adapter";
+import { getProjectEffortMetrics } from "@/features/product-experience/core/effort-metrics";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 import type { ProductExperienceProductSection } from "@/features/product-experience/shell/experience-model";
 import type {
@@ -82,6 +83,7 @@ export type ProductSaasViewModel = {
   blueprintDownload: ReturnType<typeof resolveBlueprintProfessionalDownloadState>;
   blueprintHighlights: ReturnType<typeof buildBlueprintArtifactHighlights>;
   canDownloadBlueprint: boolean;
+  effortMetrics: ReturnType<typeof getProjectEffortMetrics>;
   estimate: ProductReadinessSummary;
   package: ProductReadinessSummary;
   products: ProductStageCard[];
@@ -701,6 +703,7 @@ export function buildProductSaasViewModel({
     blueprintDownload: resolveBlueprintProfessionalDownloadState(access),
     blueprintHighlights: buildBlueprintArtifactHighlights(blueprint),
     canDownloadBlueprint: canDownloadBlueprintProfessional(access),
+    effortMetrics: getProjectEffortMetrics(snapshot?.estimation_report ?? null),
     estimate: buildEstimateReadiness(activeRoute, language),
     package: buildPackageReadinessLocalized(activeRoute, language),
     products: getProductCards(activeRoute, activeRoute?.route.sessionId ?? snapshot?.session.id ?? "", language),

@@ -23,6 +23,10 @@ import { ApiError } from "@/core/api/errors";
 import { useCurrency } from "@/core/commerce/currency-context";
 import { useLanguage, type SupportedLanguage } from "@/core/i18n/language-context";
 import { getProductPricingDisplay } from "@/features/product-experience/core/pricing-display";
+import {
+  type ProjectEffortMetrics,
+  getProjectEffortMetrics,
+} from "@/features/product-experience/core/effort-metrics";
 import { DiagramCenterPage } from "@/features/diagram-center";
 import { useDiagramCenter } from "@/features/diagram-center/application/use-diagram-center";
 import type { DiagramCatalogItem } from "@/features/diagram-center/domain/types";
@@ -1484,6 +1488,7 @@ function BlueprintCommercialArtifactPanel({
 
 function BlueprintProCompactTrackingPanel({
   downloadGate,
+  effortMetrics,
   onCheckout,
   productBuild,
   purchasing,
@@ -1491,6 +1496,7 @@ function BlueprintProCompactTrackingPanel({
   unlocked,
 }: {
   downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  effortMetrics?: ProjectEffortMetrics;
   onCheckout?: () => void;
   productBuild: ProductBuildStatusView;
   purchasing?: boolean;
@@ -1498,6 +1504,7 @@ function BlueprintProCompactTrackingPanel({
   unlocked?: boolean;
 }) {
   const { language } = useLanguage();
+  const effort = effortMetrics ?? getProjectEffortMetrics(null);
   const { currency, formatPrice, basePrices, trm } = useCurrency();
   const proPricing = getProductPricingDisplay({
     usdAmount: basePrices.blueprint_pro_usd,
@@ -1708,9 +1715,9 @@ function BlueprintProCompactTrackingPanel({
                 pt: "Blueprint Pro usa o que foi validado no Free, gera ativos profissionais e deixa pontos abertos como insumo do ACP. Esta tela concentra progresso, revisao e download.",
               })
             : byLanguage(language, {
-                en: "Your Free diagnosis saved ~18 man-hours. Blueprint Pro saves ~45 additional man-hours of senior architecture modeling (C4 diagrams, runtime flows, RAG memory and ZIP export).",
-                es: "Tu diagnostico Free ahorro ~18 horas-hombre. Blueprint Pro te ahorra ~45 horas-hombre adicionales de un Arquitecto Senior de IA al generar diagramas C4, flujos runtime, memoria RAG y el paquete descargable.",
-                pt: "Seu diagnostico Free economizou ~18 horas-homem. O Blueprint Pro economiza ~45 horas-homem adicionais de um Arquiteto Senior ao gerar diagramas C4, fluxos de runtime, memoria RAG e pacote para download.",
+                en: `Your Free diagnosis saved ~${effort.freeSavedHours} man-hours. Blueprint Pro saves ~${effort.proAdditionalSavedHours} additional man-hours of senior architecture modeling (C4 diagrams, runtime flows, RAG memory and ZIP export).`,
+                es: `Tu diagnostico Free ahorro ~${effort.freeSavedHours} horas-hombre. Blueprint Pro te ahorra ~${effort.proAdditionalSavedHours} horas-hombre adicionales de un Arquitecto Senior de IA al generar diagramas C4, flujos runtime, memoria RAG y el paquete descargable.`,
+                pt: `Seu diagnostico Free economizou ~${effort.freeSavedHours} horas-homem. O Blueprint Pro economiza ~${effort.proAdditionalSavedHours} horas-homem adicionais de um Arquiteto Senior ao gerar diagramas C4, fluxos de runtime, memoria RAG e pacote para download.`,
               })}
         </p>
 
@@ -1793,9 +1800,9 @@ function BlueprintProCompactTrackingPanel({
               </h3>
               <p className="mt-1 text-[11px] leading-4 text-[var(--uxa-color-ink-soft)]">
                 {byLanguage(language, {
-                  en: "Define completely how your agent will work before coding. Save ~45 man-hours of senior architecture modeling, interactive C4 diagrams and full ZIP export.",
-                  es: "Define completamente cómo funcionará tu agente antes de programarlo. Ahorra ~45 horas-hombre de modelado senior, diagramas C4 y exportación ZIP.",
-                  pt: "Defina completamente como seu agente funcionará antes de programar. Economize ~45 horas-homem de modelagem sênior, diagramas C4 e exportação ZIP.",
+                  en: `Define completely how your agent will work before coding. Save ~${effort.proAdditionalSavedHours} man-hours of senior architecture modeling, interactive C4 diagrams and full ZIP export.`,
+                  es: `Define completamente cómo funcionará tu agente antes de programarlo. Ahorra ~${effort.proAdditionalSavedHours} horas-hombre de modelado senior, diagramas C4 y exportación ZIP.`,
+                  pt: `Defina completamente como seu agente funcionará antes de programar. Economize ~${effort.proAdditionalSavedHours} horas-homem de modelagem sênior, diagramas C4 e exportação ZIP.`,
                 })}
               </p>
               <div className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3 space-y-1.5 shadow-xs">
@@ -1887,6 +1894,7 @@ function BlueprintProCompactTrackingPanel({
 function BlueprintPostUpgradeWorkbench({
   artifactCards,
   downloadGate,
+  effortMetrics,
   onCheckout,
   productBuild,
   purchasing,
@@ -1896,6 +1904,7 @@ function BlueprintPostUpgradeWorkbench({
 }: {
   artifactCards: ReturnType<typeof buildProductSaasViewModel>["artifactCards"];
   downloadGate?: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  effortMetrics?: ProjectEffortMetrics;
   onCheckout?: () => void;
   productBuild?: ProductBuildStatusView;
   purchasing?: boolean;
@@ -2041,6 +2050,7 @@ function BlueprintPostUpgradeWorkbench({
                 {tierScope === "blueprint_pro" && productBuild && downloadGate ? (
                   <BlueprintProCompactTrackingPanel
                     downloadGate={downloadGate}
+                    effortMetrics={effortMetrics}
                     onCheckout={onCheckout}
                     productBuild={productBuild}
                     purchasing={purchasing}
@@ -2496,6 +2506,7 @@ function BlueprintFreePostUpgradeExperience({
     trmCop: trm.trm_cop,
     formatPrice,
   });
+  const effort = viewModel.effortMetrics;
   const requestedTab = searchParams.get("result_tab");
   const [feedback, setFeedback] = useState<"link" | "markdown" | "print" | null>(null);
   const [localSelection, setLocalSelection] = useState<{
@@ -3106,7 +3117,7 @@ function BlueprintFreePostUpgradeExperience({
                       <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
                         {byLanguage(language, { en: "Traditional discovery:", es: "Discovery tradicional:", pt: "Discovery tradicional:" })}
                       </p>
-                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~18 horas-hombre</p>
+                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~{effort.freeSavedHours} {byLanguage(language, { en: "man-hours", es: "horas-hombre", pt: "horas-homem" })}</p>
                       <p className="mt-2 rounded-[var(--uxa-radius-sm)] bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-800">
                         ✔ {byLanguage(language, { en: "Validated and saved in minutes with LAB ($0)", es: "Validado y ahorrado en minutos con LAB ($0)", pt: "Validado e economizado em minutos com LAB ($0)" })}
                       </p>
@@ -3124,7 +3135,7 @@ function BlueprintFreePostUpgradeExperience({
                       <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
                         {byLanguage(language, { en: "Traditional AI Architect:", es: "Arquitecto Senior tradicional:", pt: "Arquiteto Senior tradicional:" })}
                       </p>
-                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~45 horas-hombre</p>
+                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~{effort.proAdditionalSavedHours} {byLanguage(language, { en: "man-hours", es: "horas-hombre", pt: "horas-homem" })}</p>
                       <p className="mt-2 rounded-[var(--uxa-radius-sm)] bg-white px-2 py-1 text-[11px] font-black text-[var(--uxa-color-brand)] shadow-xs">
                         ⚡ {byLanguage(language, { en: `Design it now · ${proPricing.combinedCtaLabel}`, es: `Diseñar ahora · ${proPricing.combinedCtaLabel}`, pt: `Desenhar agora · ${proPricing.primaryLabel}` })}
                       </p>
@@ -3142,7 +3153,7 @@ function BlueprintFreePostUpgradeExperience({
                       <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
                         {byLanguage(language, { en: "Traditional Full-Stack Dev:", es: "Desarrollo tradicional:", pt: "Desenvolvimento tradicional:" })}
                       </p>
-                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~350 horas-hombre</p>
+                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~{effort.traditionalHours} {byLanguage(language, { en: "man-hours", es: "horas-hombre", pt: "horas-homem" })}</p>
                       <p className="mt-2 rounded-[var(--uxa-radius-sm)] bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700">
                         🔒 {byLanguage(language, { en: "Ready-to-build agentic package", es: "Paquete listo para construir", pt: "Pacote pronto para construir" })}
                       </p>
@@ -3155,23 +3166,19 @@ function BlueprintFreePostUpgradeExperience({
                         <div className="flex items-center justify-between">
                           <h3 className="text-[16px] font-black text-[var(--uxa-color-ink)]">Blueprint Free - USD 0</h3>
                           <span className="rounded-full bg-[var(--uxa-color-muted-panel)] px-2.5 py-0.5 text-[11px] font-black text-[var(--uxa-color-ink-muted)]">
-                            ~18 h-h {byLanguage(language, { en: "covered", es: "cubiertas", pt: "cobertas" })}
+                            {effort.freeSavedDisplay} {byLanguage(language, { en: "covered", es: "cubiertas", pt: "cobertas" })}
                           </span>
                         </div>
                         <div className="mt-4 space-y-3">
-                          {[
-                            { title: byLanguage(language, { en: "Clear problem and opportunity", es: "Problema y oportunidad claros", pt: "Problema e oportunidade claros" }), hh: "~8 h-h" },
-                            { title: byLanguage(language, { en: "MVP scope and success criteria", es: "Alcance MVP y criterios de exito", pt: "Escopo MVP e criterios de sucesso" }), hh: "~6 h-h" },
-                            { title: byLanguage(language, { en: "Conceptual diagrams and economic hook", es: "Diagramas conceptuales y gancho economico", pt: "Diagramas conceituais e gancho economico" }), hh: "~4 h-h" },
-                          ].map((item, index) => (
-                            <div className="flex items-center justify-between gap-3 border-b border-[var(--uxa-color-border-soft)] pb-2.5 last:border-0" key={item.title}>
+                          {effort.freeDeliverablesBreakdown.map((item, index) => (
+                            <div className="flex items-center justify-between gap-3 border-b border-[var(--uxa-color-border-soft)] pb-2.5 last:border-0" key={item.hours + item.display + index}>
                               <div className="flex items-center gap-3">
                                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--uxa-color-muted-panel)] text-[11px] font-black">
                                   {index + 1}
                                 </span>
-                                <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{item.title}</p>
+                                <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{byLanguage(language, item.title)}</p>
                               </div>
-                              <span className="font-mono text-[11px] font-semibold text-[var(--uxa-color-ink-muted)]">{item.hh}</span>
+                              <span className="font-mono text-[11px] font-semibold text-[var(--uxa-color-ink-muted)]">{item.display}</span>
                             </div>
                           ))}
                         </div>
@@ -3205,24 +3212,20 @@ function BlueprintFreePostUpgradeExperience({
                             </div>
                           </div>
                           <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-black text-[var(--uxa-color-brand)] shadow-xs">
-                            ~45 h-h {byLanguage(language, { en: "ready to save", es: "por ahorrar", pt: "a poupar" })}
+                            {effort.proAdditionalSavedDisplay} {byLanguage(language, { en: "ready to save", es: "por ahorrar", pt: "a poupar" })}
                           </span>
                         </div>
 
                         <div className="mt-4 space-y-3">
-                          {[
-                            { title: byLanguage(language, { en: "4 Production diagrams (C4, Sequence, Runtime)", es: "4 Diagramas tecnicos (C4, Secuencia, Runtime)", pt: "4 Diagramas tecnicos (C4, Sequencia, Runtime)" }), hh: "~16 h-h" },
-                            { title: byLanguage(language, { en: "11 Engineering artifacts, RAG memory & tools", es: "11 Artefactos de arquitectura, memoria RAG y herramientas", pt: "11 Artefatos de arquitetura, memoria RAG e ferramentas" }), hh: "~24 h-h" },
-                            { title: byLanguage(language, { en: "Downloadable professional ZIP & Markdown package", es: "Paquete descargable en ZIP y Markdown para ingenieros", pt: "Pacote para download em ZIP e Markdown para engenheiros" }), hh: "~5 h-h" },
-                          ].map((item, index) => (
-                            <div className="flex items-center justify-between gap-3 border-b border-[var(--uxa-color-brand)]/20 pb-2.5 last:border-0" key={item.title}>
+                          {effort.proDeliverablesBreakdown.map((item, index) => (
+                            <div className="flex items-center justify-between gap-3 border-b border-[var(--uxa-color-brand)]/20 pb-2.5 last:border-0" key={item.hours + item.display + index}>
                               <div className="flex items-center gap-3">
                                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white text-[11px] font-black text-[var(--uxa-color-brand)] shadow-xs">
                                   {index + 1}
                                 </span>
-                                <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{item.title}</p>
+                                <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{byLanguage(language, item.title)}</p>
                               </div>
-                              <span className="font-mono text-[11px] font-black text-[var(--uxa-color-brand)]">{item.hh}</span>
+                              <span className="font-mono text-[11px] font-black text-[var(--uxa-color-brand)]">{item.display}</span>
                             </div>
                           ))}
                         </div>
@@ -3341,6 +3344,7 @@ function BlueprintFreePostUpgradeExperience({
 function BlueprintProAccessGate({
   checkoutState,
   downloadGate,
+  effortMetrics,
   onCheckout,
   premiumAssetCount,
   productProgress,
@@ -3350,6 +3354,7 @@ function BlueprintProAccessGate({
 }: {
   checkoutState?: string | null;
   downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  effortMetrics?: ProjectEffortMetrics;
   onCheckout?: () => void;
   premiumAssetCount: number;
   productProgress: number;
@@ -3358,6 +3363,7 @@ function BlueprintProAccessGate({
   unlocked: boolean;
 }) {
   const { language } = useLanguage();
+  const effort = effortMetrics ?? getProjectEffortMetrics(null);
   const { currency, formatPrice, basePrices, trm } = useCurrency();
   const proPricing = getProductPricingDisplay({
     usdAmount: basePrices.blueprint_pro_usd,
@@ -3387,7 +3393,7 @@ function BlueprintProAccessGate({
     : byLanguage(language, {
         en: "The professional workspace is active, but export is still protected",
         es: "El workspace profesional esta activo, pero la exportacion sigue protegida",
-        pt: "O workspace profissional esta ativo, mas a exportacao segue protegida",
+        pt: "O workspace profissional esta ativo, mas a exportacao sigue protegida",
       });
   const description = !unlocked
     ? requestSent
@@ -3398,9 +3404,9 @@ function BlueprintProAccessGate({
         })
       : canSelfActivate
         ? byLanguage(language, {
-            en: `Your Free exploration saved ~18 man-hours. Blueprint Pro (02 · DESIGN) saves ~45 additional man-hours of senior architecture modeling: C4 diagrams, runtime flows, RAG memory and ZIP export.`,
-            es: `Tu exploración Free ahorró ~18 horas-hombre. Blueprint Pro (02 · DISEÑA) te ahorra ~45 horas-hombre adicionales de arquitectura senior: diagramas C4, flujos runtime, memoria RAG y paquete descargable.`,
-            pt: `Sua exploração Free economizou ~18 horas-homem. Blueprint Pro (02 · DESENHE) economiza ~45 horas-homem adicionais de arquitetura sênior: diagramas C4, fluxos runtime, memória RAG e pacote para download.`,
+            en: `Your Free exploration saved ~${effort.freeSavedHours} man-hours. Blueprint Pro (02 · DESIGN) saves ~${effort.proAdditionalSavedHours} additional man-hours of senior architecture modeling: C4 diagrams, runtime flows, RAG memory and ZIP export.`,
+            es: `Tu exploración Free ahorró ~${effort.freeSavedHours} horas-hombre. Blueprint Pro (02 · DISEÑA) te ahorra ~${effort.proAdditionalSavedHours} horas-hombre adicionales de arquitectura senior: diagramas C4, flujos runtime, memoria RAG y paquete descargable.`,
+            pt: `Sua exploração Free economizou ~${effort.freeSavedHours} horas-homem. Blueprint Pro (02 · DESENHE) economiza ~${effort.proAdditionalSavedHours} horas-homem adicionais de arquitetura sênior: diagramas C4, fluxos runtime, memória RAG e pacote para download.`,
           })
         : byLanguage(language, {
             en: "This workspace requires explicit approval before the premium experience can start.",
@@ -3438,13 +3444,13 @@ function BlueprintProAccessGate({
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
                   {byLanguage(language, { en: "Saved Free", es: "Ahorrado Free", pt: "Economizado Free" })}
                 </p>
-                <p className="mt-1 text-[15px] font-black text-emerald-700">~18 h-h</p>
+                <p className="mt-1 text-[15px] font-black text-emerald-700">{effort.freeSavedDisplay}</p>
               </div>
               <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-2.5 text-center">
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
                   {byLanguage(language, { en: "Save Pro", es: "Por ahorrar Pro", pt: "A poupar Pro" })}
                 </p>
-                <p className="mt-1 text-[15px] font-black text-[var(--uxa-color-brand)]">~45 h-h</p>
+                <p className="mt-1 text-[15px] font-black text-[var(--uxa-color-brand)]">{effort.proAdditionalSavedDisplay}</p>
               </div>
             </div>
             {onCheckout ? (
@@ -3537,6 +3543,7 @@ function BlueprintProPostUpgradeExperience({
         <BlueprintProAccessGate
           checkoutState={checkoutState}
           downloadGate={downloadGate}
+          effortMetrics={viewModel.effortMetrics}
           onCheckout={onCheckout}
           premiumAssetCount={premiumAssetCount}
           productProgress={productProgress}
@@ -3549,6 +3556,7 @@ function BlueprintProPostUpgradeExperience({
       <BlueprintPostUpgradeWorkbench
         artifactCards={viewModel.artifactCards}
         downloadGate={downloadGate}
+        effortMetrics={viewModel.effortMetrics}
         onCheckout={onCheckout}
         productBuild={productBuild}
         purchasing={purchasing}

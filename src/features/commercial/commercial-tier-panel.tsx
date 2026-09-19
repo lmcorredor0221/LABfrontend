@@ -7,6 +7,10 @@ import { useCurrency } from "@/core/commerce/currency-context";
 import { useLanguage } from "@/core/i18n/language-context";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { getProductPricingDisplay } from "@/features/product-experience/core/pricing-display";
+import {
+  type ProjectEffortMetrics,
+  getProjectEffortMetrics,
+} from "@/features/product-experience/core/effort-metrics";
 
 const DEFAULT_COMMERCIAL_ACCESS: SessionCommercialAccess = {
   available_upgrades: ["blueprint_pro", "acp"],
@@ -47,7 +51,9 @@ const TIER_RANK: Record<CommercialTier, number> = {
   acp: 3,
 };
 
-function getTierDefinitions(language: "en" | "es" | "pt") {
+function getTierDefinitions(language: "en" | "es" | "pt", effortMetrics?: ProjectEffortMetrics) {
+  const effort = effortMetrics ?? getProjectEffortMetrics(null);
+
   return [
     {
       accent: "from-[rgba(15,118,110,0.16)] via-[rgba(255,255,255,0.98)] to-white",
@@ -102,9 +108,9 @@ function getTierDefinitions(language: "en" | "es" | "pt") {
       }),
       ctaKey: "blueprint_pro" as CommercialTier,
       description: byLanguage(language, {
-        en: "02 · DESIGN — Complete design. Turn the analysis into a professional document ready for decision, purchase, or implementation (~45 man-hours saved).",
-        es: "02 · DISEÑA — Diseño completo. Convierte el análisis en un documento profesional listo para decisión, compra o implementación (~45 h-h ahorradas).",
-        pt: "02 · DESENHE — Desenho completo. Transforme a análise em documento profissional pronto para decisão, compra ou implementação (~45 h-h poupadas).",
+        en: `02 · DESIGN — Complete design. Turn the analysis into a professional document ready for decision, purchase, or implementation (${effort.proAdditionalSavedDisplay} saved).`,
+        es: `02 · DISEÑA — Diseño completo. Convierte el análisis en un documento profesional listo para decisión, compra o implementación (${effort.proAdditionalSavedDisplay} ahorradas).`,
+        pt: `02 · DESENHE — Desenho completo. Transforme a análise em documento profissional pronto para decisão, compra ou implementação (${effort.proAdditionalSavedDisplay} poupadas).`,
       }),
       label: byLanguage(language, {
         en: "02 · DESIGN — Blueprint Pro",
@@ -134,9 +140,9 @@ function getTierDefinitions(language: "en" | "es" | "pt") {
       }),
       ctaKey: "acp" as CommercialTier,
       description: byLanguage(language, {
-        en: "03 · PREPARE — Ready to build. Premium tier for Cursor, Claude Code, and dev teams (~350 man-hours saved).",
-        es: "03 · PREPARA — Listo para construir. La capa premium para Cursor, Claude Code y equipos de implementación (~350 h-h ahorradas).",
-        pt: "03 · PREPARE — Pronto para construir. A camada premium para Cursor, Claude Code e equipes de desenvolvimento (~350 h-h poupadas).",
+        en: `03 · PREPARE — Ready to build. Premium tier for Cursor, Claude Code, and dev teams (${effort.traditionalHoursDisplay} saved).`,
+        es: `03 · PREPARA — Listo para construir. La capa premium para Cursor, Claude Code y equipos de implementación (${effort.traditionalHoursDisplay} ahorradas).`,
+        pt: `03 · PREPARE — Pronto para construir. A camada premium para Cursor, Claude Code e equipes de desenvolvimento (${effort.traditionalHoursDisplay} poupadas).`,
       }),
       label: byLanguage(language, {
         en: "03 · PREPARE — ACP",
@@ -172,12 +178,14 @@ export function CommercialTierPanel({
   access,
   actionState,
   description,
+  effortMetrics,
   onUpgrade,
   title,
 }: {
   access?: SessionCommercialAccess | null;
   actionState?: CommercialTier | null;
   description?: string;
+  effortMetrics?: ProjectEffortMetrics;
   onUpgrade?: (tier: CommercialTier) => void;
   title?: string;
 }) {
@@ -197,7 +205,7 @@ export function CommercialTierPanel({
     formatPrice,
   });
 
-  const tierDefinitions = getTierDefinitions(language);
+  const tierDefinitions = getTierDefinitions(language, effortMetrics);
 
   function ctaLabelForTier(ctaKey: CommercialTier): string {
     if (ctaKey === "blueprint_pro") {

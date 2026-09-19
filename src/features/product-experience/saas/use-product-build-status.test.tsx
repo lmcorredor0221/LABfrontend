@@ -171,7 +171,7 @@ describe("useProductBuildStatus", () => {
     });
 
     await waitFor(() => expect(api.getProductBuildStatus).toHaveBeenCalledTimes(2));
-    expect(api.executeProductBuildAction).toBeUndefined();
+    expect((api as { executeProductBuildAction?: unknown }).executeProductBuildAction).toBeUndefined();
   });
 
   it("classifies only active lifecycles as polling candidates", () => {
