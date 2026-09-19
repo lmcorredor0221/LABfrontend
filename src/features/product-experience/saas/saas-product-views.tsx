@@ -1818,9 +1818,9 @@ function BlueprintProCompactTrackingPanel({
                   <span className="text-[var(--uxa-color-ink-muted)]">{byLanguage(language, { en: "Payment:", es: "Pago:", pt: "Pagamento:" })}</span>
                   <span className="text-[var(--uxa-color-ink-soft)]">
                     {byLanguage(language, {
-                      en: "PSE or Cards",
-                      es: "PSE o Tarjetas",
-                      pt: "PSE ou Cartões",
+                      en: "One-time payment",
+                      es: "Pago único",
+                      pt: "Pagamento único",
                     })}
                   </span>
                 </div>
@@ -3263,9 +3263,9 @@ function BlueprintFreePostUpgradeExperience({
                         </button>
                         <p className="text-center text-[11px] text-[var(--uxa-color-ink-muted)]">
                           {byLanguage(language, {
-                            en: "One-time payment · Instant activation · PSE or Cards",
-                            es: "Pago único · Activación inmediata · PSE o Tarjetas",
-                            pt: "Pagamento único · Ativação imediata · PSE ou Cartões",
+                            en: "One-time payment · Instant activation",
+                            es: "Pago único · Activación inmediata",
+                            pt: "Pagamento único · Ativação imediata",
                           })}
                         </p>
                       </div>
