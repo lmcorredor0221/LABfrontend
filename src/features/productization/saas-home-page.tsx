@@ -64,7 +64,7 @@ const PLAN_PRESENTATION: Record<CommercialTier, Omit<PlanDefinition, "benefits" 
   blueprint: {
     accent: "#3554c7",
     description: "Para explorar la solución, validar el enfoque y decidir si vale la pena avanzar.",
-    eyebrow: "01 · EXPLORAR",
+    eyebrow: "01 · EXPLORA",
     fallbackBenefits: [
       "Diseño integral visible en la plataforma",
       "Narrativa de valor y arquitectura de muestra",
@@ -77,7 +77,7 @@ const PLAN_PRESENTATION: Record<CommercialTier, Omit<PlanDefinition, "benefits" 
   blueprint_pro: {
     accent: "#2446bf",
     description: "Para presentar, tomar una decisión de inversión o contratar la implementación.",
-    eyebrow: "02 · DOCUMENTAR",
+    eyebrow: "02 · DISEÑA",
     fallbackBenefits: [
       "Todo lo incluido en Blueprint",
       "Documento profesional descargable",
@@ -86,13 +86,13 @@ const PLAN_PRESENTATION: Record<CommercialTier, Omit<PlanDefinition, "benefits" 
     ],
     fallbackExclusion: "No incluye Test Suite ni paquete técnico ACP.",
     key: "blueprint_pro",
-    name: "Blueprint Profesional",
+    name: "Blueprint Pro",
     recommended: true,
   },
   acp: {
     accent: "#0f766e",
     description: "Para iniciar la construcción con Codex, Cursor, Claude Code o Copilot.",
-    eyebrow: "03 · CONSTRUIR",
+    eyebrow: "03 · PREPARA",
     fallbackBenefits: [
       "Todo lo incluido en Blueprint Profesional",
       "Prompts, contratos, herramientas y memoria",
@@ -128,8 +128,9 @@ function tierRank(tier: CommercialTier) {
 function formatPrice(
   product: ProductCatalogResponse | undefined,
   currency: Currency = "COP",
-  trmRate: number = 3171.93,
+  trmRate: number = 0,
   language: "en" | "es" | "pt" = "es",
+  basePricesFallback?: { blueprint_pro_usd: number; acp_premium_usd: number },
 ) {
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
   const price = product?.price;
@@ -140,7 +141,10 @@ function formatPrice(
     return { price: "$0", detail: copy("Free per project", "Gratis por proyecto", "Gratis por projeto") };
   }
   const usdCents = (price as { unit_amount_usd_cents?: number }).unit_amount_usd_cents || price.unit_amount_cents;
-  const usdAmount = usdCents > 1000 ? usdCents / 100 : (product?.tier === "acp" ? 99 : 39);
+  const fallbackUsd = product?.tier === "acp"
+    ? (basePricesFallback?.acp_premium_usd ?? 99)
+    : (basePricesFallback?.blueprint_pro_usd ?? 39);
+  const usdAmount = usdCents > 1000 ? usdCents / 100 : fallbackUsd;
 
   if (currency === "USD") {
     const formatted = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(usdAmount);
@@ -174,21 +178,22 @@ function buildPlanDefinitions(
   trmRate: number,
   activeTier: CommercialTier | undefined,
   language: "en" | "es" | "pt",
+  basePricesFallback?: { blueprint_pro_usd: number; acp_premium_usd: number },
 ): PlanDefinition[] {
   const copy = (en: string, es: string, pt: string) => byLanguage(language, { en, es, pt });
 
   return TIER_ORDER.map((tier) => {
     const presentation = PLAN_PRESENTATION[tier];
     const product = products.find((entry) => entry.tier === tier);
-    let formattedPrice = formatPrice(product, currency, trmRate, language);
+    let formattedPrice = formatPrice(product, currency, trmRate, language, basePricesFallback);
 
     if (activeTier === "blueprint_pro" && tier === "acp") {
       const blueprintProduct = products.find((entry) => entry.tier === "blueprint_pro");
-      const bpUsdCents = (blueprintProduct?.price as { unit_amount_usd_cents?: number })?.unit_amount_usd_cents || blueprintProduct?.price?.unit_amount_cents || 3900;
-      const bpUsd = bpUsdCents > 1000 ? bpUsdCents / 100 : 39;
+      const bpUsdCents = (blueprintProduct?.price as { unit_amount_usd_cents?: number })?.unit_amount_usd_cents || blueprintProduct?.price?.unit_amount_cents;
+      const bpUsd = bpUsdCents && bpUsdCents > 1000 ? bpUsdCents / 100 : (basePricesFallback?.blueprint_pro_usd ?? 39);
 
-      const acpUsdCents = (product?.price as { unit_amount_usd_cents?: number })?.unit_amount_usd_cents || product?.price?.unit_amount_cents || 9900;
-      const acpUsd = acpUsdCents > 1000 ? acpUsdCents / 100 : 99;
+      const acpUsdCents = (product?.price as { unit_amount_usd_cents?: number })?.unit_amount_usd_cents || product?.price?.unit_amount_cents;
+      const acpUsd = acpUsdCents && acpUsdCents > 1000 ? acpUsdCents / 100 : (basePricesFallback?.acp_premium_usd ?? 99);
 
       const netUsd = Math.max(0, acpUsd - bpUsd);
       if (currency === "USD") {
@@ -253,7 +258,6 @@ function HomeSidebarFooter() {
     />
   );
 }
-
 function getActiveTierFromJourneyOverview(overview: ProductJourneyOverview | null): CommercialTier | null {
   if (!overview) {
     return null;
@@ -544,7 +548,7 @@ export function SaasHomePage() {
   const [createError, setCreateError] = useState("");
   const [comparisonOpen, setComparisonOpen] = useState(false);
 
-  const { currency, setCurrency, trm } = useCurrency();
+  const { currency, setCurrency, trm, basePrices } = useCurrency();
   const { language } = useLanguage();
   const copy = useCallback((en: string, es: string, pt: string) => byLanguage(language, { en, es, pt }), [language]);
   const selectedSession = items.find((item) => item.id === activeSessionId) ?? items[0] ?? null;
@@ -555,8 +559,8 @@ export function SaasHomePage() {
     getActiveTierFromJourneyOverview(journeyOverview) ??
     resolveDisplayCommercialTier(selectedSnapshot ?? null);
   const planDefinitions = useMemo(
-    () => buildPlanDefinitions(catalog, currency, trm.trm_cop, activeTier, language),
-    [activeTier, catalog, currency, language, trm.trm_cop],
+    () => buildPlanDefinitions(catalog, currency, trm.trm_cop, activeTier, language, basePrices),
+    [activeTier, basePrices, catalog, currency, language, trm.trm_cop],
   );
   const localizedPlanDefinitions = useMemo(
     () =>
@@ -575,7 +579,7 @@ export function SaasHomePage() {
               "Para explorar a solucao, validar a direcao e decidir se vale a pena avancar.",
             ),
             exclusion: copy("No external download, copy, or export.", "Sin descarga, copia ni exportacion externa.", "Sem download, copia ou exportacao externa."),
-            eyebrow: copy("01 · EXPLORE", "01 · EXPLORAR", "01 · EXPLORAR"),
+            eyebrow: copy("01 · EXPLORE", "01 · EXPLORA", "01 · EXPLORE"),
           };
         }
         if (plan.key === "blueprint_pro") {
@@ -597,14 +601,14 @@ export function SaasHomePage() {
               "No incluye Test Suite ni paquete tecnico ACP.",
               "Nao inclui Test Suite nem pacote tecnico ACP.",
             ),
-            eyebrow: copy("02 · DOCUMENT", "02 · DOCUMENTAR", "02 · DOCUMENTAR"),
-            name: copy("Blueprint Pro", "Blueprint Profesional", "Blueprint Pro"),
+            eyebrow: copy("02 · DESIGN", "02 · DISEÑA", "02 · DESENHE"),
+            name: copy("Blueprint Pro", "Blueprint Pro", "Blueprint Pro"),
           };
         }
         return {
           ...plan,
           benefits: [
-            copy("Everything included in Blueprint Pro", "Todo lo incluido en Blueprint Profesional", "Tudo incluido no Blueprint Pro"),
+            copy("Everything included in Blueprint Pro", "Todo lo incluido en Blueprint Pro", "Tudo incluido no Blueprint Pro"),
             copy("Prompts, contracts, tools, and memory", "Prompts, contratos, herramientas y memoria", "Prompts, contratos, ferramentas e memoria"),
             copy("Test Suite, GAPs, and implementation questions", "Test Suite, GAPs y preguntas de implementacion", "Test Suite, GAPs e perguntas de implementacao"),
             copy("Portable ZIP package for agentic tools", "Paquete ZIP portable para herramientas agenticas", "Pacote ZIP portavel para ferramentas agenticas"),
@@ -619,7 +623,7 @@ export function SaasHomePage() {
             "No ejecuta el despliegue ni instala dependencias.",
             "Nao executa o deploy nem instala dependencias.",
           ),
-          eyebrow: copy("03 · BUILD", "03 · CONSTRUIR", "03 · CONSTRUIR"),
+          eyebrow: copy("03 · PREPARE", "03 · PREPARA", "03 · PREPARE"),
         };
       }),
     [copy, planDefinitions],

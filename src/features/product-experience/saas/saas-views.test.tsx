@@ -1187,7 +1187,7 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.queryByRole("link", { name: "Workbench Pro" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Inspector de seguimiento")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /paquete Pro sin pedir nuevas respuestas/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Cola del producto" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Cola (del producto|de arquitectura)/i })).toBeInTheDocument();
     expect(screen.getByText("Diagramas Pro")).toBeInTheDocument();
     expect(screen.getByText("Artefactos Pro")).toBeInTheDocument();
     expect(screen.getByText("Documento descargable")).toBeInTheDocument();
@@ -1284,7 +1284,7 @@ describe("UXA11 SaaS product views", () => {
   it("keeps Blueprint Pro in the access gate until the premium entitlement is active", () => {
     renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_pro" />);
 
-    expect(screen.getByRole("heading", { name: /Activa Blueprint Pro antes de abrir el workspace profesional/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Activa Blueprint Pro|Completa tu diseño|02 · DISEÑA/i })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /El enriquecimiento Pro inicia solo después de activar Blueprint Pro/i })).not.toBeInTheDocument();
     expect(vi.mocked(premiumEnrichmentApi.getWorkspace)).not.toHaveBeenCalled();
     expect(screen.queryByText("Cargando backlog priorizado de enriquecimiento...")).not.toBeInTheDocument();
@@ -1314,7 +1314,7 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("radio", { name: "co" })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByRole("radio", { name: "mx" })).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "ar" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Adquirir Blueprint Pro" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Completar mi diseño|Adquirir Blueprint Pro/i })[0]);
 
     await waitFor(() =>
       expect(mockSessionsApi.createCheckoutSession).toHaveBeenCalledWith(

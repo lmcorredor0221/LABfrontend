@@ -17,9 +17,12 @@ import {
   Search,
   Sparkles,
   Users,
+  Zap,
 } from "lucide-react";
 import { ApiError } from "@/core/api/errors";
+import { useCurrency } from "@/core/commerce/currency-context";
 import { useLanguage, type SupportedLanguage } from "@/core/i18n/language-context";
+import { getProductPricingDisplay } from "@/features/product-experience/core/pricing-display";
 import { DiagramCenterPage } from "@/features/diagram-center";
 import { useDiagramCenter } from "@/features/diagram-center/application/use-diagram-center";
 import type { DiagramCatalogItem } from "@/features/diagram-center/domain/types";
@@ -1481,14 +1484,27 @@ function BlueprintCommercialArtifactPanel({
 
 function BlueprintProCompactTrackingPanel({
   downloadGate,
+  onCheckout,
   productBuild,
+  purchasing,
   sessionId,
+  unlocked,
 }: {
   downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  onCheckout?: () => void;
   productBuild: ProductBuildStatusView;
+  purchasing?: boolean;
   sessionId: string;
+  unlocked?: boolean;
 }) {
   const { language } = useLanguage();
+  const { currency, formatPrice, basePrices, trm } = useCurrency();
+  const proPricing = getProductPricingDisplay({
+    usdAmount: basePrices.blueprint_pro_usd,
+    currency,
+    trmCop: trm.trm_cop,
+    formatPrice,
+  });
   const status = productBuild.data;
   const queue = status?.processing_queue ?? null;
   const deliverables = (status?.deliverables ?? []).filter(
@@ -1672,24 +1688,30 @@ function BlueprintProCompactTrackingPanel({
       <div className="min-w-0 p-4">
         <UxaBadge tone={statusTone}>{statusLabel}</UxaBadge>
         <h3 className="mt-3 max-w-4xl text-[19px] font-black leading-tight text-[var(--uxa-color-ink)]">
-          {downloadGate.allowed
+          {unlocked || downloadGate.allowed
             ? byLanguage(language, {
                 en: "LAB prepared the Pro package without asking for new answers.",
                 es: "LAB preparo el paquete Pro sin pedir nuevas respuestas.",
                 pt: "LAB preparou o pacote Pro sem pedir novas respostas.",
               })
             : byLanguage(language, {
-                en: "LAB is preparing the Pro package without asking for new answers.",
-                es: "LAB esta preparando el paquete Pro sin pedir nuevas respuestas.",
-                pt: "LAB esta preparando o pacote Pro sem pedir novas respostas.",
+                en: "Diagnosis completed. Unlock Blueprint Pro for executive architecture and export.",
+                es: "Diagnostico completado. Desbloquea Blueprint Pro para generar la arquitectura tecnica y descargar.",
+                pt: "Diagnostico concluido. Desbloqueie o Blueprint Pro para gerar a arquitetura tecnica e baixar.",
               })}
         </h3>
         <p className="mt-2 max-w-4xl text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-          {byLanguage(language, {
-            en: "Blueprint Pro takes what was validated in Free, generates professional assets and keeps open points as ACP input. This screen focuses on progress, review and download.",
-            es: "Blueprint Pro toma lo validado en Free, genera activos profesionales y deja los puntos abiertos como insumo del ACP. Esta pantalla se concentra en progreso, revision y descarga.",
-            pt: "Blueprint Pro usa o que foi validado no Free, gera ativos profissionais e deixa pontos abertos como insumo do ACP. Esta tela concentra progresso, revisao e download.",
-          })}
+          {unlocked || downloadGate.allowed
+            ? byLanguage(language, {
+                en: "Blueprint Pro takes what was validated in Free, generates professional assets and keeps open points as ACP input. This screen focuses on progress, review and download.",
+                es: "Blueprint Pro toma lo validado en Free, genera activos profesionales y deja los puntos abiertos como insumo del ACP. Esta pantalla se concentra en progreso, revision y descarga.",
+                pt: "Blueprint Pro usa o que foi validado no Free, gera ativos profissionais e deixa pontos abertos como insumo do ACP. Esta tela concentra progresso, revisao e download.",
+              })
+            : byLanguage(language, {
+                en: "Your Free diagnosis saved ~18 man-hours. Blueprint Pro saves ~45 additional man-hours of senior architecture modeling (C4 diagrams, runtime flows, RAG memory and ZIP export).",
+                es: "Tu diagnostico Free ahorro ~18 horas-hombre. Blueprint Pro te ahorra ~45 horas-hombre adicionales de un Arquitecto Senior de IA al generar diagramas C4, flujos runtime, memoria RAG y el paquete descargable.",
+                pt: "Seu diagnostico Free economizou ~18 horas-homem. O Blueprint Pro economiza ~45 horas-homem adicionais de um Arquiteto Senior ao gerar diagramas C4, fluxos de runtime, memoria RAG e pacote para download.",
+              })}
         </p>
 
         <div className="mt-4 overflow-x-auto rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)]">
@@ -1716,7 +1738,7 @@ function BlueprintProCompactTrackingPanel({
           <article className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-3">
             <UxaBadge tone="success">{byLanguage(language, { en: "Available", es: "Disponible", pt: "Disponivel" })}</UxaBadge>
             <h4 className="mt-3 text-[13px] font-black text-[var(--uxa-color-ink)]">
-              {byLanguage(language, { en: "Review generated assets", es: "Revisar activos generados", pt: "Revisar ativos gerados" })}
+              {byLanguage(language, { en: "Review generated assets", es: "Revisar activos generados", pt: "Revisar activos gerados" })}
             </h4>
             <p className="mt-1 text-[11px] leading-5 text-[var(--uxa-color-ink-soft)]">
               {byLanguage(language, {
@@ -1752,36 +1774,111 @@ function BlueprintProCompactTrackingPanel({
         ) : null}
       </div>
 
-      <aside className="border-t border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-4 lg:border-l lg:border-t-0">
-        <h3 className="text-[13px] font-black text-[var(--uxa-color-ink)]">
-          {byLanguage(language, { en: "Product queue", es: "Cola del producto", pt: "Fila do produto" })}
-        </h3>
-        <div className="mt-3 grid gap-2">
-          {queueCards.map((item) => (
-            <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3" key={item.title}>
-              <strong className="block text-[11px] leading-4 text-[var(--uxa-color-ink)]">{item.title}</strong>
-              <span className="mt-1 block text-[10px] leading-4 text-[var(--uxa-color-ink-muted)]">{item.detail}</span>
+      <aside className="border-t border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-4 lg:border-l lg:border-t-0 flex flex-col justify-between">
+        {!unlocked && !downloadGate.allowed ? (
+          <>
+            <div>
+              <div className="flex items-center justify-between">
+                <UxaBadge tone="warning">
+                  {byLanguage(language, { en: "02 · DESIGN", es: "02 · DISEÑA", pt: "02 · DESENHE" })}
+                </UxaBadge>
+                <span className="font-mono text-[11px] font-black text-[var(--uxa-color-brand)]">{proPricing.primaryLabel}</span>
+              </div>
+              <h3 className="mt-3 text-[14px] font-black text-[var(--uxa-color-ink)]">
+                {byLanguage(language, {
+                  en: "Complete your design (Blueprint Pro)",
+                  es: "Completar mi diseño (Blueprint Pro)",
+                  pt: "Completar meu desenho (Blueprint Pro)",
+                })}
+              </h3>
+              <p className="mt-1 text-[11px] leading-4 text-[var(--uxa-color-ink-soft)]">
+                {byLanguage(language, {
+                  en: "Define completely how your agent will work before coding. Save ~45 man-hours of senior architecture modeling, interactive C4 diagrams and full ZIP export.",
+                  es: "Define completamente cómo funcionará tu agente antes de programarlo. Ahorra ~45 horas-hombre de modelado senior, diagramas C4 y exportación ZIP.",
+                  pt: "Defina completamente como seu agente funcionará antes de programar. Economize ~45 horas-homem de modelagem sênior, diagramas C4 e exportação ZIP.",
+                })}
+              </p>
+              <div className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3 space-y-1.5 shadow-xs">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-[var(--uxa-color-ink-muted)]">{byLanguage(language, { en: "Investment:", es: "Inversión:", pt: "Investimento:" })}</span>
+                  <strong className="text-[var(--uxa-color-ink)]">{proPricing.combinedCtaLabel}</strong>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-[var(--uxa-color-ink-muted)]">{byLanguage(language, { en: "Delivery:", es: "Entrega:", pt: "Entrega:" })}</span>
+                  <span className="font-bold text-[var(--uxa-color-brand)]">{byLanguage(language, { en: "Instant in workspace", es: "Inmediata en workspace", pt: "Imediata no workspace" })}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="text-[var(--uxa-color-ink-muted)]">{byLanguage(language, { en: "Payment:", es: "Pago:", pt: "Pagamento:" })}</span>
+                  <span className="text-[var(--uxa-color-ink-soft)]">Mercado Pago / PSE / Tarjeta</span>
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {canRetryQueue ? (
-            <button className="uxa-button uxa-button--primary" onClick={() => void productBuild.executeCommand("retry_failed", { allow_llm: true })} type="button">
-              {byLanguage(language, { en: "Retry queue", es: "Reintentar cola", pt: "Tentar fila novamente" })}
-            </button>
-          ) : canProcessQueue ? (
-            <button className="uxa-button uxa-button--primary" onClick={() => void productBuild.executeCommand("process_pending", { allow_llm: true })} type="button">
-              {byLanguage(language, { en: "Process queue", es: "Procesar cola", pt: "Processar fila" })}
-            </button>
-          ) : (
-            <span className="inline-flex min-h-10 items-center rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white px-3 text-[12px] font-black text-[var(--uxa-color-ink-soft)]">
-              {progress}% {byLanguage(language, { en: "ready", es: "listo", pt: "pronto" })}
-            </span>
-          )}
-          <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/acp`}>
-            {byLanguage(language, { en: "View ACP", es: "Ver ACP", pt: "Ver ACP" })}
-          </a>
-        </div>
+
+            <div className="mt-4 space-y-2">
+              {onCheckout ? (
+                <button
+                  className="uxa-button uxa-button--primary w-full py-2.5 text-[12px] font-black flex items-center justify-center gap-1.5 shadow-sm"
+                  disabled={purchasing}
+                  onClick={onCheckout}
+                  type="button"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  <span>
+                    {purchasing
+                      ? byLanguage(language, { en: "Connecting...", es: "Conectando...", pt: "Conectando..." })
+                      : byLanguage(language, {
+                          en: `⚡ Complete my design — ${proPricing.combinedCtaLabel}`,
+                          es: `⚡ Completar mi diseño — ${proPricing.combinedCtaLabel}`,
+                          pt: `⚡ Completar meu desenho — ${proPricing.combinedCtaLabel}`,
+                        })}
+                  </span>
+                </button>
+              ) : null}
+              <p className="text-center text-[10px] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, {
+                  en: `${proPricing.primaryLabel} · One-time payment · Instant activation`,
+                  es: `${proPricing.primaryLabel} · Pago único · Activación inmediata`,
+                  pt: `${proPricing.primaryLabel} · Pagamento único · Ativação imediata`,
+                })}
+              </p>
+              <a className="uxa-button uxa-button--secondary w-full text-center text-[11px]" href={`/projects/${sessionId}/acp`}>
+                {byLanguage(language, { en: "03 · PREPARE (ACP)", es: "03 · PREPARA (ACP)", pt: "03 · PREPARA (ACP)" })}
+              </a>
+            </div>
+          </>
+        ) : (
+          <>
+            <h3 className="text-[13px] font-black text-[var(--uxa-color-ink)]">
+              {byLanguage(language, { en: "02 · DESIGN: Architecture queue", es: "02 · DISEÑA: Cola de arquitectura", pt: "02 · DESENHE: Fila de arquitetura" })}
+            </h3>
+            <div className="mt-3 grid gap-2">
+              {queueCards.map((item) => (
+                <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3" key={item.title}>
+                  <strong className="block text-[11px] leading-4 text-[var(--uxa-color-ink)]">{item.title}</strong>
+                  <span className="mt-1 block text-[10px] leading-4 text-[var(--uxa-color-ink-muted)]">{item.detail}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {canRetryQueue ? (
+                <button className="uxa-button uxa-button--primary" onClick={() => void productBuild.executeCommand("retry_failed", { allow_llm: true })} type="button">
+                  {byLanguage(language, { en: "Retry queue", es: "Reintentar cola", pt: "Tentar fila novamente" })}
+                </button>
+              ) : canProcessQueue ? (
+                <button className="uxa-button uxa-button--primary" onClick={() => void productBuild.executeCommand("process_pending", { allow_llm: true })} type="button">
+                  {byLanguage(language, { en: "Process queue", es: "Procesar cola", pt: "Processar fila" })}
+                </button>
+              ) : (
+                <span className="inline-flex min-h-10 items-center rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white px-3 text-[12px] font-black text-[var(--uxa-color-ink-soft)]">
+                  {progress}% {byLanguage(language, { en: "ready", es: "listo", pt: "pronto" })}
+                </span>
+              )}
+              <a className="uxa-button uxa-button--secondary" href={`/projects/${sessionId}/acp`}>
+                {byLanguage(language, { en: "View ACP", es: "Ver ACP", pt: "Ver ACP" })}
+              </a>
+            </div>
+          </>
+        )}
       </aside>
     </section>
   );
@@ -1790,15 +1887,21 @@ function BlueprintProCompactTrackingPanel({
 function BlueprintPostUpgradeWorkbench({
   artifactCards,
   downloadGate,
+  onCheckout,
   productBuild,
+  purchasing,
   sessionId,
   tierScope,
+  unlocked,
 }: {
   artifactCards: ReturnType<typeof buildProductSaasViewModel>["artifactCards"];
   downloadGate?: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  onCheckout?: () => void;
   productBuild?: ProductBuildStatusView;
+  purchasing?: boolean;
   sessionId: string;
   tierScope: ProductTierScope;
+  unlocked?: boolean;
 }) {
   const { language } = useLanguage();
   const router = useRouter();
@@ -1938,8 +2041,11 @@ function BlueprintPostUpgradeWorkbench({
                 {tierScope === "blueprint_pro" && productBuild && downloadGate ? (
                   <BlueprintProCompactTrackingPanel
                     downloadGate={downloadGate}
+                    onCheckout={onCheckout}
                     productBuild={productBuild}
+                    purchasing={purchasing}
                     sessionId={sessionId}
+                    unlocked={unlocked}
                   />
                 ) : productBuild?.isError ? (
                   <p className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-state-danger-border)] bg-[var(--uxa-state-danger-bg)] p-3 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
@@ -2383,6 +2489,13 @@ function BlueprintFreePostUpgradeExperience({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { currency, formatPrice, basePrices, trm } = useCurrency();
+  const proPricing = getProductPricingDisplay({
+    usdAmount: basePrices.blueprint_pro_usd,
+    currency,
+    trmCop: trm.trm_cop,
+    formatPrice,
+  });
   const requestedTab = searchParams.get("result_tab");
   const [feedback, setFeedback] = useState<"link" | "markdown" | "print" | null>(null);
   const [localSelection, setLocalSelection] = useState<{
@@ -2555,6 +2668,56 @@ function BlueprintFreePostUpgradeExperience({
     setLocalSelection({ source: requestedTab, tab });
     if (typeof window !== "undefined" && window.location.pathname.includes(`/projects/${sessionId}/blueprint`)) {
       router.push(buildFreeHref(tab));
+    }
+  }
+
+  const [purchasingPro, setPurchasingPro] = useState(false);
+  const [proCheckoutNotice, setProCheckoutNotice] = useState<InlineNotice | null>(null);
+  const { market: checkoutMarket } = useCheckoutMarketSelection();
+
+  async function handleUnlockPro() {
+    if (purchasingPro) return;
+    setPurchasingPro(true);
+    setProCheckoutNotice(null);
+    try {
+      if (
+        viewModel.access?.checkout_state === "available" ||
+        viewModel.access?.checkout_state === "pending" ||
+        viewModel.access?.checkout_state === "failed"
+      ) {
+        await executeProductCheckout({
+          sessionId,
+          packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
+          productKey: "blueprint_pro",
+        });
+      } else {
+        const accessResult = await executeAccessRequestWithCheckoutFallback({
+          sessionId,
+          packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
+          productKey: "blueprint_pro",
+        });
+        if (accessResult.type === "checkout") {
+          return;
+        }
+        if (accessResult.response && accessResult.response.status === "approved") {
+          productExperienceStore.invalidateSession(sessionId);
+          window.location.assign(`/projects/${sessionId}/blueprint/pro`);
+          return;
+        }
+        router.push(`/projects/${sessionId}/blueprint/pro`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error al iniciar checkout";
+      setProCheckoutNotice({
+        message: byLanguage(language, {
+          en: `Could not initiate payment: ${message}`,
+          es: `No se pudo iniciar el pago: ${message}`,
+          pt: `Não foi possível iniciar o pagamento: ${message}`,
+        }),
+        tone: "danger",
+      });
+    } finally {
+      setPurchasingPro(false);
     }
   }
 
@@ -2910,62 +3073,207 @@ function BlueprintFreePostUpgradeExperience({
               >
                 <section aria-label="Delta hacia Blueprint Pro" id="blueprint-free-pro-delta">
                   <div className="max-w-4xl">
-                    <UxaBadge tone="warning">
-                      {byLanguage(language, { en: "Engineering delta", es: "Delta de ingenieria", pt: "Delta de engenharia" })}
+                    <UxaBadge tone="brand">
+                      {byLanguage(language, { en: "Engineering & Effort Balance", es: "Balance de Esfuerzo de Ingenieria", pt: "Balanco de Esforco de Engenharia" })}
                     </UxaBadge>
-                    <h2 className="mt-3 text-[21px] font-black leading-tight text-[var(--uxa-color-ink)]">
+                    <h2 className="mt-3 text-[22px] font-black leading-tight text-[var(--uxa-color-ink)]">
                       {byLanguage(language, {
-                        en: "Your diagnosis is ready. To build it without improvising, you need the how.",
-                        es: "Tu diagnostico esta listo. Para construirlo sin improvisar, necesitas el como.",
-                        pt: "Seu diagnostico esta pronto. Para construir sem improvisar, voce precisa do como.",
+                        en: "Your diagnosis is ready. The next step is executive architecture.",
+                        es: "Diagnostico inicial completado. El siguiente paso es la arquitectura tecnica ejecutable.",
+                        pt: "Diagnostico concluido. O proximo passo e a arquitetura tecnica executavel.",
                       })}
                     </h2>
+                    <p className="mt-2 text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+                      {byLanguage(language, {
+                        en: "Comparing traditional engineering time vs. assisted creation with LAB in man-hours.",
+                        es: "Comparativa de tiempo tradicional de ingenieria vs. creacion asistida con LAB en horas-hombre.",
+                        pt: "Comparativo de tempo tradicional de engenharia vs. criacao assistida com LAB em horas-homem.",
+                      })}
+                    </p>
                   </div>
-                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-4">
-                      <h3 className="text-[15px] font-black text-[var(--uxa-color-ink)]">Blueprint Free - USD 0</h3>
-                      <div className="mt-3 space-y-3">
-                        {[
-                          byLanguage(language, { en: "Clear problem and opportunity", es: "Problema y oportunidad claros", pt: "Problema e oportunidade claros" }),
-                          byLanguage(language, { en: "MVP scope and success criteria", es: "Alcance MVP y criterios de exito", pt: "Escopo MVP e criterios de sucesso" }),
-                          byLanguage(language, { en: "Conceptual diagrams and economic hook", es: "Diagramas conceptuales y gancho economico", pt: "Diagramas conceituais e gancho economico" }),
-                        ].map((item, index) => (
-                          <div className="flex gap-3" key={item}>
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[var(--uxa-color-muted-panel)] text-[12px] font-black">
-                              {index + 1}
-                            </span>
-                            <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{item}</p>
-                          </div>
-                        ))}
+
+                  {/* Ribbon de Horas-Hombre (Free vs Pro vs ACP) */}
+                  <div className="mt-5 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+                          01 · {byLanguage(language, { en: "EXPLORE (Free)", es: "EXPLORA (Free)", pt: "EXPLORE (Free)" })}
+                        </span>
+                        <UxaBadge tone="success">
+                          {byLanguage(language, { en: "Completed", es: "Ya completado", pt: "Concluido" })}
+                        </UxaBadge>
                       </div>
+                      <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
+                        {byLanguage(language, { en: "Traditional discovery:", es: "Discovery tradicional:", pt: "Discovery tradicional:" })}
+                      </p>
+                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~18 horas-hombre</p>
+                      <p className="mt-2 rounded-[var(--uxa-radius-sm)] bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-800">
+                        ✔ {byLanguage(language, { en: "Validated and saved in minutes with LAB ($0)", es: "Validado y ahorrado en minutos con LAB ($0)", pt: "Validado e economizado em minutos com LAB ($0)" })}
+                      </p>
                     </div>
-                    <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-4">
-                      <h3 className="text-[15px] font-black text-[var(--uxa-color-ink)]">Blueprint Pro - USD 39</h3>
-                      <div className="mt-3 space-y-3">
-                        {[
-                          byLanguage(language, { en: "Technical architecture and memory strategy", es: "Arquitectura tecnica y estrategia de memoria", pt: "Arquitetura tecnica e estrategia de memoria" }),
-                          byLanguage(language, { en: "Additional professional diagrams and artifacts", es: "Diagramas y artefactos profesionales adicionales", pt: "Diagramas e artefatos profissionais adicionais" }),
-                          byLanguage(language, { en: "Downloadable professional document", es: "Documento profesional descargable", pt: "Documento profissional para download" }),
-                        ].map((item, index) => (
-                          <div className="flex gap-3" key={item}>
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white text-[12px] font-black text-[var(--uxa-color-brand)]">
-                              {index + 1}
-                            </span>
-                            <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{item}</p>
-                          </div>
-                        ))}
+
+                    <div className="rounded-[var(--uxa-radius-md)] border-2 border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-3.5 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-brand)]">
+                          02 · {byLanguage(language, { en: "DESIGN (Blueprint Pro)", es: "DISEÑA (Blueprint Pro)", pt: "DESENHE (Blueprint Pro)" })}
+                        </span>
+                        <UxaBadge tone="warning">
+                          {byLanguage(language, { en: "Your next step", es: "Tu siguiente paso", pt: "Seu próximo passo" })}
+                        </UxaBadge>
                       </div>
-                      {comparison ? (
-                        <p className="mt-4 rounded-[var(--uxa-radius-md)] bg-white/80 p-3 text-[12px] font-bold text-[var(--uxa-color-ink)]">
-                          {byLanguage(language, {
-                            en: `Estimated effort reduction: ${comparison.effortReductionPercent}%`,
-                            es: `Reduccion de esfuerzo estimada: ${comparison.effortReductionPercent}%`,
-                            pt: `Reducao de esforco estimada: ${comparison.effortReductionPercent}%`,
+                      <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
+                        {byLanguage(language, { en: "Traditional AI Architect:", es: "Arquitecto Senior tradicional:", pt: "Arquiteto Senior tradicional:" })}
+                      </p>
+                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~45 horas-hombre</p>
+                      <p className="mt-2 rounded-[var(--uxa-radius-sm)] bg-white px-2 py-1 text-[11px] font-black text-[var(--uxa-color-brand)] shadow-xs">
+                        ⚡ {byLanguage(language, { en: `Design it now · ${proPricing.combinedCtaLabel}`, es: `Diseñar ahora · ${proPricing.combinedCtaLabel}`, pt: `Desenhar agora · ${proPricing.primaryLabel}` })}
+                      </p>
+                    </div>
+
+                    <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3.5 opacity-90 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+                          03 · {byLanguage(language, { en: "PREPARE (ACP)", es: "PREPARA (ACP)", pt: "PREPARE (ACP)" })}
+                        </span>
+                        <UxaBadge tone="neutral">
+                          {byLanguage(language, { en: "Final Phase", es: "Fase Final", pt: "Fase Final" })}
+                        </UxaBadge>
+                      </div>
+                      <p className="mt-2 text-[12px] text-[var(--uxa-color-ink-soft)]">
+                        {byLanguage(language, { en: "Traditional Full-Stack Dev:", es: "Desarrollo tradicional:", pt: "Desenvolvimento tradicional:" })}
+                      </p>
+                      <p className="text-[15px] font-black text-[var(--uxa-color-ink)]">~350 horas-hombre</p>
+                      <p className="mt-2 rounded-[var(--uxa-radius-sm)] bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700">
+                        🔒 {byLanguage(language, { en: "Ready-to-build agentic package", es: "Paquete listo para construir", pt: "Pacote pronto para construir" })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-[16px] font-black text-[var(--uxa-color-ink)]">Blueprint Free - USD 0</h3>
+                          <span className="rounded-full bg-[var(--uxa-color-muted-panel)] px-2.5 py-0.5 text-[11px] font-black text-[var(--uxa-color-ink-muted)]">
+                            ~18 h-h {byLanguage(language, { en: "covered", es: "cubiertas", pt: "cobertas" })}
+                          </span>
+                        </div>
+                        <div className="mt-4 space-y-3">
+                          {[
+                            { title: byLanguage(language, { en: "Clear problem and opportunity", es: "Problema y oportunidad claros", pt: "Problema e oportunidade claros" }), hh: "~8 h-h" },
+                            { title: byLanguage(language, { en: "MVP scope and success criteria", es: "Alcance MVP y criterios de exito", pt: "Escopo MVP e criterios de sucesso" }), hh: "~6 h-h" },
+                            { title: byLanguage(language, { en: "Conceptual diagrams and economic hook", es: "Diagramas conceptuales y gancho economico", pt: "Diagramas conceituais e gancho economico" }), hh: "~4 h-h" },
+                          ].map((item, index) => (
+                            <div className="flex items-center justify-between gap-3 border-b border-[var(--uxa-color-border-soft)] pb-2.5 last:border-0" key={item.title}>
+                              <div className="flex items-center gap-3">
+                                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--uxa-color-muted-panel)] text-[11px] font-black">
+                                  {index + 1}
+                                </span>
+                                <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{item.title}</p>
+                              </div>
+                              <span className="font-mono text-[11px] font-semibold text-[var(--uxa-color-ink-muted)]">{item.hh}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="mt-5 rounded-[var(--uxa-radius-md)] bg-[var(--uxa-color-muted-panel)] p-3 text-center">
+                        <p className="text-[12px] font-bold text-[var(--uxa-color-ink-soft)]">
+                          ✔ {byLanguage(language, {
+                            en: "Available in your current workspace",
+                            es: "Disponible en tu workspace actual",
+                            pt: "Disponivel no seu workspace atual",
                           })}
                         </p>
-                      ) : null}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[var(--uxa-radius-md)] border-2 border-[var(--uxa-color-brand)] bg-[var(--uxa-color-brand-soft)] p-5 shadow-md flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-black text-amber-900 border border-amber-500/30">
+                              ⭐ {byLanguage(language, { en: "02 · DESIGN — Recommended to complete", es: "02 · DISEÑA — Recomendado para completar", pt: "02 · DESENHE — Recomendado para completar" })}
+                            </span>
+                            <div className="mt-2 flex flex-wrap items-baseline gap-2">
+                              <h3 className="text-[20px] font-black text-[var(--uxa-color-ink)]">Blueprint Pro</h3>
+                              <span className="text-[20px] font-black text-[var(--uxa-color-brand)]">{proPricing.primaryLabel}</span>
+                              {proPricing.secondaryApproxLabel ? (
+                                <span className="rounded-[var(--uxa-radius-sm)] bg-white px-2 py-0.5 text-[12px] font-black text-[var(--uxa-color-ink-soft)] border border-[var(--uxa-color-border-soft)]">
+                                  ({proPricing.secondaryApproxLabel})
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <span className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-black text-[var(--uxa-color-brand)] shadow-xs">
+                            ~45 h-h {byLanguage(language, { en: "ready to save", es: "por ahorrar", pt: "a poupar" })}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                          {[
+                            { title: byLanguage(language, { en: "4 Production diagrams (C4, Sequence, Runtime)", es: "4 Diagramas tecnicos (C4, Secuencia, Runtime)", pt: "4 Diagramas tecnicos (C4, Sequencia, Runtime)" }), hh: "~16 h-h" },
+                            { title: byLanguage(language, { en: "11 Engineering artifacts, RAG memory & tools", es: "11 Artefactos de arquitectura, memoria RAG y herramientas", pt: "11 Artefatos de arquitetura, memoria RAG e ferramentas" }), hh: "~24 h-h" },
+                            { title: byLanguage(language, { en: "Downloadable professional ZIP & Markdown package", es: "Paquete descargable en ZIP y Markdown para ingenieros", pt: "Pacote para download em ZIP e Markdown para engenheiros" }), hh: "~5 h-h" },
+                          ].map((item, index) => (
+                            <div className="flex items-center justify-between gap-3 border-b border-[var(--uxa-color-brand)]/20 pb-2.5 last:border-0" key={item.title}>
+                              <div className="flex items-center gap-3">
+                                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white text-[11px] font-black text-[var(--uxa-color-brand)] shadow-xs">
+                                  {index + 1}
+                                </span>
+                                <p className="text-[13px] font-bold text-[var(--uxa-color-ink)]">{item.title}</p>
+                              </div>
+                              <span className="font-mono text-[11px] font-black text-[var(--uxa-color-brand)]">{item.hh}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {comparison ? (
+                          <p className="mt-4 rounded-[var(--uxa-radius-md)] bg-white/90 p-2.5 text-[12px] font-black text-[var(--uxa-color-ink)] shadow-xs">
+                            ⚡ {byLanguage(language, {
+                              en: `Estimated engineering effort reduction: ${comparison.effortReductionPercent}%`,
+                              es: `Reduccion de esfuerzo de ingenieria estimada: ${comparison.effortReductionPercent}%`,
+                              pt: `Reducao de esforco de engenharia estimada: ${comparison.effortReductionPercent}%`,
+                            })}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-5 space-y-2">
+                        <button
+                          className={cn(
+                            "w-full uxa-button uxa-button--primary py-3 text-[13px] font-black shadow-md flex items-center justify-center gap-2",
+                            purchasingPro && "opacity-60 cursor-not-allowed",
+                          )}
+                          disabled={purchasingPro}
+                          onClick={() => void handleUnlockPro()}
+                          type="button"
+                        >
+                          <Zap className="h-4 w-4" />
+                          <span>
+                            {purchasingPro
+                              ? byLanguage(language, { en: "Connecting to checkout...", es: "Conectando al checkout...", pt: "Conectando ao checkout..." })
+                              : byLanguage(language, {
+                                  en: `⚡ Complete my design (Blueprint Pro) — ${proPricing.combinedCtaLabel}`,
+                                  es: `⚡ Completar mi diseño (Blueprint Pro) — ${proPricing.combinedCtaLabel}`,
+                                  pt: `⚡ Completar meu desenho (Blueprint Pro) — ${proPricing.combinedCtaLabel}`,
+                                })}
+                          </span>
+                        </button>
+                        <p className="text-center text-[11px] text-[var(--uxa-color-ink-muted)]">
+                          {byLanguage(language, {
+                            en: "One-time payment · Instant activation · Mercado Pago / PSE / Cards",
+                            es: "Pago unico · Activacion inmediata · Mercado Pago, PSE o Tarjetas",
+                            pt: "Pagamento unico · Ativacao imediata · Mercado Pago, PSE ou Cartoes",
+                          })}
+                        </p>
+                      </div>
                     </div>
                   </div>
+                  {proCheckoutNotice ? (
+                    <div className="mt-4">
+                      <InlineNoticeBanner notice={proCheckoutNotice} />
+                    </div>
+                  ) : null}
                 </section>
               </div>
             ) : null}
@@ -3019,9 +3327,9 @@ function BlueprintFreePostUpgradeExperience({
         <a className="uxa-button uxa-button--primary" href={`/projects/${sessionId}/blueprint/pro`}>
           <span>
             {byLanguage(language, {
-              en: "Unlock Blueprint Pro - USD 39",
-              es: "Desbloquear Blueprint Pro - USD 39",
-              pt: "Desbloquear Blueprint Pro - USD 39",
+              en: `⚡ Complete my design — ${proPricing.combinedCtaLabel}`,
+              es: `⚡ Completar mi diseño — ${proPricing.combinedCtaLabel}`,
+              pt: `⚡ Completar meu desenho — ${proPricing.combinedCtaLabel}`,
             })}
           </span>
         </a>
@@ -3033,6 +3341,7 @@ function BlueprintFreePostUpgradeExperience({
 function BlueprintProAccessGate({
   checkoutState,
   downloadGate,
+  onCheckout,
   premiumAssetCount,
   productProgress,
   purchasing,
@@ -3041,6 +3350,7 @@ function BlueprintProAccessGate({
 }: {
   checkoutState?: string | null;
   downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  onCheckout?: () => void;
   premiumAssetCount: number;
   productProgress: number;
   purchasing: boolean;
@@ -3048,6 +3358,13 @@ function BlueprintProAccessGate({
   unlocked: boolean;
 }) {
   const { language } = useLanguage();
+  const { currency, formatPrice, basePrices, trm } = useCurrency();
+  const proPricing = getProductPricingDisplay({
+    usdAmount: basePrices.blueprint_pro_usd,
+    currency,
+    trmCop: trm.trm_cop,
+    formatPrice,
+  });
   const canSelfActivate = checkoutState === "available" || checkoutState === "pending";
   const title = !unlocked
     ? requestSent
@@ -3058,9 +3375,9 @@ function BlueprintProAccessGate({
         })
       : canSelfActivate
         ? byLanguage(language, {
-            en: "Activate Blueprint Pro before opening the professional workspace",
-            es: "Activa Blueprint Pro antes de abrir el workspace profesional",
-            pt: "Ative Blueprint Pro antes de abrir o workspace profissional",
+            en: "02 · DESIGN: Complete your architectural design (Blueprint Pro)",
+            es: "02 · DISEÑA: Completa tu diseño arquitectónico (Blueprint Pro)",
+            pt: "02 · DESENHE: Complete seu desenho arquitetônico (Blueprint Pro)",
           })
         : byLanguage(language, {
             en: "Request Blueprint Pro access before continuing",
@@ -3077,13 +3394,13 @@ function BlueprintProAccessGate({
       ? byLanguage(language, {
           en: "The request was registered. The professional workspace appears when approval or activation completes.",
           es: "La solicitud fue registrada. El workspace profesional aparece cuando termine la aprobacion o activacion.",
-          pt: "A solicitacao foi registrada. O workspace profissional aparece quando a aprovacao ou ativacao terminar.",
+          pt: "A solicitacao foi registrada. O workspace profesional aparece quando a aprovacao ou ativacao terminar.",
         })
       : canSelfActivate
         ? byLanguage(language, {
-            en: "Blueprint Free remains visible while checkout enables the professional workspace, diagrams and authenticated ZIP download.",
-            es: "Blueprint Free sigue visible mientras el checkout habilita el workspace profesional, diagramas y descarga ZIP autenticada.",
-            pt: "Blueprint Free continua visivel enquanto o checkout habilita o workspace profissional, diagramas e download ZIP autenticado.",
+            en: `Your Free exploration saved ~18 man-hours. Blueprint Pro (02 · DESIGN) saves ~45 additional man-hours of senior architecture modeling: C4 diagrams, runtime flows, RAG memory and ZIP export.`,
+            es: `Tu exploración Free ahorró ~18 horas-hombre. Blueprint Pro (02 · DISEÑA) te ahorra ~45 horas-hombre adicionales de arquitectura senior: diagramas C4, flujos runtime, memoria RAG y paquete descargable.`,
+            pt: `Sua exploração Free economizou ~18 horas-homem. Blueprint Pro (02 · DESENHE) economiza ~45 horas-homem adicionais de arquitetura sênior: diagramas C4, fluxos runtime, memória RAG e pacote para download.`,
           })
         : byLanguage(language, {
             en: "This workspace requires explicit approval before the premium experience can start.",
@@ -3102,7 +3419,7 @@ function BlueprintProAccessGate({
               {!unlocked
                 ? requestSent
                   ? byLanguage(language, { en: "Access requested", es: "Acceso solicitado", pt: "Acesso solicitado" })
-                  : byLanguage(language, { en: "Activate Blueprint Pro", es: "Activar Blueprint Pro", pt: "Ativar Blueprint Pro" })
+                  : byLanguage(language, { en: "02 · DESIGN — Blueprint Pro", es: "02 · DISEÑA — Blueprint Pro", pt: "02 · DESENHE — Blueprint Pro" })
                 : downloadGate.label}
             </UxaBadge>
             {purchasing ? (
@@ -3114,27 +3431,65 @@ function BlueprintProAccessGate({
           <h2 className="mt-3 text-[20px] font-black text-[var(--uxa-color-ink)]">{title}</h2>
           <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">{description}</p>
         </div>
-        <div className="grid min-w-[240px] grid-cols-2 gap-2">
-          <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
-              {byLanguage(language, { en: "Progress", es: "Progreso", pt: "Progresso" })}
-            </p>
-            <p className="mt-1 text-[16px] font-black">{progress}%</p>
+        {!unlocked ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="grid min-w-[200px] grid-cols-2 gap-2">
+              <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-2.5 text-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+                  {byLanguage(language, { en: "Saved Free", es: "Ahorrado Free", pt: "Economizado Free" })}
+                </p>
+                <p className="mt-1 text-[15px] font-black text-emerald-700">~18 h-h</p>
+              </div>
+              <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-2.5 text-center">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)]">
+                  {byLanguage(language, { en: "Save Pro", es: "Por ahorrar Pro", pt: "A poupar Pro" })}
+                </p>
+                <p className="mt-1 text-[15px] font-black text-[var(--uxa-color-brand)]">~45 h-h</p>
+              </div>
+            </div>
+            {onCheckout ? (
+              <button
+                className="uxa-button uxa-button--primary min-h-11 px-4 text-[12px] font-black flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap"
+                disabled={purchasing}
+                onClick={onCheckout}
+                type="button"
+              >
+                <Zap className="h-4 w-4" />
+                <span>
+                  {purchasing
+                    ? byLanguage(language, { en: "Connecting...", es: "Conectando...", pt: "Conectando..." })
+                    : byLanguage(language, {
+                        en: `⚡ Complete my design — ${proPricing.combinedCtaLabel}`,
+                        es: `⚡ Completar mi diseño — ${proPricing.combinedCtaLabel}`,
+                        pt: `⚡ Completar meu desenho — ${proPricing.combinedCtaLabel}`,
+                      })}
+                </span>
+              </button>
+            ) : null}
           </div>
-          <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
-              {byLanguage(language, { en: "Assets", es: "Activos", pt: "Ativos" })}
-            </p>
-            <p className="mt-1 text-[16px] font-black">{premiumAssetCount}</p>
+        ) : (
+          <div className="grid min-w-[240px] grid-cols-2 gap-2">
+            <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, { en: "Progress", es: "Progreso", pt: "Progresso" })}
+              </p>
+              <p className="mt-1 text-[16px] font-black">{progress}%</p>
+            </div>
+            <div className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--uxa-color-ink-muted)]">
+                {byLanguage(language, { en: "Assets", es: "Activos", pt: "Ativos" })}
+              </p>
+              <p className="mt-1 text-[16px] font-black">{premiumAssetCount}</p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
       <div className="mt-4">
         <UxaProcessingStrip
           label={byLanguage(language, {
             en: "Blueprint Pro access progress",
             es: "Progreso de acceso Blueprint Pro",
-            pt: "Progresso de acesso Blueprint Pro",
+            pt: "Progresso de acceso Blueprint Pro",
           })}
           value={progress}
         />
@@ -3147,6 +3502,7 @@ function BlueprintProPostUpgradeExperience({
   canOpenAcp,
   checkoutState,
   downloadGate,
+  onCheckout,
   premiumAssetCount,
   productBuild,
   productProgress,
@@ -3159,6 +3515,7 @@ function BlueprintProPostUpgradeExperience({
   canOpenAcp: boolean;
   checkoutState?: string | null;
   downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
+  onCheckout?: () => void;
   premiumAssetCount: number;
   productBuild: ProductBuildStatusView;
   productProgress: number;
@@ -3179,6 +3536,7 @@ function BlueprintProPostUpgradeExperience({
         <BlueprintProAccessGate
           checkoutState={checkoutState}
           downloadGate={downloadGate}
+          onCheckout={onCheckout}
           premiumAssetCount={premiumAssetCount}
           productProgress={productProgress}
           purchasing={purchasing}
@@ -3190,9 +3548,12 @@ function BlueprintProPostUpgradeExperience({
       <BlueprintPostUpgradeWorkbench
         artifactCards={viewModel.artifactCards}
         downloadGate={downloadGate}
+        onCheckout={onCheckout}
         productBuild={productBuild}
+        purchasing={purchasing}
         sessionId={sessionId}
         tierScope="blueprint_pro"
+        unlocked={unlocked}
       />
 
       {canOpenAcp ? (
@@ -3236,6 +3597,13 @@ function BlueprintProPage({
   activeRoute: ProductExperienceRouteSnapshot | null;
 }) {
   const { language } = useLanguage();
+  const { currency, formatPrice, basePrices, trm } = useCurrency();
+  const proPricing = getProductPricingDisplay({
+    usdAmount: basePrices.blueprint_pro_usd,
+    currency,
+    trmCop: trm.trm_cop,
+    formatPrice,
+  });
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({
     activeRoute,
@@ -3273,12 +3641,55 @@ function BlueprintProPage({
     staleWhileRevalidating: true,
   });
 
+  async function handleBlueprintProCheckout() {
+    if (purchasing) return;
+    setPurchasing(true);
+    setCheckoutNotice(null);
+    try {
+      if (canCheckout) {
+        await executeProductCheckout({
+          sessionId,
+          packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
+          productKey: "blueprint_pro",
+        });
+      } else {
+        const accessResult = await executeAccessRequestWithCheckoutFallback({
+          sessionId,
+          packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
+          productKey: "blueprint_pro",
+        });
+        if (accessResult.type === "checkout") {
+          return;
+        }
+        if (accessResult.response && accessResult.response.status === "approved") {
+          productExperienceStore.invalidateSession(sessionId);
+          window.location.assign(`/projects/${sessionId}/blueprint/pro`);
+          return;
+        }
+        setRequestSentProduct("blueprint_pro");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error al iniciar checkout";
+      setCheckoutNotice({
+        message: byLanguage(language, {
+          en: `Could not initiate payment: ${message}`,
+          es: `No se pudo iniciar el pago: ${message}`,
+          pt: `Não foi possível iniciar o pagamento: ${message}`,
+        }),
+        tone: "danger",
+      });
+    } finally {
+      setPurchasing(false);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <BlueprintProPostUpgradeExperience
         canOpenAcp={canOpenAcp}
         checkoutState={viewModel.access?.checkout_state}
         downloadGate={viewModel.blueprintDownload}
+        onCheckout={handleBlueprintProCheckout}
         premiumAssetCount={premiumAssetCount}
         productBuild={productBuild}
         productProgress={blueprintProProgress}
@@ -3498,48 +3909,10 @@ function BlueprintProPage({
               purchasing && "opacity-60 cursor-not-allowed",
             )}
             disabled={purchasing}
-            onClick={async () => {
-              if (purchasing) return;
-              setPurchasing(true);
-              setCheckoutNotice(null);
-              try {
-                if (canCheckout) {
-                  await executeProductCheckout({
-                    sessionId,
-                    packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
-                    productKey: "blueprint_pro",
-                  });
-                } else {
-                  const accessResult = await executeAccessRequestWithCheckoutFallback({
-                    sessionId,
-                    packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
-                    productKey: "blueprint_pro",
-                  });
-                  if (accessResult.type === "checkout") {
-                    return;
-                  }
-                  if (accessResult.response && accessResult.response.status === "approved") {
-                    window.location.reload();
-                    return;
-                  }
-                  setRequestSentProduct("blueprint_pro");
-                }
-              } catch (err) {
-                const message = err instanceof Error ? err.message : "Error al iniciar checkout";
-                setCheckoutNotice({
-                  message: byLanguage(language, {
-                    en: `Could not initiate payment: ${message}`,
-                    es: `No se pudo iniciar el pago: ${message}`,
-                    pt: `Não foi posible iniciar o pagamento: ${message}`,
-                  }),
-                  tone: "danger",
-                });
-              } finally {
-                setPurchasing(false);
-              }
-            }}
+            onClick={() => void handleBlueprintProCheckout()}
             type="button"
           >
+            <Zap className="mr-1.5 h-4 w-4" />
             <span>
               {purchasing
                 ? byLanguage(language, {
@@ -3555,14 +3928,14 @@ function BlueprintProPage({
                   })
                 : canCheckout
                 ? byLanguage(language, {
-                    en: "Get Blueprint Pro",
-                    es: "Adquirir Blueprint Pro",
-                    pt: "Adquirir Blueprint Pro",
+                    en: `⚡ Complete my design — ${proPricing.combinedCtaLabel}`,
+                    es: `⚡ Completar mi diseño — ${proPricing.combinedCtaLabel}`,
+                    pt: `⚡ Completar meu desenho — ${proPricing.combinedCtaLabel}`,
                   })
                 : byLanguage(language, {
                     en: "Request access",
                     es: "Solicitar acceso",
-                    pt: "Solicitar acesso",
+                    pt: "Solicitar acceso",
                   })}
             </span>
           </button>
