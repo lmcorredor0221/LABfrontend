@@ -111,9 +111,9 @@ export function getProjectEffortMetrics(
       proDeliverablesBreakdown: [
         {
           title: {
-            en: "4 Production diagrams (C4, Sequence, Runtime)",
-            es: "4 Diagramas tecnicos (C4, Secuencia, Runtime)",
-            pt: "4 Diagramas tecnicos (C4, Sequencia, Runtime)",
+            en: "16 Additional technical diagrams (C4, Sequence, Runtime & more)",
+            es: "16 Diagramas técnicos adicionales (C4, Secuencia, Runtime y más)",
+            pt: "16 Diagramas técnicos adicionais (C4, Sequência, Runtime e mais)",
           },
           hours: proItem1,
           display: `~${proItem1} h-h`,
@@ -240,9 +240,9 @@ export function getProjectEffortMetrics(
     proDeliverablesBreakdown: [
       {
         title: {
-          en: "4 Production diagrams (C4, Sequence, Runtime)",
-          es: "4 Diagramas tecnicos (C4, Secuencia, Runtime)",
-          pt: "4 Diagramas tecnicos (C4, Sequencia, Runtime)",
+          en: "16 Additional technical diagrams (C4, Sequence, Runtime & more)",
+          es: "16 Diagramas técnicos adicionales (C4, Secuencia, Runtime y más)",
+          pt: "16 Diagramas técnicos adicionais (C4, Sequência, Runtime e mais)",
         },
         hours: proItem1,
         display: `~${proItem1} h-h`,

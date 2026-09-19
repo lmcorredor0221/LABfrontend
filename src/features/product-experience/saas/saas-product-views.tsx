@@ -1816,7 +1816,13 @@ function BlueprintProCompactTrackingPanel({
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-[var(--uxa-color-ink-muted)]">{byLanguage(language, { en: "Payment:", es: "Pago:", pt: "Pagamento:" })}</span>
-                  <span className="text-[var(--uxa-color-ink-soft)]">Mercado Pago / PSE / Tarjeta</span>
+                  <span className="text-[var(--uxa-color-ink-soft)]">
+                    {byLanguage(language, {
+                      en: "PSE or Cards",
+                      es: "PSE o Tarjetas",
+                      pt: "PSE ou Cartões",
+                    })}
+                  </span>
                 </div>
               </div>
             </div>
@@ -3232,16 +3238,6 @@ function BlueprintFreePostUpgradeExperience({
                             </div>
                           ))}
                         </div>
-
-                        {comparison ? (
-                          <p className="mt-4 rounded-[var(--uxa-radius-md)] bg-white/90 p-2.5 text-[12px] font-black text-[var(--uxa-color-ink)] shadow-xs">
-                            ⚡ {byLanguage(language, {
-                              en: `Estimated engineering effort reduction: ${comparison.effortReductionPercent}%`,
-                              es: `Reduccion de esfuerzo de ingenieria estimada: ${comparison.effortReductionPercent}%`,
-                              pt: `Reducao de esforco de engenharia estimada: ${comparison.effortReductionPercent}%`,
-                            })}
-                          </p>
-                        ) : null}
                       </div>
 
                       <div className="mt-5 space-y-2">
@@ -3267,9 +3263,9 @@ function BlueprintFreePostUpgradeExperience({
                         </button>
                         <p className="text-center text-[11px] text-[var(--uxa-color-ink-muted)]">
                           {byLanguage(language, {
-                            en: "One-time payment · Instant activation · Mercado Pago / PSE / Cards",
-                            es: "Pago unico · Activacion inmediata · Mercado Pago, PSE o Tarjetas",
-                            pt: "Pagamento unico · Ativacao imediata · Mercado Pago, PSE ou Cartoes",
+                            en: "One-time payment · Instant activation · PSE or Cards",
+                            es: "Pago único · Activación inmediata · PSE o Tarjetas",
+                            pt: "Pagamento único · Ativação imediata · PSE ou Cartões",
                           })}
                         </p>
                       </div>
