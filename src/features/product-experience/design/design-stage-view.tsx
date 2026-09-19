@@ -1176,6 +1176,7 @@ export function DesignStageView({ actionState, activeRoute, actions }: DesignSta
         </>
       }
       contract={contract}
+      isProcessing={processing}
       message={message}
     />
   );

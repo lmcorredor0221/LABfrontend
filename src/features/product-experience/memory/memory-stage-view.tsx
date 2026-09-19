@@ -849,6 +849,7 @@ export function MemoryStageView({ actionState, activeRoute, actions }: MemorySta
         </>
       }
       contract={contract}
+      isProcessing={processing}
       message={message}
     />
   );

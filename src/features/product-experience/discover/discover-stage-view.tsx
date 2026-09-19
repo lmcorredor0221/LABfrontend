@@ -1325,6 +1325,7 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
           </>
         }
         contract={contract}
+        isProcessing={busy}
         message={mergedMessage}
       />
     </form>

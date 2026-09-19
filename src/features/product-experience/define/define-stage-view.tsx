@@ -1193,6 +1193,7 @@ export function DefineStageView({ actionState, activeRoute, actions }: DefineSta
         </>
       }
       contract={contract}
+      isProcessing={processing}
       message={message}
     />
   );

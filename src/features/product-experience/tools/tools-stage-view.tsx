@@ -1659,6 +1659,7 @@ export function ToolsStageView({ actionState, activeRoute, actions }: ToolsStage
           </>
         }
         contract={contract}
+        isProcessing={processing}
         message={message}
       />
       <ToolDetailDrawer isOpen={isActiveToolDrawerOpen} onClose={() => setIsToolDrawerOpen(false)} tool={activeSelectedTool} />
