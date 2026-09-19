@@ -18,10 +18,15 @@ import type {
   LeanStageWorkbenchTab,
 } from "@/features/product-experience/stage-screen/stage-screen-contract";
 import { cn } from "@/lib/utils";
+import { FloatingArchitectureStudio } from "@/features/product-experience/components/floating-architecture-studio";
 
 type LeanStageScreenProps = {
   actionArea: ReactNode;
   contract: LeanStageScreenContract;
+  /** When true, shows the FloatingArchitectureStudio overlay */
+  isProcessing?: boolean;
+  /** Optional label forwarded to the floating overlay as the current step */
+  currentStep?: string;
   message?: string;
 };
 
@@ -355,7 +360,7 @@ function LeanStageEvidenceContext({ contract }: { contract: LeanStageScreenContr
   );
 }
 
-export function LeanStageScreen({ actionArea, contract, message }: LeanStageScreenProps) {
+export function LeanStageScreen({ actionArea, contract, isProcessing = false, currentStep, message }: LeanStageScreenProps) {
   const { language } = useLanguage();
 
   return (
@@ -372,6 +377,12 @@ export function LeanStageScreen({ actionArea, contract, message }: LeanStageScre
       >
         {actionArea}
       </UxaContextualActionDock>
+      {/* Floating overlay — does not modify any existing content */}
+      <FloatingArchitectureStudio
+        currentStep={currentStep}
+        isOpen={isProcessing}
+        tier="blueprint"
+      />
     </div>
   );
 }

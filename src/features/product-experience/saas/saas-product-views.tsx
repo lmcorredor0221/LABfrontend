@@ -77,6 +77,7 @@ import { AcpValidationStage } from "@/features/acp/components/acp-validation-sta
 import { AcpReconciliationStage } from "@/features/acp/components/acp-reconciliation-stage";
 import { AcpPackageStage } from "@/features/acp/components/acp-package-stage";
 import { productExperienceStore } from "@/features/product-experience/shell/use-product-experience-route";
+import { FloatingArchitectureStudio } from "@/features/product-experience/components/floating-architecture-studio";
 
 type CheckoutMarketCode = "co";
 type AcpLoadStatus = "idle" | "loading" | "ready" | "error";
@@ -3952,9 +3953,15 @@ function BlueprintProPage({
           </button>
         )}
       </UxaContextualActionDock>
+      {/* Floating overlay — does not modify any existing content */}
+      <FloatingArchitectureStudio
+        isOpen={productBuild.isFetching}
+        tier="blueprint_pro"
+      />
     </div>
   );
 }
+
 
 function AcpProductPage({
   activeRoute,
@@ -4638,9 +4645,15 @@ function AcpProductPage({
           </UxaButton>
         )}
       </UxaContextualActionDock>
+      {/* Floating overlay — does not modify any existing content */}
+      <FloatingArchitectureStudio
+        isOpen={loading}
+        tier="acp"
+      />
     </div>
   );
 }
+
 
 function ArtifactsProductPage({
   activeRoute,

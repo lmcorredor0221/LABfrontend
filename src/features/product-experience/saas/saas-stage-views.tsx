@@ -40,6 +40,7 @@ import type {
 } from "@/features/product-experience/shell/use-product-experience-route";
 import { useLanguage } from "@/core/i18n/language-context";
 import { getProductExperienceProductHref } from "@/features/product-experience/shell/experience-model";
+import { FloatingArchitectureStudio } from "@/features/product-experience/components/floating-architecture-studio";
 
 type StageViewProps = {
   actionState?: ProductStageActionState;
@@ -532,6 +533,11 @@ export function EstimateStageView({ actionState, activeRoute, actions }: StageVi
           </UxaButton>
         )}
       </UxaContextualActionDock>
+      {/* Floating overlay — does not modify any existing content */}
+      <FloatingArchitectureStudio
+        isOpen={processing}
+        tier="blueprint"
+      />
     </div>
   );
 }
