@@ -231,16 +231,18 @@ export function UxaStickyActionBar({
 }
 
 export function UxaProcessingStrip({
+  className,
   label,
   value,
 }: {
+  className?: string;
   label: string;
   value: number;
 }) {
   const safeValue = Math.min(100, Math.max(0, value));
   return (
     <div aria-label={label} aria-valuemax={100} aria-valuemin={0} aria-valuenow={safeValue} role="progressbar">
-      <div className="uxa-processing-strip">
+      <div className={cn("uxa-processing-strip", className)}>
         <span style={{ width: `${safeValue}%` }} />
       </div>
     </div>

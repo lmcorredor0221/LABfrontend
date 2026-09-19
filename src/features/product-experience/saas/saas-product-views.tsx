@@ -3484,8 +3484,9 @@ function BlueprintProAccessGate({
           </div>
         )}
       </div>
-      <div className="mt-4">
+      <div className="mt-3.5">
         <UxaProcessingStrip
+          className="h-[2px] opacity-85"
           label={byLanguage(language, {
             en: "Blueprint Pro access progress",
             es: "Progreso de acceso Blueprint Pro",
