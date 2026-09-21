@@ -68,13 +68,17 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!choice?.analytics || !gtmLoaded) return;
-    captureAttributionFromLocation();
-    pushAnalyticsEvent("page_view", {
-      page_path: sanitizePathname(pathname || "/"),
-      page_title: sanitizeTitle(document.title || "Lean Agent Builder"),
-      page_location: sanitizeUrl(window.location.href),
-      page_referrer: sanitizeReferrer(document.referrer),
-    });
+    const pageViewTimer = window.setTimeout(() => {
+      captureAttributionFromLocation();
+      pushAnalyticsEvent("page_view", {
+        page_path: sanitizePathname(pathname || "/"),
+        page_title: sanitizeTitle(document.title || "Lean Agent Builder"),
+        page_location: sanitizeUrl(window.location.href),
+        page_referrer: sanitizeReferrer(document.referrer),
+      });
+    }, 500);
+
+    return () => window.clearTimeout(pageViewTimer);
   }, [choice?.analytics, gtmLoaded, pathname, routeKey]);
 
   function updateConsent(next: Pick<AnalyticsConsentChoice, "analytics" | "advertising">) {
