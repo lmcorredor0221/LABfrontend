@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } fr
 import { captureAttributionFromLocation, clearAttribution } from "@/core/analytics/attribution";
 import { pushAnalyticsEvent } from "@/core/analytics/analytics-client";
 import {
-  applyDefaultGoogleConsent,
   applyGoogleConsent,
   readConsentChoice,
   saveConsentChoice,
@@ -30,16 +29,18 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const { language } = useLanguage();
   const [showPreferences, setShowPreferences] = useState(false);
+  const [gtmReady, setGtmReady] = useState(false);
   const consentSnapshot = useSyncExternalStore(subscribeConsent, getConsentSnapshot, () => "null");
   const choice = useMemo(() => JSON.parse(consentSnapshot) as AnalyticsConsentChoice | null, [consentSnapshot]);
   const analyticsEnabled = isAnalyticsEnabled();
   const gtmId = getGoogleTagManagerId();
-  const shouldLoadGtm = analyticsEnabled && Boolean(gtmId) && (choice?.analytics || choice?.advertising);
+  const shouldLoadGtm = analyticsEnabled && Boolean(gtmId) && gtmReady;
 
   useEffect(() => {
-    applyDefaultGoogleConsent();
     applyGoogleConsent(choice);
-    if (choice?.analytics || choice?.advertising) {
+    const hasMeasurementConsent = Boolean(choice?.analytics || choice?.advertising);
+    setGtmReady(hasMeasurementConsent);
+    if (hasMeasurementConsent) {
       captureAttributionFromLocation();
     } else {
       clearAttribution();
