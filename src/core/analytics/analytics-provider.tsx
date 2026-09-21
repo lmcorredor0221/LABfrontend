@@ -4,6 +4,7 @@ import Script from "next/script";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { captureAttributionFromLocation, clearAttribution } from "@/core/analytics/attribution";
+import { pushAnalyticsEvent } from "@/core/analytics/analytics-client";
 import {
   applyGoogleConsent,
   readConsentChoice,
@@ -30,7 +31,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const [showPreferences, setShowPreferences] = useState(false);
   const [gtmReady, setGtmReady] = useState(false);
   const [gtmLoaded, setGtmLoaded] = useState(false);
-  const hasSkippedInitialPageView = useRef(false);
+  const hasInitializedMeasurement = useRef(false);
   const consentSnapshot = useSyncExternalStore(subscribeConsent, getConsentSnapshot, () => "null");
   const choice = useMemo(() => JSON.parse(consentSnapshot) as AnalyticsConsentChoice | null, [consentSnapshot]);
   const analyticsEnabled = isAnalyticsEnabled();
@@ -68,13 +69,14 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!choice?.analytics || !gtmLoaded) return;
-    if (!hasSkippedInitialPageView.current) {
-      hasSkippedInitialPageView.current = true;
-      return;
+    if (!hasInitializedMeasurement.current) {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: "lab_measurement_ready" });
+      hasInitializedMeasurement.current = true;
     }
     const pageViewTimer = window.setTimeout(() => {
       captureAttributionFromLocation();
-      window.gtag?.("event", "page_view", {
+      pushAnalyticsEvent("page_view", {
         page_path: sanitizePathname(pathname || "/"),
         page_title: sanitizeTitle(document.title || "Lean Agent Builder"),
         page_location: sanitizeUrl(window.location.href),
