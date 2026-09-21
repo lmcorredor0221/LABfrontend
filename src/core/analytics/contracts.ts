@@ -4,6 +4,7 @@ export type AnalyticsEventName =
   | "validator_started"
   | "idea_evaluated"
   | "sign_up"
+  | "login"
   | "project_created"
   | "begin_checkout";
 
@@ -47,6 +48,7 @@ export const ALLOWED_EVENT_PARAMS: Record<AnalyticsEventName, Set<string>> = {
   validator_started: new Set(["language", "input_type"]),
   idea_evaluated: new Set(["language", "input_type", "verdict_badge", "readiness_score"]),
   sign_up: new Set(["method"]),
+  login: new Set(["method"]),
   project_created: new Set(["entrypoint", "language"]),
   begin_checkout: new Set(["currency", "value", "product_key", "provider", "checkout_ref"]),
 };

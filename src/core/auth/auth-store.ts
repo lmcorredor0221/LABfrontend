@@ -1,6 +1,6 @@
 import { ApiError } from "@/core/api";
 import { authApi, type AuthApi } from "@/core/auth/auth-api";
-import type { AuthState, LoginCredentials } from "@/core/auth/types";
+import type { AuthState, GoogleAuthRequest, LoginCredentials, LoginResponse } from "@/core/auth/types";
 import { clearStoredToken, getStoredToken, setStoredToken } from "@/core/auth/token-store";
 import { clearStoredWorkspaceId, setStoredWorkspaceId } from "@/core/auth/workspace-store";
 
@@ -71,6 +71,23 @@ export function createAuthStore({
       status: "anonymous",
       token: null,
       user: null,
+    });
+  }
+
+  function setAuthenticatedState(response: LoginResponse) {
+    persistToken(response.access_token);
+    if (response.user.active_workspace_id) {
+      persistWorkspaceId(response.user.active_workspace_id);
+    } else {
+      clearWorkspaceId();
+    }
+
+    return updateState({
+      error: null,
+      isHydrated: true,
+      status: "authenticated",
+      token: response.access_token,
+      user: response.user,
     });
   }
 
@@ -177,20 +194,39 @@ export function createAuthStore({
 
     try {
       const response = await api.login(credentials);
-      persistToken(response.access_token);
-      if (response.user.active_workspace_id) {
-        persistWorkspaceId(response.user.active_workspace_id);
-      } else {
-        clearWorkspaceId();
-      }
+      return setAuthenticatedState(response);
+    } catch (error) {
+      const apiError = toApiError(error);
+      setAnonymousState(apiError);
+      throw apiError;
+    }
+  }
 
-      return updateState({
-        error: null,
-        isHydrated: true,
-        status: "authenticated",
-        token: response.access_token,
+  async function loginWithGoogle(payload: GoogleAuthRequest) {
+    updateState((currentState) => ({
+      ...currentState,
+      error: null,
+      status: "submitting",
+    }));
+
+    try {
+      const response = await api.google(payload);
+      if (response.status !== "authenticated") {
+        setAnonymousState();
+        return response;
+      }
+      if (!response.access_token || !response.expires_at || !response.user) {
+        throw ApiError.fromClientError({
+          message: "Google confirmó la identidad, pero LAB no devolvió una sesión válida.",
+        });
+      }
+      setAuthenticatedState({
+        access_token: response.access_token,
+        expires_at: response.expires_at,
+        token_type: response.token_type,
         user: response.user,
       });
+      return response;
     } catch (error) {
       const apiError = toApiError(error);
       setAnonymousState(apiError);
@@ -280,6 +316,7 @@ export function createAuthStore({
     getState: () => state,
     hydrate,
     login,
+    loginWithGoogle,
     logout,
     selectWorkspace,
     subscribe(listener: Listener) {

@@ -1,5 +1,5 @@
 import { apiClient, type ApiRequestOptions } from "@/core/api";
-import type { AuthUser, LoginCredentials, LoginResponse } from "@/core/auth/types";
+import type { AuthUser, GoogleAuthRequest, GoogleAuthResponse, LoginCredentials, LoginResponse } from "@/core/auth/types";
 
 type AuthRequestOptions = Pick<ApiRequestOptions, "redirectOnUnauthorized" | "token">;
 
@@ -7,6 +7,13 @@ export function createAuthApi(client = apiClient) {
   return {
     login(payload: LoginCredentials) {
       return client.post<LoginResponse>("/api/v1/auth/login", {
+        body: payload,
+        includeWorkspaceId: false,
+        redirectOnUnauthorized: false,
+      });
+    },
+    google(payload: GoogleAuthRequest) {
+      return client.post<GoogleAuthResponse>("/api/v1/auth/google", {
         body: payload,
         includeWorkspaceId: false,
         redirectOnUnauthorized: false,

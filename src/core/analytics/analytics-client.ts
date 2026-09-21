@@ -42,8 +42,12 @@ export function trackIdeaEvaluated(params: SafeAnalyticsParams) {
   return pushAnalyticsEvent("idea_evaluated", params);
 }
 
-export function trackSignUp() {
-  return pushAnalyticsEvent("sign_up", { method: "email" });
+export function trackSignUp(method: "email" | "google" = "email") {
+  return pushAnalyticsEvent("sign_up", { method });
+}
+
+export function trackLogin(method: "email" | "google") {
+  return pushAnalyticsEvent("login", { method });
 }
 
 export function trackProjectCreated(params: SafeAnalyticsParams) {

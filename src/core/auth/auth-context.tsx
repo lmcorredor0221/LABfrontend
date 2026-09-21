@@ -163,6 +163,7 @@ export function useAuth() {
     clear: store.clear,
     hydrate: store.hydrate,
     login: store.login,
+    loginWithGoogle: store.loginWithGoogle,
     logout: store.logout,
     selectWorkspace: store.selectWorkspace,
   };

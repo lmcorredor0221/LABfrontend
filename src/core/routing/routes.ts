@@ -12,6 +12,7 @@ export const BLUEPRINT_ROUTE = "/blueprint";
 export const BLUEPRINT_PRO_ROUTE = "/blueprint-pro";
 export const ACP_ROUTE = "/acp";
 export const INSIGHTS_ROUTE = "/insights";
+export const LEGAL_ROUTE_PREFIX = "/legal";
 
 export const PUBLIC_ROUTES = [
   HOME_ROUTE,
@@ -24,6 +25,7 @@ export const PUBLIC_ROUTES = [
   BLUEPRINT_PRO_ROUTE,
   ACP_ROUTE,
   INSIGHTS_ROUTE,
+  LEGAL_ROUTE_PREFIX,
 ] as const;
 
 export const PROJECT_STAGE_ORDER = [

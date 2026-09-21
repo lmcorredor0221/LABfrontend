@@ -31,6 +31,7 @@ import type { LoginResponse } from "@/core/auth/types";
 import { LanguageSelector } from "@/components/lean/language-selector";
 import { useLanguage } from "@/core/i18n/language-context";
 import { buildAuthRoute, LOGIN_ROUTE } from "@/core/routing/routes";
+import { GoogleAuthPanel } from "@/components/lean/google-auth-panel";
 
 type PasswordCriteria = {
   minLength: boolean;
@@ -376,6 +377,8 @@ export function RegisterPage() {
               <p className="auth-form-subtitle mt-1.5 text-[13px] leading-5 text-[var(--text-secondary)]">
                 {t("register.subtitle")}
               </p>
+
+              <GoogleAuthPanel redirectTarget={redirectTarget} />
 
               <form
                 className="auth-form-stack mt-4 space-y-3"

@@ -84,3 +84,12 @@ export function getGoogleTagManagerId() {
 export function getGoogleAnalyticsMeasurementId() {
   return (process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID ?? "").trim();
 }
+
+export function isGoogleAuthEnabled() {
+  return parseBoolean(process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED, false)
+    && Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim());
+}
+
+export function getGoogleClientId() {
+  return (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "").trim();
+}

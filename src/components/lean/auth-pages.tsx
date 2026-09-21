@@ -42,6 +42,8 @@ import {
   type RuntimeHealthResponse,
 } from "@/core/system/runtime-api";
 import { useSessions } from "@/features/sessions/session-context";
+import { GoogleAuthPanel } from "@/components/lean/google-auth-panel";
+import { trackLogin } from "@/core/analytics/analytics-client";
 
 type BootStepStatus = "pending" | "loading" | "done" | "warning" | "error";
 type RuntimeLoadState = "idle" | "loading" | "ready" | "error";
@@ -673,6 +675,7 @@ export function LoginPage() {
         email: formValues.email.trim(),
         password: formValues.password,
       });
+      trackLogin("email");
       router.replace(redirectTarget);
     } catch (error) {
       setSubmitError(
@@ -911,11 +914,21 @@ export function LoginPage() {
                   {t("login.badge")}
                 </Badge>
                 <h2 className="auth-form-title text-[20px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text-primary)] sm:text-[22px]">
-                  {t("login.title")}
+                  {redirectTarget === "/projects/new"
+                    ? localize("Your diagnosis is ready", "Tu diagnóstico está listo", "Seu diagnóstico está pronto")
+                    : t("login.title")}
                 </h2>
                 <p className="auth-form-subtitle mt-1 text-[11px] leading-[1.45] text-[var(--text-secondary)]">
-                  {t("login.subtitle")}
+                  {redirectTarget === "/projects/new"
+                    ? localize(
+                        "Sign in to save it as a project and continue with Blueprint Free.",
+                        "Accede para guardarlo como proyecto y continuar con Blueprint Free.",
+                        "Acesse para salva-lo como projeto e continuar com o Blueprint Free.",
+                      )
+                    : t("login.subtitle")}
                 </p>
+
+                <GoogleAuthPanel redirectTarget={redirectTarget} />
 
                 <form
                   className="auth-form-stack mt-3 space-y-1.5"

@@ -33,6 +33,31 @@ export type LoginResponse = {
   user: AuthUser;
 };
 
+export type GoogleAuthRequest = {
+  credential: string;
+  password?: string;
+  workspace_name?: string;
+  accept_terms?: boolean;
+  accept_privacy?: boolean;
+  accept_data_treatment?: boolean;
+  consent_system_notifications?: boolean;
+  consent_commercial_promotions?: boolean;
+  consent_events_newsletters?: boolean;
+};
+
+export type GoogleAuthResponse = {
+  status: "authenticated" | "registration_required" | "link_required";
+  profile: {
+    email: string;
+    full_name: string;
+  };
+  access_token?: string | null;
+  token_type: string;
+  expires_at?: string | null;
+  user?: AuthUser | null;
+  is_new_user: boolean;
+};
+
 export type AuthStatus = "idle" | "hydrating" | "submitting" | "authenticated" | "anonymous" | "error";
 
 export type AuthState = {

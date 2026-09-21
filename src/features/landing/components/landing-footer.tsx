@@ -109,6 +109,12 @@ export function LandingFooter() {
             © {new Date().getFullYear()} Lean Agent Builder (LAB). {byLanguage(language, { es: "Todos los derechos reservados.", en: "All rights reserved.", pt: "Todos os direitos reservados." })}
           </div>
           <div className="flex items-center gap-4">
+            <Link href="/legal/terms" className="hover:text-indigo-600 transition">
+              {byLanguage(language, { es: "Términos", en: "Terms", pt: "Termos" })}
+            </Link>
+            <Link href="/legal/privacy" className="hover:text-indigo-600 transition">
+              {byLanguage(language, { es: "Privacidad", en: "Privacy", pt: "Privacidade" })}
+            </Link>
             <span className="text-slate-400">v2.4.0</span>
             <span className="text-slate-400">•</span>
             <span className="text-slate-400">Enterprise Ready</span>
