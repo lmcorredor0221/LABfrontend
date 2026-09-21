@@ -12,7 +12,11 @@ import {
 } from "@/core/analytics/consent-store";
 import type { AnalyticsConsentChoice } from "@/core/analytics/contracts";
 import { sanitizePathname, sanitizeReferrer, sanitizeTitle, sanitizeUrl } from "@/core/analytics/sanitize";
-import { getGoogleTagManagerId, isAnalyticsEnabled } from "@/core/config/runtime";
+import {
+  getGoogleAnalyticsMeasurementId,
+  getGoogleTagManagerId,
+  isAnalyticsEnabled,
+} from "@/core/config/runtime";
 import { useLanguage } from "@/core/i18n/language-context";
 
 function subscribeConsent(listener: () => void) {
@@ -35,6 +39,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const choice = useMemo(() => JSON.parse(consentSnapshot) as AnalyticsConsentChoice | null, [consentSnapshot]);
   const analyticsEnabled = isAnalyticsEnabled();
   const gtmId = getGoogleTagManagerId();
+  const measurementId = getGoogleAnalyticsMeasurementId();
   const shouldLoadGtm = analyticsEnabled && Boolean(gtmId) && gtmReady;
 
   useEffect(() => {
@@ -65,6 +70,11 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const routeKey = useMemo(() => `${pathname}?${searchParams.toString()}`, [pathname, searchParams]);
+
+  useEffect(() => {
+    if (!choice?.analytics || !gtmLoaded || !measurementId) return;
+    window.gtag?.("config", measurementId, { send_page_view: false });
+  }, [choice?.analytics, gtmLoaded, measurementId]);
 
   useEffect(() => {
     if (!choice?.analytics || !gtmLoaded) return;
