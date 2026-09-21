@@ -1,11 +1,15 @@
 import type { Metadata } from "next";
 import { InsightArticleDocument } from "@/features/landing/pages/product-page-documents";
-import { INSIGHTS_ARTICLES } from "@/features/landing/pages/insights-data";
+import {
+  buildInsightArticleMetadata,
+  buildInsightArticlePath,
+  buildInsightStaticParams,
+  findInsightArticle,
+  InsightArticleStructuredData,
+} from "@/features/landing/pages/insight-article-seo";
 
 export async function generateStaticParams() {
-  return INSIGHTS_ARTICLES.map((article) => ({
-    slug: article.slug,
-  }));
+  return buildInsightStaticParams();
 }
 
 export async function generateMetadata({
@@ -14,19 +18,13 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const article = INSIGHTS_ARTICLES.find((a) => a.slug === slug);
-  const title = article ? `${article.title.es} | LAB` : "Artículo | LAB";
-  const description = article?.summary.es || "Artículo técnico sobre sistemas agénticos de IA.";
-
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      type: "article",
-    },
-  };
+  const article = findInsightArticle(slug);
+  return buildInsightArticleMetadata({
+    article,
+    language: "es",
+    pathname: buildInsightArticlePath("es", slug),
+    slug,
+  });
 }
 
 export default async function Page({
@@ -35,5 +33,13 @@ export default async function Page({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  return <InsightArticleDocument language="es" forceLanguage slug={slug} />;
+  const article = findInsightArticle(slug);
+  const pathname = buildInsightArticlePath("es", slug);
+
+  return (
+    <>
+      <InsightArticleStructuredData article={article} language="es" pathname={pathname} />
+      <InsightArticleDocument language="es" forceLanguage slug={slug} />
+    </>
+  );
 }

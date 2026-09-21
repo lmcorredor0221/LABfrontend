@@ -3,6 +3,28 @@ export interface ArticleSection {
   content: Record<"es" | "en" | "pt", string>;
 }
 
+export type InsightArticleVisualKind =
+  | "pattern-map"
+  | "acp-pipeline"
+  | "memory-layers"
+  | "evaluation-matrix"
+  | "production-checklist"
+  | "task-tree"
+  | "reflection-loop"
+  | "framework-radar"
+  | "context-timeline"
+  | "htn-tree"
+  | "virtual-memory"
+  | "systems-blueprint";
+
+export interface InsightArticleVisual {
+  kind: InsightArticleVisualKind;
+  eyebrow: Record<"es" | "en" | "pt", string>;
+  title: Record<"es" | "en" | "pt", string>;
+  metric: string;
+  detail: Record<"es" | "en" | "pt", string>;
+}
+
 export interface InsightArticle {
   id: string;
   slug: string;
@@ -15,9 +37,19 @@ export interface InsightArticle {
   date: string;
   keyTakeaways: Record<"es" | "en" | "pt", string[]>;
   sections?: ArticleSection[];
+  seoTitle?: Record<"es" | "en" | "pt", string>;
+  seoDescription?: Record<"es" | "en" | "pt", string>;
+  keywords?: string[];
+  tags?: string[];
+  heroVisual?: InsightArticleVisual;
+  heroImageAlt?: Record<"es" | "en" | "pt", string>;
+  ogImage?: string;
+  ctaLabel?: Record<"es" | "en" | "pt", string>;
+  ctaPrompt?: Record<"es" | "en" | "pt", string>;
+  relatedProductStage?: "free-diagnosis" | "blueprint-free" | "blueprint-pro" | "acp-premium";
 }
 
-export const INSIGHTS_ARTICLES: InsightArticle[] = [
+const BASE_INSIGHTS_ARTICLES: InsightArticle[] = [
   {
     id: "1",
     slug: "patrones-arquitecturas-agenticas-escala",
@@ -563,3 +595,226 @@ export const INSIGHTS_ARTICLES: InsightArticle[] = [
     },
   },
 ];
+
+const t = (es: string, en = es, pt = es) => ({ es, en, pt });
+
+const PREMIUM_INSIGHT_META: Record<string, Partial<InsightArticle>> = {
+  "patrones-arquitecturas-agenticas-escala": {
+    seoTitle: t(
+      "17 patrones de arquitectura para agentes de IA empresariales | LAB",
+      "17 enterprise AI agent architecture patterns | LAB",
+      "17 padrões de arquitetura para agentes de IA empresariais | LAB",
+    ),
+    seoDescription: t(
+      "Compara ReAct, planner, router, reflection y multi-agente antes de construir. Aprende qué patrón reduce riesgo, costo de tokens y retrabajo.",
+      "Compare ReAct, planner, router, reflection, and multi-agent patterns before building. Learn which pattern reduces risk, token cost, and rework.",
+      "Compare ReAct, planner, router, reflection e multiagente antes de construir. Entenda qual padrão reduz risco, custo e retrabalho.",
+    ),
+    keywords: ["arquitectura de agentes IA", "patrones agenticos", "ReAct", "multi agente", "tool calling"],
+    tags: ["Arquitectura", "Blueprint Pro", "Tool contracts"],
+    heroVisual: {
+      kind: "pattern-map",
+      eyebrow: t("Mapa de decisión"),
+      title: t("Del caso de uso al patrón agéntico correcto"),
+      metric: "5 patrones",
+      detail: t("Router, Planner, ReAct, Reflection y Supervisor HITL conectados al Blueprint."),
+    },
+    heroImageAlt: t("Mapa visual de patrones agénticos conectados a un Blueprint de arquitectura."),
+    ctaLabel: t("Validar qué patrón encaja con mi caso"),
+    ctaPrompt: t("Describe tu caso y LAB identificará si necesitas ReAct, planner, router, memoria o multi-agente antes de construir."),
+    relatedProductStage: "blueprint-free",
+  },
+  "metodologia-agent-construction-package": {
+    seoTitle: t("Agent Construction Package: metodología ACP para construir agentes de IA | LAB"),
+    seoDescription: t("Qué incluye un ACP: prompts, contratos, memoria, tests, workflows y criterios de producción para que Cursor, Claude Code o Codex implementen sin ambigüedad."),
+    keywords: ["Agent Construction Package", "ACP", "agentes de IA", "Cursor", "Claude Code", "Codex"],
+    tags: ["ACP Premium", "Implementación", "Contratos técnicos"],
+    heroVisual: {
+      kind: "acp-pipeline",
+      eyebrow: t("Paquete de construcción"),
+      title: t("Blueprint validado → ACP → implementación verificable"),
+      metric: "0 ambigüedad",
+      detail: t("El ACP convierte el diseño en contratos, prompts, pruebas y handoff técnico."),
+    },
+    heroImageAlt: t("Pipeline editorial que muestra cómo un Blueprint se transforma en un Agent Construction Package."),
+    ctaLabel: t("Crear un ACP desde mi idea"),
+    ctaPrompt: t("Inicia con el diagnóstico gratuito y convierte el caso en un paquete de construcción listo para desarrollo agéntico."),
+    relatedProductStage: "acp-premium",
+  },
+  "gestion-memoria-agentes-ia": {
+    seoTitle: t("Memoria para agentes de IA: RAG, contexto y persistencia | LAB"),
+    seoDescription: t("Diseña memoria de corto plazo, memoria semántica y RAG sin quemar tokens ni perder obediencia en conversaciones largas."),
+    keywords: ["memoria agentes IA", "RAG", "context engineering", "memoria persistente", "ventana de contexto"],
+    tags: ["Memoria", "RAG", "Context Engineering"],
+    heroVisual: {
+      kind: "memory-layers",
+      eyebrow: t("Arquitectura de memoria"),
+      title: t("RAM contextual, hechos persistentes y knowledge store"),
+      metric: "3 capas",
+      detail: t("Separar contexto, memoria y conocimiento evita ruido cognitivo y respuestas sin evidencia."),
+    },
+    heroImageAlt: t("Diagrama de capas de memoria para agentes de IA con contexto, memoria semántica y RAG."),
+    ctaLabel: t("Evaluar si mi agente necesita memoria o RAG"),
+    ctaPrompt: t("Valida si tu caso requiere RAG, memoria persistente, checkpoints o solo contexto transaccional."),
+    relatedProductStage: "blueprint-pro",
+  },
+  "evaluacion-framework-thoughtworks": {
+    seoTitle: t("Evaluación de agentes de IA en producción: métricas, tests y calidad | LAB"),
+    seoDescription: t("Marco práctico para medir precisión, tool calling, costos, seguridad y estabilidad multi-turno antes de lanzar agentes a producción."),
+    keywords: ["evaluación agentes IA", "AI agent testing", "golden dataset", "LLM evals", "calidad IA"],
+    tags: ["Evaluación", "QA", "Producción"],
+    heroVisual: {
+      kind: "evaluation-matrix",
+      eyebrow: t("Matriz de calidad"),
+      title: t("Precisión, coste, seguridad y trazabilidad en una sola vista"),
+      metric: "4 ejes",
+      detail: t("Los agentes se validan con aserciones, datasets dorados y jueces independientes."),
+    },
+    heroImageAlt: t("Matriz visual de evaluación para agentes de IA en producción."),
+    ctaLabel: t("Auditar la calidad de mi agente"),
+    ctaPrompt: t("Usa LAB para identificar brechas de evaluación, datasets faltantes y criterios de aceptación antes de producción."),
+    relatedProductStage: "blueprint-pro",
+  },
+  "agentes-ia-produccion-10-pasos": {
+    seoTitle: t("Agentes de IA en producción: checklist de 10 pasos para empresas | LAB"),
+    seoDescription: t("Checklist operativo para llevar agentes de IA a producción con datos, herramientas, memoria, guardrails, pruebas y observabilidad."),
+    keywords: ["agentes IA producción", "AI agents production", "checklist agentes IA", "observabilidad IA"],
+    tags: ["Producción", "Guardrails", "Observabilidad"],
+    heroVisual: {
+      kind: "production-checklist",
+      eyebrow: t("Readiness operativo"),
+      title: t("Diez compuertas antes del primer despliegue real"),
+      metric: "10 gates",
+      detail: t("Cada gate reduce el riesgo de pasar de demo atractiva a sistema frágil."),
+    },
+    heroImageAlt: t("Checklist visual de readiness para desplegar agentes de IA en producción."),
+    ctaLabel: t("Medir mi readiness de producción"),
+    ctaPrompt: t("Comprueba si tu iniciativa tiene datos, herramientas, memoria, pruebas y control humano suficientes para producción."),
+    relatedProductStage: "free-diagnosis",
+  },
+  "descomposicion-tareas-agentes-complejos": {
+    seoTitle: t("Descomposición de tareas en agentes de IA complejos | LAB"),
+    seoDescription: t("Cómo convertir objetivos ambiguos en subtareas verificables, handoffs y artefactos intermedios para agentes empresariales."),
+    keywords: ["descomposición de tareas IA", "AI agents workflows", "router worker", "agent workflows"],
+    tags: ["Workflows", "Planificación", "Blueprint"],
+    heroVisual: {
+      kind: "task-tree",
+      eyebrow: t("Árbol de trabajo"),
+      title: t("De objetivo ambiguo a subtareas verificables"),
+      metric: "1 → N",
+      detail: t("LAB convierte intención de negocio en pasos, responsables y artefactos de control."),
+    },
+    heroImageAlt: t("Árbol de tareas para descomponer objetivos complejos en subtareas de agentes."),
+    ctaLabel: t("Descomponer mi proceso en un Blueprint"),
+    ctaPrompt: t("Describe tu flujo actual y LAB lo convertirá en tareas, herramientas, memoria y criterios de validación."),
+    relatedProductStage: "blueprint-free",
+  },
+  "patron-reflexion-auto-correccion-agentes": {
+    seoTitle: t("Patrón Reflexion para agentes de IA: autocorrección controlada | LAB"),
+    seoDescription: t("Implementa bucles de crítica, corrección y límites de costo sin caer en autorrefinamiento infinito ni gasto opaco de tokens."),
+    keywords: ["Reflexion AI agents", "autocorrección agentes IA", "response refinement", "costos tokens"],
+    tags: ["Reflection", "Costos", "Calidad"],
+    heroVisual: {
+      kind: "reflection-loop",
+      eyebrow: t("Bucle de control"),
+      title: t("Intento, crítica, ajuste y salida aprobada"),
+      metric: "2 retries",
+      detail: t("La reflexión útil tiene rúbrica, límite de intentos y registro de fallos."),
+    },
+    heroImageAlt: t("Bucle visual de reflexión con intento, crítica, ajuste y salida aprobada."),
+    ctaLabel: t("Diseñar un bucle de calidad para mi agente"),
+    ctaPrompt: t("LAB define cuándo un agente debe autocorregirse, cuándo debe parar y cuándo debe pedir intervención humana."),
+    relatedProductStage: "blueprint-pro",
+  },
+  "langgraph-vs-crewai-vs-autogen-2026": {
+    seoTitle: t("LangGraph vs CrewAI vs AutoGen en 2026: comparativa para empresas | LAB"),
+    seoDescription: t("Compara frameworks multi-agente por estado, depuración, streaming, control humano, costo operativo y compatibilidad con ACP."),
+    keywords: ["LangGraph vs CrewAI", "AutoGen", "frameworks agentes IA", "multi-agent orchestration"],
+    tags: ["Frameworks", "Multi-agente", "Arquitectura"],
+    heroVisual: {
+      kind: "framework-radar",
+      eyebrow: t("Radar de frameworks"),
+      title: t("El framework se elige después del contrato técnico"),
+      metric: "3 stacks",
+      detail: t("Un ACP sólido permite cambiar framework sin rehacer la arquitectura de negocio."),
+    },
+    heroImageAlt: t("Radar comparativo de frameworks LangGraph, CrewAI y AutoGen."),
+    ctaLabel: t("Elegir stack para mi agente"),
+    ctaPrompt: t("LAB recomienda el stack después de validar proceso, herramientas, memoria, pruebas y restricciones reales."),
+    relatedProductStage: "blueprint-pro",
+  },
+  "gestion-ventanas-contexto-agentes-larga-duracion": {
+    seoTitle: t("Ventanas de contexto en agentes largos: estrategias y trade-offs | LAB"),
+    seoDescription: t("Aprende a usar resumen jerárquico, buffers, checkpoints y memoria externa para evitar colapso de contexto en agentes de larga duración."),
+    keywords: ["ventana de contexto", "long-running agents", "context window management", "context engineering"],
+    tags: ["Contexto", "Memoria", "Arquitectura"],
+    heroVisual: {
+      kind: "context-timeline",
+      eyebrow: t("Timeline contextual"),
+      title: t("Contexto vivo, resumen y recuperación gobernada"),
+      metric: "32k+",
+      detail: t("A más contexto sin estructura, más ruido. La arquitectura decide qué conservar."),
+    },
+    heroImageAlt: t("Timeline de gestión de ventana de contexto con resumen y memoria externa."),
+    ctaLabel: t("Calcular el riesgo de contexto de mi agente"),
+    ctaPrompt: t("Valida si tu flujo multi-turno necesita resumen, memoria persistente o recuperación semántica."),
+    relatedProductStage: "free-diagnosis",
+  },
+  "planificacion-jerarquica-htn-agentes-ia": {
+    seoTitle: t("HTN para agentes de IA: planificación jerárquica y control determinista | LAB"),
+    seoDescription: t("Usa planificación jerárquica de tareas para convertir metas complejas en métodos, operadores y rollback verificable."),
+    keywords: ["HTN agentes IA", "hierarchical task networks", "planificación agentes", "control determinista"],
+    tags: ["HTN", "Planificación", "Control"],
+    heroVisual: {
+      kind: "htn-tree",
+      eyebrow: t("Plan jerárquico"),
+      title: t("Objetivo, métodos, operadores y rollback"),
+      metric: "4 niveles",
+      detail: t("HTN ayuda a que el LLM no improvise el orden de ejecución del negocio."),
+    },
+    heroImageAlt: t("Árbol jerárquico HTN para agentes de IA con objetivo, métodos y operadores."),
+    ctaLabel: t("Crear un plan HTN para mi proceso"),
+    ctaPrompt: t("LAB convierte tu objetivo en pasos ejecutables, dependencias y puntos de control antes de construir."),
+    relatedProductStage: "blueprint-pro",
+  },
+  "memgpt-llm-sistemas-operativos": {
+    seoTitle: t("MemGPT y memoria virtual para LLMs: agentes como sistemas operativos | LAB"),
+    seoDescription: t("Qué enseña MemGPT sobre paginación de contexto, memoria core y almacenamiento externo para agentes persistentes."),
+    keywords: ["MemGPT", "LLM operating systems", "memoria virtual LLM", "agentes persistentes"],
+    tags: ["MemGPT", "Memoria virtual", "Agentes persistentes"],
+    heroVisual: {
+      kind: "virtual-memory",
+      eyebrow: t("Memoria virtual"),
+      title: t("Core memory, contexto y archivo externo"),
+      metric: "OS-like",
+      detail: t("El agente gestiona memoria como un sistema operativo: carga, resume y archiva."),
+    },
+    heroImageAlt: t("Diagrama de memoria virtual inspirado en MemGPT para agentes persistentes."),
+    ctaLabel: t("Diseñar memoria persistente para mi agente"),
+    ctaPrompt: t("Evalúa si tu agente necesita preferencias, historial, perfiles o memoria semántica entre sesiones."),
+    relatedProductStage: "blueprint-pro",
+  },
+  "ingenieria-sistemas-agentes-autonomos": {
+    seoTitle: t("Ingeniería de sistemas para agentes autónomos de IA | LAB"),
+    seoDescription: t("Cómo aplicar ciclo cerrado, capas desacopladas, seguridad, memoria y observabilidad al diseño de agentes autónomos empresariales."),
+    keywords: ["ingeniería de sistemas agentes IA", "agentes autónomos", "agentic systems engineering", "observabilidad IA"],
+    tags: ["Sistemas", "Gobernanza", "Autonomía"],
+    heroVisual: {
+      kind: "systems-blueprint",
+      eyebrow: t("Blueprint de sistema"),
+      title: t("Usuarios, tools, memoria, seguridad y observabilidad"),
+      metric: "360°",
+      detail: t("LAB conecta intención de negocio con arquitectura ejecutable y control operacional."),
+    },
+    heroImageAlt: t("Blueprint visual de sistema agéntico con usuarios, herramientas, memoria, seguridad y observabilidad."),
+    ctaLabel: t("Convertir mi iniciativa en sistema agéntico"),
+    ctaPrompt: t("Comienza con un diagnóstico y transforma una necesidad de negocio en Blueprint, ACP y ruta de implementación."),
+    relatedProductStage: "blueprint-free",
+  },
+};
+
+export const INSIGHTS_ARTICLES: InsightArticle[] = BASE_INSIGHTS_ARTICLES.map((article) => ({
+  ...article,
+  ogImage: "/insights/lab-insights-og.svg",
+  ...PREMIUM_INSIGHT_META[article.slug],
+}));

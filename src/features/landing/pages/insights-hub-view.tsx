@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, BookOpen, CheckCircle2, FileCode, Filter, Search, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpen, CheckCircle2, FileCode, Search, Sparkles } from "lucide-react";
 import { useLanguage } from "@/core/i18n/language-context";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { LandingHeader } from "../components/landing-header";
 import { LandingFooter } from "../components/landing-footer";
-import { INSIGHTS_ARTICLES, type InsightArticle } from "./insights-data";
+import { INSIGHTS_ARTICLES } from "./insights-data";
+import { InsightArticleVisual } from "./insight-article-visual";
 
 export function InsightsHubView() {
   const { language } = useLanguage();
@@ -22,6 +23,18 @@ export function InsightsHubView() {
       document.documentElement.classList.remove("dark");
     }
   }, [isDark]);
+
+  const validatorHref = useMemo(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const attribution = new URLSearchParams();
+    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "gbraid", "wbraid"].forEach((key) => {
+      const value = params.get(key);
+      if (value) attribution.set(key, value);
+    });
+    const query = attribution.toString();
+    return `/${language}${query ? `?${query}` : ""}#validar-idea`;
+  }, [language]);
 
   const categories = [
     { key: "all", label: byLanguage(language, { es: "Todos los Artículos (12)", en: "All Articles (12)", pt: "Todos os Artigos (12)" }) },
@@ -140,6 +153,10 @@ export function InsightsHubView() {
                       </div>
                     </div>
 
+                    <Link href={`/${language}/insights/${article.slug}`} className="mb-5 block">
+                      <InsightArticleVisual article={article} compact language={language as "es" | "en" | "pt"} />
+                    </Link>
+
                     <Link href={`/${language}/insights/${article.slug}`}>
                       <h2 className="text-xl font-extrabold text-slate-900 dark:text-white mb-3 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                         {article.title[language as "es" | "en" | "pt"] || article.title.es}
@@ -149,6 +166,16 @@ export function InsightsHubView() {
                     <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                       {article.summary[language as "es" | "en" | "pt"] || article.summary.es}
                     </p>
+
+                    {article.tags?.length ? (
+                      <div className="mb-5 flex flex-wrap gap-2">
+                        {article.tags.slice(0, 3).map((tag) => (
+                          <span key={tag} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
 
                     <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 mb-6">
                       <div className="text-[11px] font-bold text-slate-900 dark:text-white uppercase tracking-wider mb-2">
@@ -197,7 +224,7 @@ export function InsightsHubView() {
                 })}
               </p>
               <Link
-                href={`/${language}#validar-idea`}
+                href={validatorHref ?? `/${language}#validar-idea`}
                 className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-slate-950 text-xs font-extrabold shadow-lg hover:bg-slate-100 transition"
               >
                 <span>{byLanguage(language, { es: "Validar mi idea gratis ahora →", en: "Validate my idea for free now →", pt: "Validar minha ideia grátis agora →" })}</span>

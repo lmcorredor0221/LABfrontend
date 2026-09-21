@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">Lean Agent Builder Insights</title>
+  <desc id="desc">Imagen editorial para articulos tecnicos de Lean Agent Builder sobre arquitectura de agentes de IA.</desc>
+  <rect width="1200" height="630" fill="#101722"/>
+  <path d="M0 480h1200v150H0z" fill="#0d9488" opacity=".16"/>
+  <path d="M0 0h1200v220H0z" fill="#f59e0b" opacity=".10"/>
+  <g opacity=".22" stroke="#ffffff" stroke-width="1">
+    <path d="M80 80h1040M80 140h1040M80 200h1040M80 260h1040M80 320h1040M80 380h1040M80 440h1040M80 500h1040"/>
+    <path d="M140 50v530M260 50v530M380 50v530M500 50v530M620 50v530M740 50v530M860 50v530M980 50v530"/>
+  </g>
+  <g transform="translate(105 90)">
+    <rect x="0" y="0" width="990" height="450" rx="22" fill="#111827" stroke="#334155" stroke-width="2"/>
+    <text x="58" y="82" fill="#67e8f9" font-family="Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="5">LEAN AGENT BUILDER</text>
+    <text x="58" y="172" fill="#f8fafc" font-family="Arial, sans-serif" font-size="66" font-weight="800">Articulos &amp; Insights</text>
+    <text x="58" y="230" fill="#cbd5e1" font-family="Arial, sans-serif" font-size="30">Ingenieria agentica para produccion</text>
+    <g transform="translate(58 298)">
+      <rect width="206" height="58" rx="12" fill="#0f766e"/>
+      <text x="28" y="37" fill="#ecfeff" font-family="Arial, sans-serif" font-size="20" font-weight="700">Blueprint</text>
+      <path d="M228 29h70" stroke="#94a3b8" stroke-width="4"/>
+      <rect x="320" width="206" height="58" rx="12" fill="#92400e"/>
+      <text x="360" y="37" fill="#fffbeb" font-family="Arial, sans-serif" font-size="20" font-weight="700">ACP</text>
+      <path d="M548 29h70" stroke="#94a3b8" stroke-width="4"/>
+      <rect x="640" width="246" height="58" rx="12" fill="#1e40af"/>
+      <text x="674" y="37" fill="#eff6ff" font-family="Arial, sans-serif" font-size="20" font-weight="700">Produccion</text>
+    </g>
+  </g>
+</svg>

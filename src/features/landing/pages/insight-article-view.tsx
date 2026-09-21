@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, BookOpen, Check, CheckCircle2, Copy, FileCode, FileText, Share2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Copy, FileCode, Sparkles } from "lucide-react";
 import { useLanguage } from "@/core/i18n/language-context";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { LandingHeader } from "../components/landing-header";
 import { LandingFooter } from "../components/landing-footer";
-import { INSIGHTS_ARTICLES, type InsightArticle } from "./insights-data";
+import { INSIGHTS_ARTICLES } from "./insights-data";
+import { InsightArticleVisual } from "./insight-article-visual";
 
 interface InsightArticleViewProps {
   slug: string;
@@ -38,6 +39,18 @@ export function InsightArticleView({ slug }: InsightArticleViewProps) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  const validatorHref = useMemo(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const attribution = new URLSearchParams();
+    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "gbraid", "wbraid"].forEach((key) => {
+      const value = params.get(key);
+      if (value) attribution.set(key, value);
+    });
+    const query = attribution.toString();
+    return `/${language}${query ? `?${query}` : ""}#validar-idea`;
+  }, [language]);
+
   const currentIndex = INSIGHTS_ARTICLES.findIndex((a) => a.slug === slug);
   const article = INSIGHTS_ARTICLES[currentIndex >= 0 ? currentIndex : 0];
   const prevArticle = currentIndex > 0 ? INSIGHTS_ARTICLES[currentIndex - 1] : null;
@@ -47,6 +60,13 @@ export function InsightArticleView({ slug }: InsightArticleViewProps) {
   const summary = article.summary[language as "es" | "en" | "pt"] || article.summary.es;
   const categoryLabel = article.categoryLabel[language as "es" | "en" | "pt"] || article.categoryLabel.es;
   const takeaways = article.keyTakeaways[language as "es" | "en" | "pt"] || article.keyTakeaways.es;
+  const ctaLabel = article.ctaLabel?.[language as "es" | "en" | "pt"] || article.ctaLabel?.es || byLanguage(language, { es: "Validar mi idea gratis ahora", en: "Validate my idea for free now", pt: "Validar minha ideia grátis agora" });
+  const ctaPrompt = article.ctaPrompt?.[language as "es" | "en" | "pt"] || article.ctaPrompt?.es || byLanguage(language, {
+    es: "Valida tu iniciativa con el diagnóstico gratuito de LAB en menos de 1 minuto y genera tu Blueprint.",
+    en: "Validate your initiative with LAB's free diagnosis in under 1 minute and generate your Blueprint.",
+    pt: "Valide sua iniciativa com o diagnóstico gratuito do LAB em menos de 1 minuto e gere seu Blueprint.",
+  });
+  const resolvedValidatorHref = validatorHref ?? `/${language}#validar-idea`;
 
   function handleCopyLink() {
     if (typeof window !== "undefined" && navigator.clipboard) {
@@ -129,7 +149,21 @@ export function InsightArticleView({ slug }: InsightArticleViewProps) {
             <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
               {summary}
             </p>
+
+            {article.tags?.length ? (
+              <div className="mt-5 flex flex-wrap gap-2">
+                {article.tags.map((tag) => (
+                  <span key={tag} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600 shadow-2xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </header>
+
+          <div className="mb-10">
+            <InsightArticleVisual article={article} language={language as "es" | "en" | "pt"} />
+          </div>
 
           {/* Key Takeaways Card */}
           <div className="p-6 sm:p-8 rounded-3xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 mb-10 shadow-2xs">
@@ -179,6 +213,21 @@ export function InsightArticleView({ slug }: InsightArticleViewProps) {
                 <div className="text-slate-600 dark:text-slate-300 whitespace-pre-line leading-relaxed text-sm">
                   {sec.content[language as "es" | "en" | "pt"] || sec.content.es}
                 </div>
+                {sIdx === 0 ? (
+                  <aside className="mt-8 rounded-lg border border-emerald-200 bg-emerald-50 p-5 dark:border-emerald-900/70 dark:bg-emerald-950/30">
+                    <div className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+                      {byLanguage(language, { es: "Aplicalo a tu caso", en: "Apply it to your case", pt: "Aplique ao seu caso" })}
+                    </div>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">{ctaPrompt}</p>
+                    <Link
+                      href={resolvedValidatorHref}
+                      className="mt-4 inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-xs font-extrabold text-white shadow-sm transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                    >
+                      <span>{ctaLabel}</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </aside>
+                ) : null}
               </section>
             )) || (
               <p className="text-slate-600 dark:text-slate-300">
@@ -225,17 +274,13 @@ export function InsightArticleView({ slug }: InsightArticleViewProps) {
               })}
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 max-w-lg mx-auto mb-6">
-              {byLanguage(language, {
-                es: "Valida tu iniciativa con el diagnóstico gratuito de LAB en menos de 1 minuto y genera tu Blueprint.",
-                en: "Validate your initiative with LAB's free diagnosis in under 1 minute and generate your Blueprint.",
-                pt: "Valide sua iniciativa com o diagnóstico gratuito do LAB em menos de 1 minuto e gere seu Blueprint.",
-              })}
+              {ctaPrompt}
             </p>
             <Link
-              href={`/${language}#validar-idea`}
+              href={resolvedValidatorHref}
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-slate-900 text-xs font-extrabold shadow-lg hover:bg-slate-100 transition"
             >
-              <span>{byLanguage(language, { es: "Validar mi idea gratis ahora →", en: "Validate my idea for free now →", pt: "Validar minha ideia grátis agora →" })}</span>
+              <span>{ctaLabel} →</span>
             </Link>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
-import { buildAbsoluteUrl, LANDING_LANGUAGES, SITE_URL } from "@/core/seo/site";
+import { buildAbsoluteUrl, LANDING_LANGUAGES } from "@/core/seo/site";
 import { INSIGHTS_ARTICLES } from "@/features/landing/pages/insights-data";
+import { buildInsightSitemapAlternates } from "@/features/landing/pages/insight-article-seo";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
@@ -40,6 +41,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(article.date),
       changeFrequency: "monthly" as const,
       priority: 0.8,
+      alternates: {
+        languages: buildInsightSitemapAlternates(article.slug),
+      },
     };
 
     const localizedEntries = LANDING_LANGUAGES.map((lang) => ({
@@ -47,6 +51,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
       lastModified: new Date(article.date),
       changeFrequency: "monthly" as const,
       priority: 0.7,
+      alternates: {
+        languages: buildInsightSitemapAlternates(article.slug),
+      },
     }));
 
     return [baseEntry, ...localizedEntries];
