@@ -2,7 +2,7 @@
 
 import Script from "next/script";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { captureAttributionFromLocation, clearAttribution } from "@/core/analytics/attribution";
 import {
   applyGoogleConsent,
@@ -11,11 +11,7 @@ import {
 } from "@/core/analytics/consent-store";
 import type { AnalyticsConsentChoice } from "@/core/analytics/contracts";
 import { sanitizePathname, sanitizeReferrer, sanitizeTitle, sanitizeUrl } from "@/core/analytics/sanitize";
-import {
-  getGoogleAnalyticsMeasurementId,
-  getGoogleTagManagerId,
-  isAnalyticsEnabled,
-} from "@/core/config/runtime";
+import { getGoogleTagManagerId, isAnalyticsEnabled } from "@/core/config/runtime";
 import { useLanguage } from "@/core/i18n/language-context";
 
 function subscribeConsent(listener: () => void) {
@@ -34,11 +30,11 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const [showPreferences, setShowPreferences] = useState(false);
   const [gtmReady, setGtmReady] = useState(false);
   const [gtmLoaded, setGtmLoaded] = useState(false);
+  const hasSkippedInitialPageView = useRef(false);
   const consentSnapshot = useSyncExternalStore(subscribeConsent, getConsentSnapshot, () => "null");
   const choice = useMemo(() => JSON.parse(consentSnapshot) as AnalyticsConsentChoice | null, [consentSnapshot]);
   const analyticsEnabled = isAnalyticsEnabled();
   const gtmId = getGoogleTagManagerId();
-  const measurementId = getGoogleAnalyticsMeasurementId();
   const shouldLoadGtm = analyticsEnabled && Boolean(gtmId) && gtmReady;
 
   useEffect(() => {
@@ -71,12 +67,11 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const routeKey = useMemo(() => `${pathname}?${searchParams.toString()}`, [pathname, searchParams]);
 
   useEffect(() => {
-    if (!choice?.analytics || !gtmLoaded || !measurementId) return;
-    window.gtag?.("config", measurementId, { send_page_view: false });
-  }, [choice?.analytics, gtmLoaded, measurementId]);
-
-  useEffect(() => {
     if (!choice?.analytics || !gtmLoaded) return;
+    if (!hasSkippedInitialPageView.current) {
+      hasSkippedInitialPageView.current = true;
+      return;
+    }
     const pageViewTimer = window.setTimeout(() => {
       captureAttributionFromLocation();
       window.gtag?.("event", "page_view", {
