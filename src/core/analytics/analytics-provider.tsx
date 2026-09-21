@@ -30,6 +30,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const { language } = useLanguage();
   const [showPreferences, setShowPreferences] = useState(false);
   const [gtmReady, setGtmReady] = useState(false);
+  const [gtmLoaded, setGtmLoaded] = useState(false);
   const consentSnapshot = useSyncExternalStore(subscribeConsent, getConsentSnapshot, () => "null");
   const choice = useMemo(() => JSON.parse(consentSnapshot) as AnalyticsConsentChoice | null, [consentSnapshot]);
   const analyticsEnabled = isAnalyticsEnabled();
@@ -39,18 +40,34 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     applyGoogleConsent(choice);
     const hasMeasurementConsent = Boolean(choice?.analytics || choice?.advertising);
-    setGtmReady(hasMeasurementConsent);
+    const readyTimer = window.setTimeout(() => setGtmReady(hasMeasurementConsent), 0);
     if (hasMeasurementConsent) {
       captureAttributionFromLocation();
     } else {
       clearAttribution();
     }
+    return () => window.clearTimeout(readyTimer);
   }, [choice]);
+
+  useEffect(() => {
+    const markGtmLoaded = () => setGtmLoaded(true);
+    const analyticsWindow = window as Window & { __labGtmLoaded?: boolean };
+
+    const loadedTimer = analyticsWindow.__labGtmLoaded
+      ? window.setTimeout(markGtmLoaded, 0)
+      : undefined;
+
+    window.addEventListener("lab:gtm-loaded", markGtmLoaded);
+    return () => {
+      if (loadedTimer !== undefined) window.clearTimeout(loadedTimer);
+      window.removeEventListener("lab:gtm-loaded", markGtmLoaded);
+    };
+  }, []);
 
   const routeKey = useMemo(() => `${pathname}?${searchParams.toString()}`, [pathname, searchParams]);
 
   useEffect(() => {
-    if (!choice?.analytics) return;
+    if (!choice?.analytics || !gtmLoaded) return;
     captureAttributionFromLocation();
     pushAnalyticsEvent("page_view", {
       page_path: sanitizePathname(pathname || "/"),
@@ -58,7 +75,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       page_location: sanitizeUrl(window.location.href),
       page_referrer: sanitizeReferrer(document.referrer),
     });
-  }, [choice?.analytics, pathname, routeKey]);
+  }, [choice?.analytics, gtmLoaded, pathname, routeKey]);
 
   function updateConsent(next: Pick<AnalyticsConsentChoice, "analytics" | "advertising">) {
     saveConsentChoice(next);
@@ -74,7 +91,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
             (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
             new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
             j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;j.onload=function(){
+            w.__labGtmLoaded=true;w.dispatchEvent(new Event('lab:gtm-loaded'));
+            };f.parentNode.insertBefore(j,f);
             })(window,document,'script','dataLayer','${gtmId}');
           `}
         </Script>
