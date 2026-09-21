@@ -51,21 +51,22 @@ describe("LabLandingPage Component", () => {
     expect(screen.getByPlaceholderText(/Escribe aquí tu problema/i)).toBeInTheDocument();
 
     // Transformation / Methodology
-    expect(screen.getByText("De idea a agente listo para construir")).toBeInTheDocument();
+    expect(screen.getByText("De una idea incierta a un agente listo para implementar")).toBeInTheDocument();
     expect(screen.getByText("VALIDA")).toBeInTheDocument();
     expect(screen.getAllByText("DISEÑA").length).toBeGreaterThan(0);
 
-    // Deliverables (Blueprint vs ACP)
-    expect(screen.getByText("Tu agente diseñado y listo para construir")).toBeInTheDocument();
-    expect(screen.getByText("TU AGENTE DISEÑADO")).toBeInTheDocument();
-    expect(screen.getByText("LISTO PARA CONSTRUIR")).toBeInTheDocument();
+    // Deliverables (Free -> Pro -> ACP)
+    expect(screen.getByText("El mismo proyecto gana profundidad sin perder contexto")).toBeInTheDocument();
+    expect(screen.getByText("DISEÑO INICIAL")).toBeInTheDocument();
+    expect(screen.getByText("DISEÑO PROFESIONAL")).toBeInTheDocument();
+    expect(screen.getByText("PREPARACIÓN TÉCNICA")).toBeInTheDocument();
 
     // Impact calculator
     expect(screen.getByText("Estimación Transparente")).toBeInTheDocument();
 
     // Commercial plans
-    expect(screen.getByText("Valida gratis, diseña completo o prepara para construir")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Valida y diseña tu idea" })).toBeInTheDocument();
+    expect(screen.getByText("Empieza gratis y profundiza solo cuando lo necesites")).toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "Blueprint Free" }).length).toBeGreaterThan(0);
 
     // Agencies & Factory
     expect(screen.getByText("¿Construyes agentes para clientes?")).toBeInTheDocument();

@@ -42,6 +42,31 @@ describe("marketing analytics helpers", () => {
     expect(window.dataLayer?.at(-1)).toEqual({ event: "sign_up", method: "email" });
   });
 
+  it("sends only allowlisted funnel parameters", () => {
+    vi.stubEnv("NEXT_PUBLIC_ANALYTICS_ENABLED", "true");
+    saveConsentChoice({ analytics: true, advertising: false });
+
+    pushAnalyticsEvent("funnel_cta_click", {
+      cta_location: "pricing",
+      cta_name: "validate_idea",
+      destination: "#validar-idea",
+      funnel_stage: "validate",
+      language: "es",
+      product_key: "blueprint",
+      prompt_text: "private project content",
+    } as never);
+
+    expect(window.dataLayer?.at(-1)).toEqual({
+      event: "funnel_cta_click",
+      cta_location: "pricing",
+      cta_name: "validate_idea",
+      destination: "#validar-idea",
+      funnel_stage: "validate",
+      language: "es",
+      product_key: "blueprint",
+    });
+  });
+
   it("builds marketing context from consent and GA cookies", () => {
     vi.stubEnv("NEXT_PUBLIC_GA_MEASUREMENT_ID", "G-LJHWSTKF8D");
     saveConsentChoice({ analytics: true, advertising: true });

@@ -80,9 +80,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       ) : null}
       {analyticsEnabled && (showPreferences || !choice) ? (
         <ConsentBanner
+          initialChoice={choice}
           language={language}
-          onAcceptAll={() => updateConsent({ analytics: true, advertising: true })}
-          onReject={() => updateConsent({ analytics: false, advertising: false })}
+          onSave={updateConsent}
         />
       ) : null}
       {analyticsEnabled && choice && !showPreferences ? (
@@ -99,45 +99,93 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 }
 
 function ConsentBanner({
+  initialChoice,
   language,
-  onAcceptAll,
-  onReject,
+  onSave,
 }: {
+  initialChoice: AnalyticsConsentChoice | null;
   language: string;
-  onAcceptAll: () => void;
-  onReject: () => void;
+  onSave: (choice: Pick<AnalyticsConsentChoice, "analytics" | "advertising">) => void;
 }) {
+  const [analytics, setAnalytics] = useState(initialChoice?.analytics ?? false);
+  const [advertising, setAdvertising] = useState(initialChoice?.advertising ?? false);
   const copy =
     language === "en"
       ? {
           title: "Measurement preferences",
           body: "We use optional analytics and advertising measurement to understand the funnel. We do not send prompts, email, tokens, or project text to Google.",
-          reject: "Reject",
-          accept: "Accept",
+          analytics: "Analytics",
+          analyticsBody: "Helps us understand visits, diagnoses, and product activation.",
+          advertising: "Advertising",
+          advertisingBody: "Preserves campaign attribution and measures Google Ads performance.",
+          necessary: "Necessary only",
+          save: "Save preferences",
+          accept: "Accept all",
         }
       : language === "pt"
         ? {
-            title: "Preferencias de medicao",
-            body: "Usamos medicao opcional de analitica e publicidade para entender o funil. Nao enviamos prompts, email, tokens ou textos de projeto ao Google.",
-            reject: "Recusar",
-            accept: "Aceitar",
+            title: "Preferências de medição",
+            body: "Usamos medição opcional de análise e publicidade para entender o funil. Não enviamos prompts, e-mails, tokens ou textos de projetos ao Google.",
+            analytics: "Análise",
+            analyticsBody: "Ajuda a entender visitas, diagnósticos e ativação do produto.",
+            advertising: "Publicidade",
+            advertisingBody: "Preserva a atribuição da campanha e mede o desempenho do Google Ads.",
+            necessary: "Somente necessárias",
+            save: "Salvar preferências",
+            accept: "Aceitar tudo",
           }
         : {
-            title: "Preferencias de medicion",
-            body: "Usamos medicion opcional de analitica y publicidad para entender el funnel. No enviamos prompts, correos, tokens ni textos de proyecto a Google.",
-            reject: "Rechazar",
-            accept: "Aceptar",
+            title: "Preferencias de medición",
+            body: "Usamos medición opcional de analítica y publicidad para entender el funnel. No enviamos prompts, correos, tokens ni textos de proyectos a Google.",
+            analytics: "Analítica",
+            analyticsBody: "Ayuda a entender visitas, diagnósticos y activación del producto.",
+            advertising: "Publicidad",
+            advertisingBody: "Conserva la atribución de campaña y mide el rendimiento de Google Ads.",
+            necessary: "Solo necesarias",
+            save: "Guardar preferencias",
+            accept: "Aceptar todo",
           };
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-2xl rounded-lg border border-slate-200 bg-white p-4 text-slate-900 shadow-xl">
+    <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-2xl rounded-xl border border-slate-200 bg-white p-4 text-slate-900 shadow-xl">
       <p className="text-sm font-bold">{copy.title}</p>
       <p className="mt-1 text-xs leading-5 text-slate-600">{copy.body}</p>
-      <div className="mt-3 flex justify-end gap-2">
-        <button type="button" onClick={onReject} className="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">
-          {copy.reject}
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3">
+          <input
+            type="checkbox"
+            checked={analytics}
+            onChange={(event) => setAnalytics(event.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-indigo-600"
+          />
+          <span>
+            <span className="block text-xs font-bold text-slate-800">{copy.analytics}</span>
+            <span className="mt-0.5 block text-[11px] leading-4 text-slate-500">{copy.analyticsBody}</span>
+          </span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3">
+          <input
+            type="checkbox"
+            checked={advertising}
+            onChange={(event) => setAdvertising(event.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-indigo-600"
+          />
+          <span>
+            <span className="block text-xs font-bold text-slate-800">{copy.advertising}</span>
+            <span className="mt-0.5 block text-[11px] leading-4 text-slate-500">{copy.advertisingBody}</span>
+          </span>
+        </label>
+      </div>
+
+      <div className="mt-3 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+        <button type="button" onClick={() => onSave({ analytics: false, advertising: false })} className="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700">
+          {copy.necessary}
         </button>
-        <button type="button" onClick={onAcceptAll} className="rounded-md bg-indigo-600 px-3 py-2 text-xs font-bold text-white">
+        <button type="button" onClick={() => onSave({ analytics, advertising })} className="rounded-md border border-indigo-300 px-3 py-2 text-xs font-bold text-indigo-700">
+          {copy.save}
+        </button>
+        <button type="button" onClick={() => onSave({ analytics: true, advertising: true })} className="rounded-md bg-indigo-600 px-3 py-2 text-xs font-bold text-white">
           {copy.accept}
         </button>
       </div>

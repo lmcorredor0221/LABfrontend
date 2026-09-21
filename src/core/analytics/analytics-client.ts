@@ -21,26 +21,35 @@ export function canSendAnalyticsEvent() {
 }
 
 export function pushAnalyticsEvent(event: AnalyticsEventName, params: SafeAnalyticsParams = {}) {
-  if (typeof window === "undefined" || !canSendAnalyticsEvent()) return;
+  if (typeof window === "undefined" || !canSendAnalyticsEvent()) return false;
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push({
     event,
     ...filterParams(event, params),
   });
+  return true;
+}
+
+export function trackFunnelCtaClick(params: SafeAnalyticsParams) {
+  return pushAnalyticsEvent("funnel_cta_click", params);
+}
+
+export function trackValidatorStarted(params: SafeAnalyticsParams) {
+  return pushAnalyticsEvent("validator_started", params);
 }
 
 export function trackIdeaEvaluated(params: SafeAnalyticsParams) {
-  pushAnalyticsEvent("idea_evaluated", params);
+  return pushAnalyticsEvent("idea_evaluated", params);
 }
 
 export function trackSignUp() {
-  pushAnalyticsEvent("sign_up", { method: "email" });
+  return pushAnalyticsEvent("sign_up", { method: "email" });
 }
 
 export function trackProjectCreated(params: SafeAnalyticsParams) {
-  pushAnalyticsEvent("project_created", params);
+  return pushAnalyticsEvent("project_created", params);
 }
 
 export function trackBeginCheckout(params: SafeAnalyticsParams) {
-  pushAnalyticsEvent("begin_checkout", params);
+  return pushAnalyticsEvent("begin_checkout", params);
 }

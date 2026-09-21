@@ -140,20 +140,20 @@ export function TiersComparison({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider">
-              {byLanguage(language, { es: "Funnel por proyecto", en: "Per-project funnel", pt: "Funil por projeto" })}
+              {byLanguage(language, { es: "Hasta dónde quieres avanzar", en: "How far do you want to go", pt: "Até onde você quer avançar" })}
             </span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white mt-3">
               {byLanguage(language, {
-                es: "Valida gratis, diseña completo o prepara para construir",
-                en: "Validate for free, complete the design, or prepare to build",
-                pt: "Valide grátis, complete o desenho ou prepare para construir",
+                es: "Empieza gratis y profundiza solo cuando lo necesites",
+                en: "Start free and go deeper only when you need to",
+                pt: "Comece grátis e aprofunde somente quando precisar",
               })}
             </h2>
             <p className="text-slate-600 dark:text-slate-400 text-sm sm:text-base mt-2">
               {byLanguage(language, {
-                es: "Blueprint y ACP siguen siendo los entregables; aquí los presentamos desde la decisión de negocio que habilitan.",
-                en: "Blueprint and ACP remain the deliverables; here they are presented through the business decision they enable.",
-                pt: "Blueprint e ACP continuam sendo os entregáveis; aqui aparecem pela decisão de negócio que habilitam.",
+                es: "El recorrido es acumulativo: Pro amplía tu Blueprint Free y ACP incorpora el contexto del Blueprint para preparar la implementación.",
+                en: "The journey is cumulative: Pro expands your Free Blueprint, and ACP carries the Blueprint context into implementation preparation.",
+                pt: "O percurso é cumulativo: o Pro amplia seu Blueprint Free e o ACP leva o contexto do Blueprint para a preparação da implementação.",
               })}
             </p>
           </div>
@@ -163,10 +163,10 @@ export function TiersComparison({
             <div className="rounded-3xl p-6 sm:p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md flex flex-col justify-between">
               <div>
                 <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold font-mono">
-                  {byLanguage(language, { es: "EXPLORA", en: "EXPLORE", pt: "EXPLORAR" })}
+                  {byLanguage(language, { es: "EMPIEZA", en: "START", pt: "COMEÇAR" })}
                 </span>
                 <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-3 mb-1">
-                  {byLanguage(language, { es: "Valida y diseña tu idea", en: "Validate and design your idea", pt: "Valide e desenhe sua ideia" })}
+                  Blueprint Free
                 </h3>
                 <div className="flex items-baseline gap-1 my-4">
                   <span className="text-3xl font-black text-slate-900 dark:text-white">$0</span>
@@ -174,24 +174,24 @@ export function TiersComparison({
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                   {byLanguage(language, {
-                    es: "Comprueba si tu idea tiene sentido y obtén un diseño inicial.",
-                    en: "Check whether your idea makes sense and get an initial design.",
-                    pt: "Verifique se sua ideia faz sentido e receba um desenho inicial.",
+                    es: "Valida la oportunidad, crea el proyecto y construye una primera versión coherente del diseño.",
+                    en: "Validate the opportunity, create the project, and build a coherent first version of the design.",
+                    pt: "Valide a oportunidade, crie o projeto e construa uma primeira versão coerente do desenho.",
                   })}
                 </p>
 
                 <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300 mb-8">
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{byLanguage(language, { es: "Diagnóstico Lean de Viabilidad", en: "Lean Feasibility Diagnosis", pt: "Diagnóstico Lean de Viabilidade" })}</span>
+                    <span>{byLanguage(language, { es: "Diagnóstico inmediato sin registro", en: "Immediate diagnosis without sign-up", pt: "Diagnóstico imediato sem cadastro" })}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{byLanguage(language, { es: "Arquetipo de Agente Sugerido", en: "Suggested Agent Archetype", pt: "Arquétipo de Agente Sugerido" })}</span>
+                    <span>{byLanguage(language, { es: "Seis decisiones guiadas dentro del proyecto", en: "Six guided decisions inside the project", pt: "Seis decisões guiadas dentro do projeto" })}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{byLanguage(language, { es: "Especificación Básica Navegable", en: "Basic Navigable Specification", pt: "Especificação Básica Navegável" })}</span>
+                    <span>{byLanguage(language, { es: "Resultado visible y protegido en LAB", en: "View-only protected result in LAB", pt: "Resultado visível e protegido no LAB" })}</span>
                   </li>
                 </ul>
               </div>
@@ -213,10 +213,10 @@ export function TiersComparison({
 
               <div>
                 <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 text-xs font-bold font-mono">
-                  {byLanguage(language, { es: "DISEÑA", en: "DESIGN", pt: "DESENHAR" })}
+                  {byLanguage(language, { es: "PROFUNDIZA", en: "DEEPEN", pt: "APROFUNDAR" })}
                 </span>
                 <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-3 mb-1">
-                  {byLanguage(language, { es: "Diseño completo", en: "Complete design", pt: "Desenho completo" })}
+                  Blueprint Pro
                 </h3>
                 <div className="flex items-baseline gap-1 my-4">
                   <span className="text-3xl font-black text-slate-900 dark:text-white">
@@ -228,28 +228,28 @@ export function TiersComparison({
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                   {byLanguage(language, {
-                    es: "Define completamente cómo funcionará tu agente antes de programarlo. Incluye Blueprint Pro.",
-                    en: "Fully define how your agent will work before coding. Includes Blueprint Pro.",
-                    pt: "Defina completamente como seu agente funcionará antes de programar. Inclui Blueprint Pro.",
+                    es: "Profundiza, formaliza y descarga el diseño que comenzaste en Blueprint Free.",
+                    en: "Deepen, formalize, and download the design you started in Blueprint Free.",
+                    pt: "Aprofunde, formalize e baixe o desenho iniciado no Blueprint Free.",
                   })}
                 </p>
 
                 <ul className="space-y-2.5 text-xs text-slate-700 dark:text-slate-300 mb-8">
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{byLanguage(language, { es: "Todo lo del plan Free", en: "Everything in Free", pt: "Tudo do plano Free" })}</span>
+                    <span>{byLanguage(language, { es: "Todo el contexto de Blueprint Free", en: "All Blueprint Free context", pt: "Todo o contexto do Blueprint Free" })}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{byLanguage(language, { es: "Diagramas de flujo interactivos", en: "Interactive flow diagrams", pt: "Diagramas de fluxo interativos" })}</span>
+                    <span>{byLanguage(language, { es: "Arquitectura y diagramas profesionales", en: "Professional architecture and diagrams", pt: "Arquitetura e diagramas profissionais" })}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{byLanguage(language, { es: "Matriz de Memoria & Contexto", en: "Memory & Context Matrix", pt: "Matriz de Memória & Contexto" })}</span>
+                    <span>{byLanguage(language, { es: "Tools, memoria, RAG, HITL y ROI", en: "Tools, memory, RAG, HITL, and ROI", pt: "Tools, memória, RAG, HITL e ROI" })}</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{byLanguage(language, { es: "Políticas Human-in-the-Loop", en: "Human-in-the-Loop Policies", pt: "Políticas Human-in-the-Loop" })}</span>
+                    <span>{byLanguage(language, { es: "Documento y ZIP profesional descargable", en: "Downloadable professional document and ZIP", pt: "Documento e ZIP profissional para download" })}</span>
                   </li>
                 </ul>
               </div>
@@ -259,7 +259,7 @@ export function TiersComparison({
                 onClick={() => onOpenPurchase("Blueprint Pro", basePrices.blueprint_pro_usd)}
                 className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/25 transition"
               >
-                {byLanguage(language, { es: "Completar mi diseño", en: "Complete my design", pt: "Completar meu desenho" })} — {formatPrice(basePrices.blueprint_pro_usd)} {currency}
+                {byLanguage(language, { es: "Continuar con Blueprint Pro", en: "Continue with Blueprint Pro", pt: "Continuar com Blueprint Pro" })} — {formatPrice(basePrices.blueprint_pro_usd)} {currency}
               </button>
             </div>
 
@@ -270,7 +270,7 @@ export function TiersComparison({
                   {byLanguage(language, { es: "PREPARA", en: "PREPARE", pt: "PREPARAR" })}
                 </span>
                 <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-3 mb-1">
-                  {byLanguage(language, { es: "Listo para construir", en: "Ready to build", pt: "Pronto para construir" })}
+                  Agent Construction Package
                 </h3>
                 <div className="flex items-baseline gap-1 my-4">
                   <span className="text-3xl font-black text-slate-900 dark:text-white">
@@ -282,16 +282,16 @@ export function TiersComparison({
                 </div>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                   {byLanguage(language, {
-                    es: "Convierte tu diseño en las especificaciones técnicas necesarias para comenzar la implementación. Incluye Blueprint Pro + ACP.",
-                    en: "Turn your design into the technical specs needed to start implementation. Includes Blueprint Pro + ACP.",
-                    pt: "Converta seu desenho nas especificações técnicas necessárias para iniciar a implementação. Inclui Blueprint Pro + ACP.",
+                    es: "Convierte el diseño aprobado en contratos, prompts, pruebas y decisiones listas para entregar a desarrollo.",
+                    en: "Turn the approved design into contracts, prompts, tests, and decisions ready to hand to development.",
+                    pt: "Transforme o desenho aprovado em contratos, prompts, testes e decisões prontas para entregar ao desenvolvimento.",
                   })}
                 </p>
                 <p className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-bold text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-200">
                   {byLanguage(language, {
-                    es: "¿Ya compraste Diseño Pro? Actualiza por",
-                    en: "Already bought Complete Design? Upgrade for",
-                    pt: "Já comprou Desenho completo? Atualize por",
+                    es: "¿Ya compraste Blueprint Pro? Continúa por",
+                    en: "Already bought Blueprint Pro? Continue for",
+                    pt: "Já comprou o Blueprint Pro? Continue por",
                   })}{" "}
                   {formatPrice(acpUpgradeUsd)} {currency}.
                 </p>
@@ -311,7 +311,7 @@ export function TiersComparison({
                   </li>
                   <li className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-                    <span>{byLanguage(language, { es: "Dataset de evaluación", en: "Evaluation dataset", pt: "Dataset de avaliação" })}</span>
+                    <span>{byLanguage(language, { es: "Pruebas, gaps, readiness y guía de despliegue", en: "Tests, gaps, readiness, and deployment guide", pt: "Testes, gaps, readiness e guia de implantação" })}</span>
                   </li>
                 </ul>
               </div>
@@ -321,7 +321,7 @@ export function TiersComparison({
                 onClick={() => onOpenPurchase("Agent Construction Package (ACP)", basePrices.acp_premium_usd)}
                 className="w-full py-3.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 font-extrabold text-xs shadow-md transition"
               >
-                {byLanguage(language, { es: "Preparar para construcción", en: "Prepare for build", pt: "Preparar para construção" })} — {formatPrice(basePrices.acp_premium_usd)} {currency}
+                {byLanguage(language, { es: "Continuar con ACP", en: "Continue with ACP", pt: "Continuar com ACP" })} — {formatPrice(basePrices.acp_premium_usd)} {currency}
               </button>
             </div>
           </div>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
+import { trackFunnelCtaClick } from "@/core/analytics/analytics-client";
 import { useAuth } from "@/core/auth/auth-context";
 import { useCurrency } from "@/core/commerce/currency-context";
 import { useLanguage } from "@/core/i18n/language-context";
@@ -62,6 +63,14 @@ export function LabLandingPage() {
   }
 
   function handleStartBlueprint(tier: "blueprint" | "blueprint_pro" | "acp" = "blueprint") {
+    trackFunnelCtaClick({
+      cta_location: "validator_result",
+      cta_name: "create_project_from_diagnosis",
+      destination: user ? "/projects/new" : "/login",
+      funnel_stage: "design",
+      language,
+      product_key: tier,
+    });
     if (user) {
       router.push("/projects/new");
     } else {
@@ -70,6 +79,15 @@ export function LabLandingPage() {
   }
 
   function openPurchase(planName: string, usdPrice: number) {
+    const productKey = planName === "Blueprint Pro" ? "blueprint_pro" : "acp";
+    trackFunnelCtaClick({
+      cta_location: "pricing",
+      cta_name: "continue_to_product",
+      destination: "purchase_modal",
+      funnel_stage: productKey === "acp" ? "prepare" : "design",
+      language,
+      product_key: productKey,
+    });
     setModalPlanData({
       title: planName,
       price: currency === "COP" ? Math.round(usdPrice * 3170) : usdPrice,
@@ -78,7 +96,19 @@ export function LabLandingPage() {
     setActiveModal("purchase");
   }
 
-  function handleScrollToValidator() {
+  function trackValidateCta(ctaLocation: string) {
+    trackFunnelCtaClick({
+      cta_location: ctaLocation,
+      cta_name: "validate_idea",
+      destination: "#validar-idea",
+      funnel_stage: "validate",
+      language,
+      product_key: "blueprint",
+    });
+  }
+
+  function handleScrollToValidator(ctaLocation: string) {
+    trackValidateCta(ctaLocation);
     const el = document.getElementById("validar-idea") || document.getElementById("simulador");
     el?.scrollIntoView({ behavior: "smooth" });
   }
@@ -107,14 +137,14 @@ export function LabLandingPage() {
       <LandingHeader
         isDark={isDark}
         setIsDark={setIsDark}
-        onOpenDiagnostic={handleScrollToValidator}
+        onOpenDiagnostic={() => trackValidateCta("header")}
       />
 
       <main>
         {/* HERO SECTION */}
         <LandingHero
           onOpenExampleModal={() => setActiveModal("example")}
-          onValidateClick={handleScrollToValidator}
+          onValidateClick={() => handleScrollToValidator("hero")}
         />
 
         {/* 1. VALIDAR MI IDEA GRATIS (EJE PRINCIPAL) */}
@@ -135,7 +165,7 @@ export function LabLandingPage() {
         <UseCasesSection
           onSelectPrompt={(text) => {
             setPromptText(text);
-            handleScrollToValidator();
+            handleScrollToValidator("use_case");
             showToast(
               byLanguage(language, {
                 es: "Caso de uso cargado en el validador",
@@ -149,7 +179,7 @@ export function LabLandingPage() {
 
         {/* 5. TIERS & IMPACT ESTIMATOR */}
         <TiersComparison
-          onStartFree={() => handleStartBlueprint("blueprint")}
+          onStartFree={() => handleScrollToValidator("pricing")}
           onOpenPurchase={openPurchase}
           onOpenBuilderModal={() => setActiveModal("builder")}
           onOpenFactoryModal={() => setActiveModal("factory")}
@@ -230,7 +260,7 @@ export function LabLandingPage() {
                 onClick={() => {
                   setActiveModal(null);
                   setPromptText("Tenemos 6 personas revisando facturas en PDF y validándolas contra órdenes de compra registradas en el ERP SAP. Queremos reducir el tiempo manual sin perder control de aprobación.");
-                  handleScrollToValidator();
+                  handleScrollToValidator("example_modal");
                 }}
                 className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-lg shadow-indigo-600/20"
               >
@@ -253,7 +283,7 @@ export function LabLandingPage() {
               <X className="h-5 w-5" />
             </button>
             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-              {byLanguage(language, { es: "Solicitar", en: "Request", pt: "Solicitar" })} {modalPlanData.title}
+              {byLanguage(language, { es: "Continuar con", en: "Continue with", pt: "Continuar com" })} {modalPlanData.title}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
               {byLanguage(language, {
@@ -268,9 +298,9 @@ export function LabLandingPage() {
                 setActiveModal(null);
                 showToast(
                   byLanguage(language, {
-                    es: "Redirigiendo a pasarela de pago segura...",
-                    en: "Redirecting to secure checkout...",
-                    pt: "Redirecionando para checkout seguro...",
+                    es: user ? "Abriendo tu proyecto..." : "Continuando al registro...",
+                    en: user ? "Opening your project..." : "Continuing to sign-up...",
+                    pt: user ? "Abrindo seu projeto..." : "Continuando para o cadastro...",
                   }),
                   "emerald",
                 );
@@ -308,7 +338,11 @@ export function LabLandingPage() {
                 type="submit"
                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-indigo-600/20 transition-all mt-2"
               >
-                {byLanguage(language, { es: "Continuar al checkout seguro", en: "Continue to secure checkout", pt: "Continuar para checkout seguro" })}
+                {byLanguage(language, {
+                  es: user ? "Continuar en mi proyecto" : "Crear cuenta y continuar",
+                  en: user ? "Continue in my project" : "Create account and continue",
+                  pt: user ? "Continuar no meu projeto" : "Criar conta e continuar",
+                })}
               </button>
             </form>
           </div>

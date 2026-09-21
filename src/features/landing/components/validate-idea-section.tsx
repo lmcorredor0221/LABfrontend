@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useLanguage } from "@/core/i18n/language-context";
-import { trackIdeaEvaluated } from "@/core/analytics/analytics-client";
+import { trackIdeaEvaluated, trackValidatorStarted } from "@/core/analytics/analytics-client";
 import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import {
   evaluateInitiativeApi,
@@ -32,6 +32,7 @@ export function ValidateIdeaSection({
   setPromptText,
 }: ValidateIdeaSectionProps) {
   const { language } = useLanguage();
+  const hasTrackedValidatorStart = useRef(false);
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalResult, setEvalResult] = useState<InitiativeEvaluationResponse | null>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
@@ -95,6 +96,14 @@ export function ValidateIdeaSection({
       return;
     }
 
+    const inputType = examplePrompts.some((item) => item.text === promptText) ? "example" : "custom";
+    if (!hasTrackedValidatorStart.current) {
+      hasTrackedValidatorStart.current = trackValidatorStarted({
+        input_type: inputType,
+        language,
+      });
+    }
+
     setEvalLoading(true);
     setEvalError(null);
     setEvalStep(1);
@@ -110,7 +119,7 @@ export function ValidateIdeaSection({
       });
       setEvalResult(evaluation);
       trackIdeaEvaluated({
-        input_type: examplePrompts.some((item) => item.text === promptText) ? "example" : "custom",
+        input_type: inputType,
         language,
         readiness_score: evaluation.readiness_score,
         verdict_badge: evaluation.verdict_badge,
@@ -366,6 +375,23 @@ export function ValidateIdeaSection({
                     )) || <li>• Definir umbrales de aprobación humana.</li>}
                   </ul>
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 dark:border-indigo-900/70 dark:bg-indigo-950/30">
+                <p className="text-xs font-extrabold text-slate-900 dark:text-white">
+                  {byLanguage(language, {
+                    es: "¿Quieres convertir este diagnóstico en un Blueprint Free?",
+                    en: "Want to turn this diagnosis into a Free Blueprint?",
+                    pt: "Quer transformar este diagnóstico em um Blueprint Free?",
+                  })}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">
+                  {byLanguage(language, {
+                    es: "El siguiente paso crea tu cuenta y proyecto, conserva este diagnóstico y te guía por seis decisiones. El resultado Free se consulta dentro de LAB sin costo.",
+                    en: "The next step creates your account and project, keeps this diagnosis, and guides you through six decisions. The Free result can be viewed inside LAB at no cost.",
+                    pt: "O próximo passo cria sua conta e projeto, preserva este diagnóstico e orienta você por seis decisões. O resultado Free pode ser consultado dentro do LAB sem custo.",
+                  })}
+                </p>
               </div>
 
               {/* Action Buttons */}

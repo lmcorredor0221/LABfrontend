@@ -50,9 +50,9 @@ export function BlueprintLandingView() {
             </h1>
             <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto mb-8 leading-relaxed">
               {byLanguage(language, {
-                es: "El punto de partida obligatorio. Diagnóstico inicial de viabilidad agéntica, selección de arquetipo y especificación básica sin costo.",
-                en: "The mandatory starting point. Initial agentic feasibility diagnosis, archetype selection, and basic specification at zero cost.",
-                pt: "O ponto de partida obrigatório. Diagnóstico inicial de viabilidade agêntica, seleção de arquétipo e especificação básica sem custo.",
+                es: "Empieza con un diagnóstico inmediato y, si decides continuar, conviértelo en un proyecto para definir alcance, arquitectura, herramientas, memoria y valor sin costo.",
+                en: "Start with an immediate diagnosis and, if you choose to continue, turn it into a project to define scope, architecture, tools, memory, and value at no cost.",
+                pt: "Comece com um diagnóstico imediato e, se decidir continuar, transforme-o em um projeto para definir escopo, arquitetura, ferramentas, memória e valor sem custo.",
               })}
             </p>
           </div>
@@ -121,13 +121,13 @@ export function BlueprintLandingView() {
                   2
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                  {byLanguage(language, { es: "Selección de Arquetipo Agéntico", en: "Agentic Archetype Selection", pt: "Seleção de Arquétipo Agêntico" })}
+                  {byLanguage(language, { es: "Proyecto Guiado en Seis Etapas", en: "Six-Stage Guided Project", pt: "Projeto Guiado em Seis Etapas" })}
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                   {byLanguage(language, {
-                    es: "Recomendación técnica del patrón arquitectónico más eficiente (Extractor, Router, ReAct, Conciliador HITL o Supervisor).",
-                    en: "Technical recommendation of the most efficient pattern (Extractor, Router, ReAct, HITL Reconciler, or Supervisor).",
-                    pt: "Recomendação técnica do padrão mais eficiente (Extrator, Router, ReAct, Conciliador HITL ou Supervisor).",
+                    es: "Recorre Descubrir, Definir, Diseñar, Herramientas, Memoria y Estimar. LAB conserva el diagnóstico como contexto para no empezar de cero.",
+                    en: "Move through Discover, Define, Design, Tools, Memory, and Estimate. LAB keeps the diagnosis as context so you do not start from zero.",
+                    pt: "Passe por Descobrir, Definir, Desenhar, Ferramentas, Memória e Estimar. O LAB preserva o diagnóstico como contexto para você não começar do zero.",
                   })}
                 </p>
               </div>
@@ -137,13 +137,13 @@ export function BlueprintLandingView() {
                   3
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                  {byLanguage(language, { es: "Precarga Inmediata al Workspace", en: "Immediate Workspace Prefill", pt: "Pré-carregamento Imediato no Workspace" })}
+                  {byLanguage(language, { es: "Blueprint Free Visible en LAB", en: "Blueprint Free Visible in LAB", pt: "Blueprint Free Visível no LAB" })}
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                   {byLanguage(language, {
-                    es: "Un clic para inicializar tu proyecto en la plataforma sin tener que volver a redactar la necesidad ni los requerimientos.",
-                    en: "One click to initialize your project in the platform without re-typing the business requirements.",
-                    pt: "Um clique para inicializar seu projeto na plataforma sem redigitar os requisitos de negócio.",
+                    es: "Obtén una vista protegida del problema, alcance, arquitectura, herramientas, memoria, riesgos y estimación. La consulta es gratuita dentro de la plataforma.",
+                    en: "Receive a protected view of the problem, scope, architecture, tools, memory, risks, and estimate. Viewing it inside the platform is free.",
+                    pt: "Receba uma visualização protegida do problema, escopo, arquitetura, ferramentas, memória, riscos e estimativa. A consulta dentro da plataforma é gratuita.",
                   })}
                 </p>
               </div>
@@ -157,9 +157,9 @@ export function BlueprintLandingView() {
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                   {byLanguage(language, {
-                    es: "Cuando tu idea está clara, puedes escalar a Blueprint Pro (diagramas de flujo) o generar el paquete técnico ACP con un clic.",
-                    en: "Once clear, scale to Blueprint Pro (flow diagrams) or generate the ACP technical package with one click.",
-                    pt: "Quando sua ideia estiver clara, escale para Blueprint Pro ou gere o pacote técnico ACP com um clique.",
+                    es: "Cuando necesites formalizar y descargar el diseño, activa Blueprint Pro. Si después necesitas preparar la implementación, continúa con ACP.",
+                    en: "When you need to formalize and download the design, activate Blueprint Pro. If you later need implementation preparation, continue with ACP.",
+                    pt: "Quando precisar formalizar e baixar o desenho, ative o Blueprint Pro. Se depois precisar preparar a implementação, continue com o ACP.",
                   })}
                 </p>
               </div>

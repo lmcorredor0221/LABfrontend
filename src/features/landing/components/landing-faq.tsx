@@ -41,9 +41,9 @@ export function LandingFaq() {
         pt: "O que é um Blueprint e o que recebo exatamente?",
       }),
       a: byLanguage(language, {
-        es: "Un Blueprint es el plano arquitectónico y estratégico de tu agente. En su versión Free obtienes la evaluación de viabilidad, arquetipo y roles. En su versión Pro obtienes diagramas interactivos, matrices de memoria, políticas de herramientas y controles Human-in-the-Loop.",
-        en: "A Blueprint is the architectural and strategic blueprint for your agent. In Free you get feasibility diagnosis, archetype, and scope. In Pro you get interactive sequence diagrams, memory matrices, tool policies, and Human-in-the-Loop controls.",
-        pt: "Um Blueprint é a planta arquitetônica e estratégica do seu agente. No Free você recebe diagnóstico de viabilidade, arquétipo e escopo. No Pro você recebe diagramas interativos, matrizes de memória, políticas de ferramentas e controles Human-in-the-Loop.",
+        es: "Un Blueprint es el diseño arquitectónico y estratégico de tu agente. Con Free completas seis decisiones guiadas y obtienes dentro de LAB una vista protegida del problema, alcance, arquitectura, herramientas, memoria y estimación. Pro profundiza ese mismo diseño, añade diagramas y documentación profesional, y habilita su descarga.",
+        en: "A Blueprint is the architectural and strategic design of your agent. With Free, you complete six guided decisions and receive a protected view in LAB covering the problem, scope, architecture, tools, memory, and estimate. Pro deepens that same design, adds professional diagrams and documentation, and enables download.",
+        pt: "Um Blueprint é o desenho arquitetônico e estratégico do seu agente. Com o Free, você completa seis decisões guiadas e recebe no LAB uma visualização protegida do problema, escopo, arquitetura, ferramentas, memória e estimativa. O Pro aprofunda o mesmo desenho, adiciona diagramas e documentação profissional e habilita o download.",
       }),
     },
     {
@@ -53,9 +53,9 @@ export function LandingFaq() {
         pt: "O que é o Agent Construction Package (ACP)?",
       }),
       a: byLanguage(language, {
-        es: "Es el paquete técnico descargable en formato .zip que contiene los contratos de herramientas en JSON Schema, los prompts de sistema versionados, los guardrails de seguridad y los datasets de prueba para que cualquier desarrollador o herramienta como Cursor/Claude Code implemente el agente en horas.",
-        en: "It is the downloadable .zip technical package containing JSON Schema tool contracts, versioned system prompts, safety guardrails, and evaluation datasets so any developer or tool like Cursor/Claude Code can implement the agent in hours.",
-        pt: "É o pacote técnico para download em formato .zip contendo contratos de ferramentas em JSON Schema, prompts de sistema versionados, guardrails de segurança e datasets de teste para que qualquer desenvolvedor ou ferramenta como Cursor/Claude Code implemente em horas.",
+        es: "Es el paquete técnico portable que convierte un Blueprint aprobado en contratos, prompts, workflows, pruebas, gaps y decisiones de despliegue para entregarlo a desarrollo. Puede utilizarse con un equipo propio o herramientas como Cursor y Claude Code; no incluye el agente terminado ni su despliegue final.",
+        en: "It is the portable technical package that turns an approved Blueprint into contracts, prompts, workflows, tests, gaps, and deployment decisions for a development handoff. It can be used with your own team or tools such as Cursor and Claude Code; it does not include the finished agent or final deployment.",
+        pt: "É o pacote técnico portátil que transforma um Blueprint aprovado em contratos, prompts, workflows, testes, gaps e decisões de implantação para entrega ao desenvolvimento. Pode ser usado com sua equipe ou ferramentas como Cursor e Claude Code; não inclui o agente finalizado nem a implantação final.",
       }),
     },
     {

@@ -92,7 +92,7 @@ export function LandingHeader({ isDark, setIsDark, onOpenDiagnostic }: LandingHe
               href={`/${language}/acp`}
               className="hover:text-indigo-600 dark:hover:text-indigo-400 transition"
             >
-              {byLanguage(language, { es: "ACP (Código)", en: "ACP (Code)", pt: "ACP (Código)" })}
+              {byLanguage(language, { es: "ACP (Implementación)", en: "ACP (Implementation)", pt: "ACP (Implementação)" })}
             </Link>
             <Link
               href={`/${language}/insights`}
@@ -220,8 +220,8 @@ export function LandingHeader({ isDark, setIsDark, onOpenDiagnostic }: LandingHe
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-900 transition"
               >
-                <span>{byLanguage(language, { es: "ACP (Código Desplegable)", en: "ACP (Deployable Code)", pt: "ACP (Código Implantável)" })}</span>
-                <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">ZIP Kit</span>
+                <span>{byLanguage(language, { es: "ACP (Preparación Técnica)", en: "ACP (Technical Preparation)", pt: "ACP (Preparação Técnica)" })}</span>
+                <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">Portable ZIP</span>
               </Link>
 
               <Link
@@ -296,4 +296,3 @@ export function LandingHeader({ isDark, setIsDark, onOpenDiagnostic }: LandingHe
     </header>
   );
 }
-

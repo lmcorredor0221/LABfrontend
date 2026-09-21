@@ -1,5 +1,7 @@
 export type AnalyticsEventName =
   | "page_view"
+  | "funnel_cta_click"
+  | "validator_started"
   | "idea_evaluated"
   | "sign_up"
   | "project_created"
@@ -41,6 +43,8 @@ export const ANALYTICS_CONSENT_VERSION = 1;
 
 export const ALLOWED_EVENT_PARAMS: Record<AnalyticsEventName, Set<string>> = {
   page_view: new Set(["page_path", "page_title", "page_location", "page_referrer"]),
+  funnel_cta_click: new Set(["cta_name", "cta_location", "funnel_stage", "product_key", "destination", "language"]),
+  validator_started: new Set(["language", "input_type"]),
   idea_evaluated: new Set(["language", "input_type", "verdict_badge", "readiness_score"]),
   sign_up: new Set(["method"]),
   project_created: new Set(["entrypoint", "language"]),

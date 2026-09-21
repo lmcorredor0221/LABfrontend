@@ -44,16 +44,16 @@ export function BlueprintProView() {
             </span>
             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6">
               {byLanguage(language, {
-                es: "Blueprint Pro: Arquitectura Integral, Diagramas y Gobernanza",
-                en: "Blueprint Pro: Comprehensive Architecture, Diagrams & Governance",
-                pt: "Blueprint Pro: Arquitetura Integral, Diagramas e Governança",
+                es: "Blueprint Pro: Profesionaliza y descarga el diseño de tu agente",
+                en: "Blueprint Pro: Professionalize and download your agent design",
+                pt: "Blueprint Pro: Profissionalize e baixe o desenho do seu agente",
               })}
             </h1>
             <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto mb-8 leading-relaxed">
               {byLanguage(language, {
-                es: "El plano arquitectónico definitivo. Diseñado para equipos técnicos y líderes de negocio que necesitan controlar memoria, dependencias, riesgos y costos de tokens.",
-                en: "The definitive architectural blueprint. Built for tech teams and business leaders who need to control memory, dependencies, risks, and token costs.",
-                pt: "A planta arquitetônica definitiva. Criada para equipes técnicas e líderes de negócios que precisam controlar memória, dependências, riscos e custos de tokens.",
+                es: "Amplía el Blueprint Free con arquitectura detallada, diagramas, memoria, herramientas, gobernanza y estimación. Recibe documentación profesional lista para compartir y descargar.",
+                en: "Expand the Free Blueprint with detailed architecture, diagrams, memory, tools, governance, and estimation. Receive professional documentation ready to share and download.",
+                pt: "Amplie o Blueprint Free com arquitetura detalhada, diagramas, memória, ferramentas, governança e estimativa. Receba documentação profissional pronta para compartilhar e baixar.",
               })}
             </p>
 
@@ -65,9 +65,9 @@ export function BlueprintProView() {
               >
                 <span>
                   {byLanguage(language, {
-                    es: `Generar Blueprint Pro (${formatPrice(basePrices.blueprint_pro_usd)} ${currency})`,
-                    en: `Generate Blueprint Pro (${formatPrice(basePrices.blueprint_pro_usd)} ${currency})`,
-                    pt: `Gerar Blueprint Pro (${formatPrice(basePrices.blueprint_pro_usd)} ${currency})`,
+                    es: `Continuar con Blueprint Pro (${formatPrice(basePrices.blueprint_pro_usd)} ${currency})`,
+                    en: `Continue with Blueprint Pro (${formatPrice(basePrices.blueprint_pro_usd)} ${currency})`,
+                    pt: `Continuar com Blueprint Pro (${formatPrice(basePrices.blueprint_pro_usd)} ${currency})`,
                   })}
                 </span>
                 <ArrowRight className="h-4 w-4" />
@@ -198,9 +198,9 @@ export function BlueprintProView() {
               </h4>
               <p className="text-xs text-slate-300 max-w-xl mx-auto mb-6">
                 {byLanguage(language, {
-                  es: "El Agent Construction Package (ACP) transforma este Blueprint Pro en un paquete ZIP descargable con contratos JSON Schema y datasets de prueba.",
-                  en: "The Agent Construction Package (ACP) turns this Blueprint Pro into a downloadable ZIP package with JSON Schema contracts and test datasets.",
-                  pt: "O Agent Construction Package (ACP) transforma este Blueprint Pro em um pacote ZIP para download com contratos JSON Schema e datasets de teste.",
+                  es: "El Agent Construction Package (ACP) utiliza este Blueprint Pro como base y prepara contratos, prompts, workflows, pruebas, gaps y decisiones de despliegue para tu equipo de desarrollo.",
+                  en: "The Agent Construction Package (ACP) uses this Blueprint Pro as its base and prepares contracts, prompts, workflows, tests, gaps, and deployment decisions for your development team.",
+                  pt: "O Agent Construction Package (ACP) usa este Blueprint Pro como base e prepara contratos, prompts, workflows, testes, gaps e decisões de implantação para sua equipe de desenvolvimento.",
                 })}
               </p>
               <Link

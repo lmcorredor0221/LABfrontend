@@ -44,16 +44,16 @@ export function AcpLandingView() {
             </span>
             <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6">
               {byLanguage(language, {
-                es: "Agent Construction Package (ACP): El Estándar de Código para tu Agente",
-                en: "Agent Construction Package (ACP): The Code Standard for Your Agent",
-                pt: "Agent Construction Package (ACP): O Padrão de Código para seu Agente",
+                es: "Agent Construction Package (ACP): Prepara tu agente para implementación",
+                en: "Agent Construction Package (ACP): Prepare your agent for implementation",
+                pt: "Agent Construction Package (ACP): Prepare seu agente para implementação",
               })}
             </h1>
             <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto mb-8 leading-relaxed">
               {byLanguage(language, {
-                es: "Entrega especificaciones técnicas estandarizadas a tus desarrolladores o asistentes de IA (Cursor, Claude Code, Windsurf). Elimina el 60% del retrabajo en desarrollo agéntico.",
-                en: "Hand standardized technical specifications to your engineers or AI coding assistants (Cursor, Claude Code, Windsurf). Eliminate 60% of agentic rework.",
-                pt: "Entregue especificações técnicas padronizadas para seus desenvolvedores ou assistentes IA (Cursor, Claude Code, Windsurf). Elimine 60% do retrabalho agêntico.",
+                es: "Convierte un Blueprint aprobado en contratos, prompts, workflows, pruebas, gaps y decisiones de despliegue para tu equipo o asistentes de desarrollo como Cursor y Claude Code. No incluye el agente terminado ni su despliegue final.",
+                en: "Turn an approved Blueprint into contracts, prompts, workflows, tests, gaps, and deployment decisions for your team or development assistants such as Cursor and Claude Code. It does not include the finished agent or final deployment.",
+                pt: "Transforme um Blueprint aprovado em contratos, prompts, workflows, testes, gaps e decisões de implantação para sua equipe ou assistentes de desenvolvimento como Cursor e Claude Code. Não inclui o agente finalizado nem a implantação final.",
               })}
             </p>
 
@@ -66,9 +66,9 @@ export function AcpLandingView() {
                 <Download className="h-4 w-4" />
                 <span>
                   {byLanguage(language, {
-                    es: `Generar Paquete ACP (${formatPrice(basePrices.acp_premium_usd)} ${currency})`,
-                    en: `Generate ACP Package (${formatPrice(basePrices.acp_premium_usd)} ${currency})`,
-                    pt: `Gerar Pacote ACP (${formatPrice(basePrices.acp_premium_usd)} ${currency})`,
+                    es: `Continuar con ACP (${formatPrice(basePrices.acp_premium_usd)} ${currency})`,
+                    en: `Continue with ACP (${formatPrice(basePrices.acp_premium_usd)} ${currency})`,
+                    pt: `Continuar com ACP (${formatPrice(basePrices.acp_premium_usd)} ${currency})`,
                   })}
                 </span>
               </button>
