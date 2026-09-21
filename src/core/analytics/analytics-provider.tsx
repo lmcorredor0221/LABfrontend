@@ -4,7 +4,6 @@ import Script from "next/script";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { captureAttributionFromLocation, clearAttribution } from "@/core/analytics/attribution";
-import { pushAnalyticsEvent } from "@/core/analytics/analytics-client";
 import {
   applyGoogleConsent,
   readConsentChoice,
@@ -80,7 +79,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     if (!choice?.analytics || !gtmLoaded) return;
     const pageViewTimer = window.setTimeout(() => {
       captureAttributionFromLocation();
-      pushAnalyticsEvent("page_view", {
+      window.gtag?.("event", "page_view", {
         page_path: sanitizePathname(pathname || "/"),
         page_title: sanitizeTitle(document.title || "Lean Agent Builder"),
         page_location: sanitizeUrl(window.location.href),
