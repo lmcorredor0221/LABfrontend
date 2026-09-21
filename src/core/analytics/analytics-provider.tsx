@@ -12,7 +12,11 @@ import {
 } from "@/core/analytics/consent-store";
 import type { AnalyticsConsentChoice } from "@/core/analytics/contracts";
 import { sanitizePathname, sanitizeReferrer, sanitizeTitle, sanitizeUrl } from "@/core/analytics/sanitize";
-import { getGoogleTagManagerId, isAnalyticsEnabled } from "@/core/config/runtime";
+import {
+  getGoogleAnalyticsMeasurementId,
+  getGoogleTagManagerId,
+  isAnalyticsEnabled,
+} from "@/core/config/runtime";
 import { useLanguage } from "@/core/i18n/language-context";
 
 function subscribeConsent(listener: () => void) {
@@ -35,6 +39,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const consentSnapshot = useSyncExternalStore(subscribeConsent, getConsentSnapshot, () => "null");
   const choice = useMemo(() => JSON.parse(consentSnapshot) as AnalyticsConsentChoice | null, [consentSnapshot]);
   const analyticsEnabled = isAnalyticsEnabled();
+  const gaMeasurementId = getGoogleAnalyticsMeasurementId();
   const gtmId = getGoogleTagManagerId();
   const shouldLoadGtm = analyticsEnabled && Boolean(gtmId) && gtmReady;
 
@@ -74,7 +79,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       window.dataLayer.push({ event: "lab_measurement_ready" });
       hasInitializedMeasurement.current = true;
     }
-    const pageViewTimer = window.setTimeout(() => {
+
+    let pageViewTimer: number | undefined;
+    const readinessDeadline = Date.now() + 5_000;
+    const sendPageView = () => {
       captureAttributionFromLocation();
       pushAnalyticsEvent("page_view", {
         page_path: sanitizePathname(pathname || "/"),
@@ -82,10 +90,26 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         page_location: sanitizeUrl(window.location.href),
         page_referrer: sanitizeReferrer(document.referrer),
       });
-    }, 500);
+    };
+    const waitForMeasurementDestination = () => {
+      const analyticsWindow = window as Window & {
+        google_tag_manager?: Record<string, unknown>;
+      };
+      const destinationReady = Boolean(
+        gaMeasurementId && analyticsWindow.google_tag_manager?.[gaMeasurementId],
+      );
+      if (destinationReady || Date.now() >= readinessDeadline) {
+        pageViewTimer = window.setTimeout(sendPageView, 250);
+        return;
+      }
+      pageViewTimer = window.setTimeout(waitForMeasurementDestination, 100);
+    };
+    waitForMeasurementDestination();
 
-    return () => window.clearTimeout(pageViewTimer);
-  }, [choice?.analytics, gtmLoaded, pathname, routeKey]);
+    return () => {
+      if (pageViewTimer !== undefined) window.clearTimeout(pageViewTimer);
+    };
+  }, [choice?.analytics, gaMeasurementId, gtmLoaded, pathname, routeKey]);
 
   function updateConsent(next: Pick<AnalyticsConsentChoice, "analytics" | "advertising">) {
     saveConsentChoice(next);
