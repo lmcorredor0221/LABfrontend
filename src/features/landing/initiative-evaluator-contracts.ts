@@ -17,6 +17,19 @@ export type InitiativeAlternativeRecommendation = {
   suggested_next_step: string;
 };
 
+export type OperationalCapabilityProfile = {
+  interaction_channel?: string;
+  archetype_key?: string;
+  required_capabilities?: string[];
+  action_capabilities?: string[];
+  knowledge_modes?: string[];
+  control_requirements?: string[];
+  evidence_requirements?: string[];
+  missing_information?: string[];
+  business_summary?: string;
+  technical_detail?: string;
+};
+
 export type InitiativeEvaluationRequest = {
   initiative_text: string;
   language?: "es" | "en" | "pt";
@@ -36,12 +49,14 @@ export type InitiativeEvaluationResponse = {
   key_strengths: string[];
   key_risks_or_gaps: string[];
   alternative: InitiativeAlternativeRecommendation | null;
+  operational_profile?: OperationalCapabilityProfile | null;
   prefilled_project_data: {
     title?: string;
     description?: string;
     initial_prompt?: string;
     archetype?: string;
     recommended_stage?: string;
+    operational_profile?: OperationalCapabilityProfile | null;
   };
   token_usage: {
     prompt_tokens?: number;

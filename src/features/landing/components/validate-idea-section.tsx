@@ -81,6 +81,20 @@ export function ValidateIdeaSection({
         pt: "Precisamos analisar documentos legais e solicitações de crédito comparando condições com políticas internas, solicitando aprovação humana quando houver inconsistências.",
       }),
     },
+    {
+      id: 4,
+      icon: "🖥️",
+      label: byLanguage(language, {
+        es: '"Operar un portal interno con reglas..."',
+        en: '"Operate an internal portal with rules..."',
+        pt: '"Operar um portal interno com regras..."',
+      }),
+      text: byLanguage(language, {
+        es: "Queremos que un agente use un portal web interno para crear órdenes de venta: debe consultar manuales, validar roles y descuentos contra políticas, llenar formularios, guardar evidencia y pedir aprobación si el descuento supera el límite permitido.",
+        en: "We want an agent to use an internal web portal to create sales orders: it must consult manuals, validate roles and discounts against policies, fill forms, save evidence, and request approval if the discount exceeds the allowed limit.",
+        pt: "Queremos que um agente use um portal web interno para criar pedidos de venda: deve consultar manuais, validar funções e descontos contra políticas, preencher formulários, salvar evidências e pedir aprovação se o desconto exceder o limite permitido.",
+      }),
+    },
   ];
 
   async function handleRunAnalysis() {
@@ -233,9 +247,9 @@ export function ValidateIdeaSection({
                   onChange={(e) => setPromptText(e.target.value)}
                   className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-2xl p-4 text-sm sm:text-base text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 transition-all resize-none shadow-xs leading-relaxed"
                   placeholder={byLanguage(language, {
-                    es: "Escribe aquí tu problema... Ej: 'Tengo a dos personas pasando datos de correos electrónicos a un Excel todos los días. Toman mucho tiempo y a veces cometen errores.'",
-                    en: "Describe your problem here... e.g. 'I have two people copying data from emails to Excel every day. It takes too long and they make errors.'",
-                    pt: "Escreva seu problema aqui... Ex: 'Tenho duas pessoas copiando dados de e-mails para o Excel todos os dias. Demora muito e às vezes cometem erros.'",
+                    es: "Escribe aquí tu problema... Ej: 'Necesito que un agente use nuestro portal web, consulte manuales, valide reglas de descuento y pida aprobación cuando aplique.'",
+                    en: "Describe your problem here... e.g. 'I need an agent to use our web portal, consult manuals, validate discount rules, and request approval when needed.'",
+                    pt: "Escreva seu problema aqui... Ex: 'Preciso que um agente use nosso portal web, consulte manuais, valide regras de desconto e peça aprovação quando necessário.'",
                   })}
                   disabled={evalLoading}
                 />
@@ -377,6 +391,74 @@ export function ValidateIdeaSection({
                 </div>
               </div>
 
+              {evalResult.operational_profile ? (
+                <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4 dark:border-cyan-900/60 dark:bg-cyan-950/25">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-300 text-xs font-extrabold uppercase tracking-wider">
+                        <Bot className="h-4 w-4" />
+                        <span>
+                          {byLanguage(language, {
+                            es: "Arquitectura operativa detectada",
+                            en: "Operational architecture detected",
+                            pt: "Arquitetura operacional detectada",
+                          })}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">
+                        {evalResult.operational_profile.business_summary ||
+                          byLanguage(language, {
+                            es: "LAB evaluará herramientas, conocimiento, reglas, aprobaciones y evidencia dentro del Blueprint/ACP.",
+                            en: "LAB will evaluate tools, knowledge, rules, approvals, and evidence inside the Blueprint/ACP.",
+                            pt: "LAB avaliará ferramentas, conhecimento, regras, aprovações e evidências dentro do Blueprint/ACP.",
+                          })}
+                      </p>
+                      {evalResult.operational_profile.technical_detail ? (
+                        <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-400">
+                          {evalResult.operational_profile.technical_detail}
+                        </p>
+                      ) : null}
+                    </div>
+                    {evalResult.operational_profile.archetype_key ? (
+                      <span className="rounded-lg bg-white px-3 py-1.5 text-[11px] font-bold text-cyan-800 shadow-2xs dark:bg-slate-900 dark:text-cyan-200">
+                        {evalResult.operational_profile.archetype_key}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {[
+                      {
+                        label: byLanguage(language, { es: "Capacidades", en: "Capabilities", pt: "Capacidades" }),
+                        values: evalResult.operational_profile.required_capabilities,
+                      },
+                      {
+                        label: byLanguage(language, { es: "Conocimiento", en: "Knowledge", pt: "Conhecimento" }),
+                        values: evalResult.operational_profile.knowledge_modes,
+                      },
+                      {
+                        label: byLanguage(language, { es: "Controles", en: "Controls", pt: "Controles" }),
+                        values: evalResult.operational_profile.control_requirements,
+                      },
+                    ].map((group) =>
+                      group.values?.length ? (
+                        <div className="rounded-xl border border-cyan-100 bg-white/80 p-3 dark:border-cyan-900/50 dark:bg-slate-950/60" key={group.label}>
+                          <p className="text-[11px] font-black uppercase tracking-wider text-cyan-800 dark:text-cyan-200">
+                            {group.label}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {group.values.slice(0, 4).map((value) => (
+                              <span className="rounded-md bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:bg-cyan-950/60 dark:text-cyan-100" key={value}>
+                                {value}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null,
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
               <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 dark:border-indigo-900/70 dark:bg-indigo-950/30">
                 <p className="text-xs font-extrabold text-slate-900 dark:text-white">
                   {byLanguage(language, {
@@ -416,7 +498,6 @@ export function ValidateIdeaSection({
                           evaluation_source: "landing_diagnosis",
                         });
                         window.sessionStorage.setItem("pending_initiative_prefill", payload);
-                        window.localStorage.setItem("pending_initiative_prefill", payload);
                       } catch {
                         // ignore storage errors
                       }

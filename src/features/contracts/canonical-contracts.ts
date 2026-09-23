@@ -129,6 +129,45 @@ export type CanonicalContractBase = {
   source_session_id: string;
 };
 
+export type ObjectiveSuccessCriterionV1 = {
+  criterion_id: string;
+  evidence_refs: string[];
+  statement: string;
+  verification_method: string;
+};
+
+export type ObjectiveTerminationConditionsV1 = {
+  stop: string[];
+  success: string[];
+};
+
+export type ObjectiveContractV1 = {
+  confidence: number;
+  constraint_refs: string[];
+  level: "business" | "operational" | "run" | "delegated";
+  mutation_policy: "immutable_during_run" | "human_approval_required" | "bounded_replanning";
+  objective_id: string;
+  owner: string;
+  parent_objective_id?: string | null;
+  progress_signals: string[];
+  runtime_tracking: "not_required" | "recommended" | "required";
+  source_refs: string[];
+  statement: string;
+  status: "inferred" | "confirmed" | "rejected" | "superseded";
+  success_criteria: ObjectiveSuccessCriterionV1[];
+  termination_conditions: ObjectiveTerminationConditionsV1;
+  version: number;
+};
+
+export type ObjectiveContractBundleV1 = {
+  active_objective_id: string;
+  constraints: string[];
+  contract_version: "objective-contract.v1";
+  objectives: ObjectiveContractV1[];
+  policy_version: string;
+  source_refs: string[];
+};
+
 export type BlueprintIdentity = {
   blueprint_version_number?: number | null;
   case_type: string;
@@ -579,6 +618,7 @@ export type ConstructionPackV1 = CanonicalContractBase & {
   knowledge_contract: KnowledgeContractV1;
   llm_policy: LLMPolicyV1;
   memory_policy: MemoryPolicyV1;
+  objective_contract: ObjectiveContractBundleV1;
   prompt_pack: PromptPackV1;
   readiness: ConstructionReadinessV1;
   remediation_notes: string[];
@@ -645,6 +685,7 @@ export type AcpV2RuntimeAgent = {
   handoff_targets: string[];
   inputs: string[];
   memory_refs: string[];
+  objective_id: string;
   outputs: string[];
   role: string;
   runtime_mode: string;
@@ -1042,6 +1083,7 @@ export type AgentConstructionPackageV2 = CanonicalContractBase & {
   memory_knowledge_plan: AcpV2MemoryKnowledgePlan;
   memory_strategy: AcpV2MemoryStrategy;
   migration: AcpV2MigrationInfo;
+  objective_contract: ObjectiveContractBundleV1;
   portable_manifest: AcpV2PortableManifest;
   producer_metadata: AcpV2ProducerMetadata;
   prompts: AcpV2PromptRef[];
@@ -1378,6 +1420,7 @@ export type BlueprintCoreV1 = CanonicalContractBase & {
   knowledge_contract: KnowledgeContractV1;
   llm_policy: LLMPolicyV1;
   memory_policy: MemoryPolicyV1;
+  objective_contract: ObjectiveContractBundleV1;
   open_questions: CanonicalOpenQuestion[];
   purpose: BlueprintPurpose;
   risks: RiskEntry[];

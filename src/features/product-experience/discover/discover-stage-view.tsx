@@ -71,6 +71,40 @@ type LocalActionState = {
 };
 
 type DiscoverTranslate = (key: TranslationKey, fallback?: string) => string;
+type DiscoverCopy = (en: string, es: string, pt: string) => string;
+
+function isRuntimeProviderWarning(warning: string) {
+  const normalized = warning.trim().toLowerCase();
+  return (
+    normalized.includes("policy=") ||
+    normalized.includes("fallback deterministico") ||
+    normalized.includes("preflight heuristico") ||
+    normalized.includes("no pudo ejecutar") ||
+    normalized.includes("no pudo normalizar")
+  );
+}
+
+function formatDiscoverWarning(warning: string, copy: DiscoverCopy) {
+  if (!isRuntimeProviderWarning(warning)) {
+    return {
+      description: copy(
+        "Warning detected during normalization or analysis.",
+        "Advertencia detectada durante la normalizacion o el analisis.",
+        "Advertencia detectada durante a normalizacao ou a analise.",
+      ),
+      value: warning,
+    };
+  }
+
+  return {
+    description: copy(
+      `The configured LLM runtime could not complete this capability and LAB kept the result as reviewable evidence. Technical detail: ${warning}`,
+      `El runtime LLM configurado no pudo completar esta capacidad y LAB dejo el resultado como evidencia revisable. Detalle tecnico: ${warning}`,
+      `O runtime LLM configurado nao conseguiu concluir esta capacidade e o LAB manteve o resultado como evidencia revisavel. Detalhe tecnico: ${warning}`,
+    ),
+    value: copy("LLM runtime degraded", "Runtime LLM degradado", "Runtime LLM degradado"),
+  };
+}
 
 function getArtifactStateLabel(state: string | undefined, t: DiscoverTranslate) {
   switch (state) {
@@ -994,17 +1028,16 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       tone: question.priority === "high" ? ("danger" as const) : ("warning" as const),
       value: question.question,
     })),
-    ...viewModel.warnings.slice(0, 2).map((warning) => ({
-      description: copy(
-        "Warning detected during normalization or analysis.",
-        "Advertencia detectada durante la normalizacion o el analisis.",
-        "Advertencia detectada durante a normalizacao ou a analise.",
-      ),
-      href: getProductExperienceProductHref(sessionId, "attention"),
-      label: copy("Warning", "Advertencia", "Advertencia"),
-      tone: "warning" as const,
-      value: warning,
-    })),
+    ...viewModel.warnings.slice(0, 2).map((warning) => {
+      const formatted = formatDiscoverWarning(warning, copy);
+      return {
+        description: formatted.description,
+        href: getProductExperienceProductHref(sessionId, "attention"),
+        label: copy("Warning", "Advertencia", "Advertencia"),
+        tone: "warning" as const,
+        value: formatted.value,
+      };
+    }),
   ];
   const deferredResolutionItems = viewModel.deferredResolutionItems;
   const primaryDescription =

@@ -401,7 +401,7 @@ export function ProductOperationPanel({
           {/* Fases completas desglosadas (sin compresión horizontal) */}
           <div className="mb-3 rounded-lg border border-[var(--uxa-color-border)] bg-white p-3">
             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--uxa-color-ink-muted)] mb-2">
-              Fases de la operación ({metrics.completed}/{metrics.total})
+              Pasos tecnicos de la operación ({metrics.completed}/{metrics.total})
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
               {operation.steps.map((step, idx) => {

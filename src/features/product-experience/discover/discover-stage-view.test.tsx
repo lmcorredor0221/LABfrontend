@@ -34,7 +34,7 @@ function createStageOperation(overrides: Partial<ProductExperienceStageOperation
     current_step: "queued",
     detail: "Discover se normalizara y analizara en segundo plano.",
     error_message: "",
-    expires_at: "2026-08-16T10:30:00Z",
+    expires_at: "2099-08-16T10:30:00Z",
     heartbeat_at: "2026-08-16T10:00:00Z",
     id: "operation-discover",
     idempotency_key: "discover-once",

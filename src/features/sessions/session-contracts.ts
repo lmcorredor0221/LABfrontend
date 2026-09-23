@@ -2123,6 +2123,12 @@ export type ConstructionQuestionEntry = {
   target_owner: string;
   purpose?: string;
   options?: ConstructionQuestionOption[];
+  question_kind?: string;
+  subject_type?: string;
+  subject_id?: string;
+  allowed_decisions?: string[];
+  answer_semantics?: string;
+  contract_version?: number;
 };
 
 export type ConstructionQuestionImpactAnalysis = {
@@ -2156,14 +2162,22 @@ export type ConstructionQuestionViewEntry = {
   impact_analysis?: ConstructionQuestionImpactAnalysis | null;
   purpose?: string;
   options?: ConstructionQuestionOption[];
+  question_kind?: string;
+  subject_type?: string;
+  subject_id?: string;
+  allowed_decisions?: string[];
+  answer_semantics?: string;
+  contract_version?: number;
+  decision_context?: Record<string, unknown>;
 };
 
 export type ConstructionQuestionAnswerRequest = {
   answer_text: string;
-  decision?: "answer" | "choose_option" | "delegate" | "dismiss";
+  decision?: "answer" | "choose_option" | "delegate" | "dismiss" | "reopen";
   selected_option_key?: string;
   impacted_artifacts: string[];
   owner_role: string;
+  decision_context?: Record<string, unknown>;
 };
 
 export type ConstructionGapEntry = {

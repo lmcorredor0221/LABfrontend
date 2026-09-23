@@ -39,9 +39,7 @@ export default function NewProjectPage() {
         let prefillData: Record<string, unknown> | null = null;
         if (typeof window !== "undefined") {
           try {
-            const rawPrefill =
-              window.sessionStorage.getItem("pending_initiative_prefill") ||
-              window.localStorage.getItem("pending_initiative_prefill");
+            const rawPrefill = window.sessionStorage.getItem("pending_initiative_prefill");
             if (rawPrefill) {
               prefillData = JSON.parse(rawPrefill);
             }
@@ -63,12 +61,7 @@ export default function NewProjectPage() {
               `session_eval_prefill_${session.id}`,
               JSON.stringify(prefillData),
             );
-            window.localStorage.setItem(
-              `session_eval_prefill_${session.id}`,
-              JSON.stringify(prefillData),
-            );
             window.sessionStorage.removeItem("pending_initiative_prefill");
-            window.localStorage.removeItem("pending_initiative_prefill");
           } catch {
             // Ignore storage errors
           }

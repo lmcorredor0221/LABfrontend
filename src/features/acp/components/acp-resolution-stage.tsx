@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import {
-  AlertCircle,
   ArrowRight,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
   CornerDownRight,
-  HelpCircle,
   Send,
   Sparkles,
   Trash2,
@@ -55,15 +53,15 @@ export function AcpResolutionStage({
   const openQuestions = questions.filter(
     (q) => q.status === "open" || (!q.status && !q.answer_text),
   );
-  const blockingOpenQuestions = openQuestions.filter((q) => q.blocking);
 
   const canProceed = openQuestions.length === 0;
 
   async function handleAnswerQuestion(
     questionKey: string,
-    decision: "answer" | "choose_option" | "delegate" | "dismiss",
+    decision: "answer" | "choose_option" | "delegate" | "dismiss" | "reopen",
     textValue = "",
     selectedOptionKey = "",
+    decisionContext: Record<string, unknown> = {},
   ) {
     if (submittingKey) return;
     setSubmittingKey(questionKey);
@@ -76,6 +74,7 @@ export function AcpResolutionStage({
         selected_option_key: selectedOptionKey,
         impacted_artifacts: [],
         owner_role: "",
+        decision_context: decisionContext,
       });
       await onQuestionsUpdated();
     } catch (err) {
@@ -305,6 +304,9 @@ export function AcpResolutionStage({
           const isBusy = submittingKey === question.question_key;
           const showDetails = Boolean(expandedDetails[question.question_key]);
           const currentDraft = customAnswerDrafts[question.question_key] ?? "";
+          const isObjectiveQuestion = question.question_kind === "objective_validation";
+          const decisionContext = question.decision_context ?? {};
+          const canDelegateOrDismiss = !isObjectiveQuestion;
 
           return (
             <div
@@ -346,6 +348,16 @@ export function AcpResolutionStage({
                   )}
 
                   <UxaBadge tone="neutral">{question.domain || "general"}</UxaBadge>
+                  {isObjectiveQuestion ? (
+                    <UxaBadge tone="brand">
+                      {byLanguage(language, { en: "Objective", es: "Objetivo", pt: "Objetivo" })}
+                    </UxaBadge>
+                  ) : null}
+                  {question.subject_id ? (
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[10px] text-slate-600">
+                      {question.subject_id}
+                    </span>
+                  ) : null}
 
                   {question.target_owner ? (
                     <span className="text-[11px] text-[var(--uxa-color-ink-muted)]">
@@ -392,6 +404,25 @@ export function AcpResolutionStage({
                       <span className="font-bold text-slate-700">Impacto estimado:</span> {question.impact_analysis.impact_summary}
                     </p>
                   ) : null}
+                  {question.question_kind && question.question_kind !== "general" ? (
+                    <p>
+                      <span className="font-bold text-slate-700">Tipo:</span> {question.question_kind}
+                      {question.answer_semantics ? ` · ${question.answer_semantics}` : ""}
+                      {question.contract_version ? ` · v${question.contract_version}` : ""}
+                    </p>
+                  ) : null}
+                  {question.allowed_decisions?.length ? (
+                    <div>
+                      <span className="font-bold text-slate-700">Decisiones permitidas:</span>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {question.allowed_decisions.map((item) => (
+                          <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 border" key={item}>
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   {question.impacted_artifacts?.length ? (
                     <div>
                       <span className="font-bold text-slate-700">Artefactos vinculados:</span>
@@ -434,7 +465,7 @@ export function AcpResolutionStage({
                       className="text-[11px] font-bold text-[var(--uxa-color-brand)] hover:underline cursor-pointer shrink-0"
                       disabled={isBusy}
                       onClick={() =>
-                        handleAnswerQuestion(question.question_key, "answer", "", "")
+                        handleAnswerQuestion(question.question_key, "reopen", "", "", decisionContext)
                       }
                       type="button"
                     >
@@ -468,6 +499,7 @@ export function AcpResolutionStage({
                                 "choose_option",
                                 opt.label,
                                 opt.key,
+                                decisionContext,
                               )
                             }
                             type="button"
@@ -517,6 +549,7 @@ export function AcpResolutionStage({
                             "answer",
                             currentDraft,
                             "",
+                            decisionContext,
                           )
                         }
                         size="sm"
@@ -528,66 +561,78 @@ export function AcpResolutionStage({
                     </div>
                   </div>
 
-                  {/* Alternativas 3 y 4: Delegar o Descartar */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-                    {/* Botón Delegar */}
-                    <button
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50/80 px-3 py-1.5 text-[11px] font-bold text-amber-900 transition hover:bg-amber-100 cursor-pointer disabled:opacity-50"
-                      disabled={isBusy}
-                      onClick={() =>
-                        handleAnswerQuestion(
-                          question.question_key,
-                          "delegate",
-                          "Delegado formalmente para resolución durante la implementación.",
-                          "",
-                        )
-                      }
-                      title={byLanguage(language, {
-                        en: "The question travels in the ACP bundle for the implementing agent to prompt the developer.",
-                        es: "La pregunta viajará en el paquete ACP para que el agente la formule al desarrollador en implementación.",
-                        pt: "A pergunta viajará no pacote ACP para o agente formular ao desenvolvedor na implementação.",
-                      })}
-                      type="button"
-                    >
-                      <Users className="h-3.5 w-3.5 text-amber-700" />
-                      <span>
-                        {byLanguage(language, {
-                          en: "Delegate to Implementation Tool",
-                          es: "Delegar a herramienta de implementación",
-                          pt: "Delegar para ferramenta de implementação",
+                  {canDelegateOrDismiss ? (
+                    /* Alternativas 3 y 4: Delegar o Descartar */
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                      {/* Botón Delegar */}
+                      <button
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50/80 px-3 py-1.5 text-[11px] font-bold text-amber-900 transition hover:bg-amber-100 cursor-pointer disabled:opacity-50"
+                        disabled={isBusy}
+                        onClick={() =>
+                          handleAnswerQuestion(
+                            question.question_key,
+                            "delegate",
+                            "Delegado formalmente para resolución durante la implementación.",
+                            "",
+                            decisionContext,
+                          )
+                        }
+                        title={byLanguage(language, {
+                          en: "The question travels in the ACP bundle for the implementing agent to prompt the developer.",
+                          es: "La pregunta viajará en el paquete ACP para que el agente la formule al desarrollador en implementación.",
+                          pt: "A pergunta viajará no pacote ACP para o agente formular ao desenvolvedor na implementação.",
                         })}
-                      </span>
-                    </button>
+                        type="button"
+                      >
+                        <Users className="h-3.5 w-3.5 text-amber-700" />
+                        <span>
+                          {byLanguage(language, {
+                            en: "Delegate to Implementation Tool",
+                            es: "Delegar a herramienta de implementación",
+                            pt: "Delegar para ferramenta de implementação",
+                          })}
+                        </span>
+                      </button>
 
-                    {/* Botón Descartar */}
-                    <button
-                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-red-700 cursor-pointer disabled:opacity-50"
-                      disabled={isBusy}
-                      onClick={() =>
-                        handleAnswerQuestion(
-                          question.question_key,
-                          "dismiss",
-                          "Descartada por el usuario como no relevante.",
-                          "",
-                        )
-                      }
-                      title={byLanguage(language, {
-                        en: "Mark this question as not relevant for this agent scope.",
-                        es: "Marcar esta pregunta como no relevante para el alcance de este agente.",
-                        pt: "Marcar esta pergunta como não relevante para o escopo deste agente.",
-                      })}
-                      type="button"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      <span>
-                        {byLanguage(language, {
-                          en: "Dismiss (not relevant)",
-                          es: "Descartar (no aplica)",
-                          pt: "Descartar (não se aplica)",
+                      {/* Botón Descartar */}
+                      <button
+                        className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-red-700 cursor-pointer disabled:opacity-50"
+                        disabled={isBusy}
+                        onClick={() =>
+                          handleAnswerQuestion(
+                            question.question_key,
+                            "dismiss",
+                            "Descartada por el usuario como no relevante.",
+                            "",
+                            decisionContext,
+                          )
+                        }
+                        title={byLanguage(language, {
+                          en: "Mark this question as not relevant for this agent scope.",
+                          es: "Marcar esta pregunta como no relevante para el alcance de este agente.",
+                          pt: "Marcar esta pergunta como não relevante para o escopo deste agente.",
                         })}
-                      </span>
-                    </button>
-                  </div>
+                        type="button"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>
+                          {byLanguage(language, {
+                            en: "Dismiss (not relevant)",
+                            es: "Descartar (no aplica)",
+                            pt: "Descartar (não se aplica)",
+                          })}
+                        </span>
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-[11px] font-semibold leading-5 text-indigo-900">
+                      {byLanguage(language, {
+                        en: "This objective validation must be confirmed or corrected here before it can shape the ACP.",
+                        es: "Esta validación de objetivo debe confirmarse o corregirse aquí antes de afectar el ACP.",
+                        pt: "Esta validação de objetivo deve ser confirmada ou corrigida aqui antes de afetar o ACP.",
+                      })}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

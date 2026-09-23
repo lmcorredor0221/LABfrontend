@@ -64,6 +64,19 @@ export function InitiativeEvaluator({ onStartProject, className }: InitiativeEva
         pt: "Precisamos analisar documentos regulatórios complexos, comparar cláusulas com políticas internas de conformidade e solicitar aprovação humana se forem detectados altos riscos.",
       }),
     },
+    {
+      icon: "🖥️",
+      label: byLanguage(language, {
+        es: "Usar un portal interno con reglas y aprobaciones...",
+        en: "Use an internal portal with rules and approvals...",
+        pt: "Usar um portal interno com regras e aprovações...",
+      }),
+      text: byLanguage(language, {
+        es: "Queremos que un agente use un portal web interno para crear órdenes de venta, consulte manuales, valide roles y descuentos contra políticas, registre evidencia y pida aprobación si el descuento supera el límite permitido.",
+        en: "We want an agent to use an internal web portal to create sales orders, consult manuals, validate roles and discounts against policies, record evidence, and request approval if the discount exceeds the allowed limit.",
+        pt: "Queremos que um agente use um portal web interno para criar pedidos de venda, consulte manuais, valide funções e descontos contra políticas, registre evidências e peça aprovação se o desconto exceder o limite permitido.",
+      }),
+    },
   ];
 
   async function handleEvaluate() {
@@ -170,7 +183,7 @@ export function InitiativeEvaluator({ onStartProject, className }: InitiativeEva
               onChange={(e) => setText(e.target.value)}
               placeholder={t(
                 "scanner.placeholder",
-                "Describe tu necesidad de negocio aquí... Ej: Tenemos un proceso manual en el que 4 personas procesan solicitudes de crédito comparando extractos bancarios contra reglas internas...",
+                "Describe tu necesidad de negocio aquí... Ej: Necesito que un agente use nuestro portal web, consulte manuales, valide reglas y pida aprobación cuando aplique...",
               )}
               className="w-full rounded-xl border border-[var(--border-default)] p-4 text-sm text-[var(--text-primary)] placeholder-[var(--text-tertiary)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-soft)] transition leading-relaxed"
               disabled={loading}
@@ -305,6 +318,53 @@ export function InitiativeEvaluator({ onStartProject, className }: InitiativeEva
               </div>
             ) : null}
           </div>
+
+          {result.operational_profile ? (
+            <div className="rounded-xl border border-cyan-200 bg-cyan-50/60 p-5 space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-cyan-800 font-bold text-sm">
+                    <Bot className="h-4 w-4" />
+                    <span>Arquitectura operativa detectada</span>
+                  </div>
+                  <p className="mt-2 text-sm font-semibold text-[var(--text-primary)]">
+                    {result.operational_profile.business_summary ||
+                      "LAB evaluará herramientas, memoria, reglas, aprobaciones y evidencia dentro del Blueprint/ACP."}
+                  </p>
+                  {result.operational_profile.technical_detail ? (
+                    <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                      {result.operational_profile.technical_detail}
+                    </p>
+                  ) : null}
+                </div>
+                {result.operational_profile.archetype_key ? (
+                  <span className="rounded-md bg-white px-2 py-1 text-xs font-bold text-cyan-800">
+                    {result.operational_profile.archetype_key}
+                  </span>
+                ) : null}
+              </div>
+              <div className="grid gap-2 md:grid-cols-3">
+                {[
+                  { label: "Capacidades", values: result.operational_profile.required_capabilities },
+                  { label: "Conocimiento", values: result.operational_profile.knowledge_modes },
+                  { label: "Controles", values: result.operational_profile.control_requirements },
+                ].map((group) =>
+                  group.values?.length ? (
+                    <div className="rounded-lg border border-cyan-100 bg-white p-3" key={group.label}>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-800">{group.label}</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {group.values.slice(0, 4).map((value) => (
+                          <span className="rounded-md bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-[var(--text-secondary)]" key={value}>
+                            {value}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null,
+                )}
+              </div>
+            </div>
+          ) : null}
 
           {/* Alternativa Estratégica si NO es viable */}
           {result.alternative ? (

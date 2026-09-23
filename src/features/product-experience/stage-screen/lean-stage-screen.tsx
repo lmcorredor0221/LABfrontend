@@ -292,13 +292,13 @@ function LeanStageEvidenceContext({ contract }: { contract: LeanStageScreenContr
             {visibleAttention.length ? (
               visibleAttention.map((item, index) => {
                 const content = (
-                  <div className="h-full rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-3">
+                  <div className="h-full min-w-0 overflow-hidden rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] bg-white p-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <UxaBadge tone={item.tone ?? "warning"}>{item.label}</UxaBadge>
                     </div>
-                    <p className="mt-2 text-[12px] font-black leading-5 text-[var(--uxa-color-ink)]">{item.value}</p>
+                    <p className="mt-2 break-words text-[12px] font-black leading-5 text-[var(--uxa-color-ink)]">{item.value}</p>
                     {item.description ? (
-                      <p className="mt-1 text-[11px] leading-4 text-[var(--uxa-color-ink-soft)]">{item.description}</p>
+                      <p className="mt-1 break-words text-[11px] leading-4 text-[var(--uxa-color-ink-soft)]">{item.description}</p>
                     ) : null}
                   </div>
                 );

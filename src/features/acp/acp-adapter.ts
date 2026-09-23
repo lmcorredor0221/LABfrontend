@@ -41,6 +41,9 @@ export function getConstructionQuestionErrors(
   draft: ConstructionQuestionDraft,
   decision: ConstructionQuestionAnswerRequest["decision"] = "answer",
 ): ConstructionQuestionFieldErrors {
+  if (decision === "reopen") {
+    return {};
+  }
   if (decision === "answer" && !draft.answerText.trim()) {
     return {
       answerText: "La respuesta no puede quedar vacia.",
@@ -54,6 +57,7 @@ export function buildConstructionQuestionPayload(
   draft: ConstructionQuestionDraft,
   decision: ConstructionQuestionAnswerRequest["decision"] = "answer",
   selectedOptionKey?: string,
+  decisionContext?: Record<string, unknown>,
 ): ConstructionQuestionAnswerRequest {
   return {
     answer_text: draft.answerText.trim(),
@@ -61,6 +65,7 @@ export function buildConstructionQuestionPayload(
     selected_option_key: selectedOptionKey,
     impacted_artifacts: normalizeLines(draft.impactedArtifactsText),
     owner_role: draft.ownerRole.trim(),
+    decision_context: decisionContext,
   };
 }
 
@@ -249,4 +254,3 @@ export async function executeAcpZipDownload({
 
   return job;
 }
-

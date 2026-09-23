@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Minus, X } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -34,21 +34,21 @@ type TierConfig = {
 
 const TIER_CONFIG: Record<FloatingArchitectureStudioTier, TierConfig> = {
   blueprint: {
-    heading: "Construyendo Blueprint",
-    subheading: "Arquitectura Inteligente · Supervisor + Especialistas",
+    heading: "Procesando Blueprint",
+    subheading: "Operacion tecnica dentro de la etapa actual",
     milestones: [
-      "Triage de caso y extracción de señales",
-      "Detección de plataformas del ecosistema (ERP/CRM/ITSM)",
-      "Diseño de patrón supervisor-especialistas",
-      "Selección y contrato de herramientas",
-      "Generación de 4 diagramas estratégicos",
-      "Validación de guardrails y coherencia",
+      "Solicitud recibida",
+      "Estructuracion del contexto",
+      "Analisis de necesidad y alcance",
+      "Deteccion de preguntas y gaps",
+      "Preparacion del resultado revisable",
+      "Sincronizacion con la etapa actual",
     ],
     valueCapsules: [
-      "~15–20 h de Solution Architect → 40 s",
-      "De necesidad ambigua a propuesta clara",
-      "Patrones probados en 500+ proyectos",
-      "Diagramas editables y trazables",
+      "Paso tecnico dentro del journey",
+      "No agrega una etapa nueva al proyecto",
+      "Resultado revisable antes de avanzar",
+      "Trazabilidad por operacion",
     ],
     accentColor: "#3047b8",
   },
@@ -147,7 +147,7 @@ function ArchitectureSVG({
           <path d="M 0 0 L 6 3 L 0 6 z" fill="#60708a" />
         </marker>
         <filter id="fas-shadow">
-          <feDropShadow dx="0" dy="2" flood-color="#000" flood-opacity="0.12" stdDeviation="2" />
+          <feDropShadow dx="0" dy="2" floodColor="#000" floodOpacity="0.12" stdDeviation="2" />
         </filter>
         <radialGradient cx="50%" cy="50%" id="fas-pulse-grad" r="50%">
           <stop offset="0%" stopColor={accent} stopOpacity="0.6" />
@@ -366,44 +366,45 @@ function useElapsedSeconds(running: boolean) {
 
   useEffect(() => {
     if (!running) {
-      setElapsed(0);
       startRef.current = null;
-      return;
+      const resetTimer = setTimeout(() => setElapsed(0), 0);
+      return () => clearTimeout(resetTimer);
     }
+
     startRef.current = Date.now();
+    const resetTimer = setTimeout(() => setElapsed(0), 0);
     const tick = setInterval(() => {
       setElapsed(Math.floor((Date.now() - (startRef.current ?? Date.now())) / 1000));
     }, 1000);
-    return () => clearInterval(tick);
+    return () => {
+      clearTimeout(resetTimer);
+      clearInterval(tick);
+    };
   }, [running]);
 
   return elapsed;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Simulated progress (advances over ~90 s, never reaches 1.0 while running)
+// Simulated progress (advances quickly at first, never reaches 1.0 while running)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function useSimulatedProgress(running: boolean) {
-  const [progress, setProgress] = useState(0);
+function simulatedProgress(running: boolean, elapsedSeconds: number) {
+  if (!running) {
+    return 0;
+  }
+  const eased = 1 - Math.exp(-Math.max(0, elapsedSeconds + 1) / 20);
+  return Math.min(0.97, eased * 0.85);
+}
 
+function useResetSignal(active: boolean, onReset: () => void) {
   useEffect(() => {
-    if (!running) {
-      setProgress(0);
+    if (!active) {
       return;
     }
-    setProgress(0);
-    // Logarithmic growth: reaches ~0.85 after 90 s, never hits 1
-    const tick = setInterval(() => {
-      setProgress((prev) => {
-        const next = prev + (0.85 - prev) * 0.015;
-        return Math.min(next, 0.97);
-      });
-    }, 500);
-    return () => clearInterval(tick);
-  }, [running]);
-
-  return progress;
+    const resetTimer = setTimeout(onReset, 0);
+    return () => clearTimeout(resetTimer);
+  }, [active, onReset]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -419,12 +420,11 @@ export function FloatingArchitectureStudio({
   const [minimized, setMinimized] = useState(false);
   const config = TIER_CONFIG[tier];
   const elapsed = useElapsedSeconds(isOpen);
-  const progress = useSimulatedProgress(isOpen);
+  const progress = simulatedProgress(isOpen, elapsed);
+  const resetMinimized = useCallback(() => setMinimized(false), []);
 
   // Reset minimized state when overlay opens
-  useEffect(() => {
-    if (isOpen) setMinimized(false);
-  }, [isOpen]);
+  useResetSignal(isOpen, resetMinimized);
 
   if (!isOpen) return null;
 
