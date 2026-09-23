@@ -53,8 +53,10 @@ export function AcpResolutionStage({
   const openQuestions = questions.filter(
     (q) => q.status === "open" || (!q.status && !q.answer_text),
   );
+  const blockingOpenQuestions = openQuestions.filter((q) => q.blocking);
+  const nonBlockingOpenQuestionsCount = openQuestions.length - blockingOpenQuestions.length;
 
-  const canProceed = openQuestions.length === 0;
+  const canProceed = blockingOpenQuestions.length === 0;
 
   async function handleAnswerQuestion(
     questionKey: string,
@@ -104,21 +106,30 @@ export function AcpResolutionStage({
                   pt: "Etapa 1 · Resolver",
                 })}
               </UxaBadge>
-              {canProceed ? (
+              {blockingOpenQuestions.length > 0 ? (
+                <UxaBadge tone="danger">
+                  {blockingOpenQuestions.length}{" "}
+                  {byLanguage(language, {
+                    en: "blocking pending",
+                    es: "bloqueantes pendientes",
+                    pt: "bloqueantes pendentes",
+                  })}
+                </UxaBadge>
+              ) : openQuestions.length > 0 ? (
+                <UxaBadge tone="warning">
+                  {nonBlockingOpenQuestionsCount}{" "}
+                  {byLanguage(language, {
+                    en: "non-blocking pending",
+                    es: "no bloqueantes pendientes",
+                    pt: "nao bloqueantes pendentes",
+                  })}
+                </UxaBadge>
+              ) : (
                 <UxaBadge tone="success">
                   {byLanguage(language, {
                     en: "Ready for Validation",
                     es: "Listo para Validación",
                     pt: "Pronto para Validação",
-                  })}
-                </UxaBadge>
-              ) : (
-                <UxaBadge tone="warning">
-                  {openQuestions.length}{" "}
-                  {byLanguage(language, {
-                    en: "pending to resolve",
-                    es: "pendientes por resolver",
-                    pt: "pendentes para resolver",
                   })}
                 </UxaBadge>
               )}
@@ -215,15 +226,36 @@ export function AcpResolutionStage({
 
         {/* Mensaje de Gate */}
         {!canProceed ? (
-          <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)]/30 px-3.5 py-2.5 text-[12px] text-[var(--uxa-color-ink-soft)]">
-            <Clock aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--uxa-state-warning)]" />
+          <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-[var(--uxa-state-danger)] bg-[var(--uxa-state-danger-bg)]/30 px-3.5 py-2.5 text-[12px] text-[var(--uxa-color-ink-soft)]">
+            <Clock aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--uxa-state-danger)]" />
             <span>
               {byLanguage(language, {
-                en: `Gate active: Resolve or delegate the remaining ${openQuestions.length} question(s) to unlock Stage 2 (Validation).`,
-                es: `Gate activo: Resuelve o delega las ${openQuestions.length} pregunta(s) pendientes para habilitar la Etapa 2 (Validación).`,
-                pt: `Gate ativo: Resolva ou delegue as ${openQuestions.length} pergunta(s) pendentes para liberar a Etapa 2 (Validação).`,
+                en: `Gate active: Resolve or delegate the remaining ${blockingOpenQuestions.length} blocking question(s) to unlock Stage 2 (Validation).`,
+                es: `Gate activo: resuelve o delega las ${blockingOpenQuestions.length} pregunta(s) bloqueantes para habilitar la Etapa 2 (Validación).`,
+                pt: `Gate ativo: resolva ou delegue as ${blockingOpenQuestions.length} pergunta(s) bloqueantes para liberar a Etapa 2 (Validacao).`,
               })}
             </span>
+          </div>
+        ) : openQuestions.length > 0 ? (
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-[var(--uxa-state-warning)] bg-[var(--uxa-state-warning-bg)]/30 px-3.5 py-2.5 text-[12px] text-[var(--uxa-color-ink-soft)]">
+            <div className="flex items-center gap-2">
+              <Clock aria-hidden="true" className="h-4 w-4 shrink-0 text-[var(--uxa-state-warning)]" />
+              <span>
+                {byLanguage(language, {
+                  en: `No blocking questions remain. ${openQuestions.length} non-blocking question(s) can be answered now or reviewed later without stopping Validation.`,
+                  es: `No quedan preguntas bloqueantes. ${openQuestions.length} pregunta(s) no bloqueantes se pueden responder ahora o revisar despues sin detener Validación.`,
+                  pt: `Nao restam perguntas bloqueantes. ${openQuestions.length} pergunta(s) nao bloqueantes podem ser respondidas agora ou revisadas depois sem travar a Validacao.`,
+                })}
+              </span>
+            </div>
+            <button
+              className="inline-flex items-center gap-1 font-bold underline hover:opacity-80 cursor-pointer"
+              onClick={onProceedToValidation}
+              type="button"
+            >
+              <span>{byLanguage(language, { en: "Proceed now", es: "Avanzar ahora", pt: "Avancar agora" })}</span>
+              <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </button>
           </div>
         ) : (
           <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-[var(--uxa-state-success)] bg-[var(--uxa-state-success-bg)]/30 px-3.5 py-2.5 text-[12px] text-[var(--uxa-state-success)] font-medium">

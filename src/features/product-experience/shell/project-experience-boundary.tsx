@@ -62,6 +62,7 @@ function ProductExperienceEnabledGate({
     state,
   } = useProductExperienceRoute({
     currentStage: effectiveFetchStage,
+    operationStage: productSection && productSection !== "work" ? null : undefined,
     sessionId,
   });
   const activeRoute = state.active?.route.sessionId === sessionId ? state.active : null;

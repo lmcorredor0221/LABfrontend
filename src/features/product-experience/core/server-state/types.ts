@@ -114,6 +114,7 @@ export type ProductExperienceRouteSnapshot = {
 
 export type ProductRouteState = {
   currentStage: ProductRouteStage;
+  operationStage?: ProductRouteStage | null;
   sessionId: string;
 };
 

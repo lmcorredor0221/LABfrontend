@@ -333,9 +333,18 @@ function ProjectTopbar({
   const attention = activeRoute?.attention.data ?? null;
   const overview = activeRoute?.operation.data?.overview ?? null;
   const definition = getProductExperienceStage(activeStage, t);
+  const currentJourney = getJourneyStateMachineCurrent(overview?.journey_state_machine ?? null);
   const journeyDisplay = getJourneyStateMachineDisplay(language, overview?.journey_state_machine ?? null);
   const projectTitle = overview?.project_title ?? snapshot?.session.title ?? t("projects.defaultTitle", "Proyecto");
   const status = snapshot?.session.status ?? "draft";
+  const hasActiveAttention = (attention?.blocking_count ?? 0) > 0 || (attention?.actionable_count ?? 0) > 0;
+  const effectiveStatus =
+    status === "needs_review" &&
+    !hasActiveAttention &&
+    currentJourney?.blocking === false &&
+    currentJourney.substate !== "waiting_user"
+      ? "ready"
+      : status;
   const productLabel = journeyDisplay?.productLabel ?? definition.product;
   const stageLabel = journeyDisplay?.label ?? definition.title;
   const stageDetail = journeyDisplay?.detail ?? definition.subtitle;
@@ -355,7 +364,7 @@ function ProjectTopbar({
           </Link>
           <div className="min-w-0 flex-1">
             <div className="uxa-project-kicker flex items-center gap-2 text-[11px]">
-              <UxaBadge tone={statusTone(status)}>{getSessionStatusLabel(language, status)}</UxaBadge>
+              <UxaBadge tone={statusTone(effectiveStatus)}>{getSessionStatusLabel(language, effectiveStatus)}</UxaBadge>
               <UxaBadge tone="info">{productLabel}</UxaBadge>
               {substateLabel ? <UxaBadge tone={substateTone}>{substateLabel}</UxaBadge> : null}
               <span className="uxa-project-stage-label font-medium text-[var(--text-secondary)]">{stageLabel}</span>

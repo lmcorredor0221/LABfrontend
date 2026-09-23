@@ -14,6 +14,8 @@ export type FloatingArchitectureStudioProps = {
   isOpen: boolean;
   /** Product tier that determines which diagram + milestones + copy to show */
   tier: FloatingArchitectureStudioTier;
+  /** Optional stage label when the overlay is embedded inside a journey stage */
+  stageLabel?: string;
   /** Optional current step label forwarded from the operation panel */
   currentStep?: string;
   /** Called when user explicitly closes the overlay */
@@ -91,6 +93,121 @@ const TIER_CONFIG: Record<FloatingArchitectureStudioTier, TierConfig> = {
     accentColor: "#0d7c66",
   },
 };
+
+function normalizeLabel(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function matchesStage(normalizedLabel: string, keys: string[]) {
+  return keys.some((key) =>
+    normalizedLabel === key ||
+    normalizedLabel.startsWith(`${key}:`) ||
+    normalizedLabel.startsWith(`${key} `),
+  );
+}
+
+type StageDisplayConfig = {
+  label: string;
+  milestones: string[];
+};
+
+function resolveStageDisplayConfig(stageLabel: string): StageDisplayConfig {
+  const normalized = normalizeLabel(stageLabel);
+  if (matchesStage(normalized, ["definir", "define", "definicao"])) {
+    return {
+      label: "Definir",
+      milestones: [
+        "Solicitud recibida",
+        "Canvas de solucion",
+        "Requerimientos funcionales",
+        "Preguntas y riesgos",
+        "Publicacion de Definir",
+      ],
+    };
+  }
+  if (matchesStage(normalized, ["descubrir", "discover", "descobrir"])) {
+    return {
+      label: "Descubrir",
+      milestones: [
+        "Solicitud recibida",
+        "Estructuracion de contexto",
+        "Analisis de necesidad",
+        "Preguntas y gaps",
+        "Publicacion de Descubrir",
+      ],
+    };
+  }
+  if (matchesStage(normalized, ["disenar", "diseno", "design", "desenhar", "desenho"])) {
+    return {
+      label: "Disenar",
+      milestones: [
+        "Solicitud recibida",
+        "Propuesta de arquitectura",
+        "Revision critica",
+        "Consolidacion",
+        "Publicacion del artefacto",
+      ],
+    };
+  }
+  if (matchesStage(normalized, ["herramientas", "tools", "ferramentas"])) {
+    return {
+      label: "Herramientas",
+      milestones: [
+        "Solicitud recibida",
+        "Capacidades requeridas",
+        "Contrato de herramientas",
+        "Riesgos y aprobaciones",
+        "Publicacion de Herramientas",
+      ],
+    };
+  }
+  if (matchesStage(normalized, ["memoria", "memory"])) {
+    return {
+      label: "Memoria",
+      milestones: [
+        "Solicitud recibida",
+        "Perfil de memoria",
+        "Politicas de recuperacion",
+        "Riesgos y retencion",
+        "Publicacion de Memoria",
+      ],
+    };
+  }
+  return {
+    label: stageLabel,
+    milestones: [
+      "Solicitud recibida",
+      `Contexto de ${stageLabel}`,
+      `Analisis principal de ${stageLabel}`,
+      "Preguntas, riesgos y gaps",
+      `Publicacion de ${stageLabel}`,
+    ],
+  };
+}
+
+function resolveDisplayConfig(config: TierConfig, stageLabel?: string): TierConfig {
+  const label = stageLabel?.trim();
+  if (!label) {
+    return config;
+  }
+  const stageConfig = resolveStageDisplayConfig(label);
+  return {
+    ...config,
+    heading: `Procesando ${stageConfig.label}`,
+    subheading: `Operacion tecnica dentro de ${stageConfig.label}`,
+    milestones: stageConfig.milestones,
+    valueCapsules: [
+      `Trabajo tecnico de ${stageConfig.label}`,
+      "No agrega una etapa nueva al proyecto",
+      "Resultado revisable antes de avanzar",
+      "Trazabilidad por operacion",
+    ],
+  };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inline SVG — simplified runtime workflow (21 nodos, 5 fases)
@@ -414,11 +531,12 @@ function useResetSignal(active: boolean, onReset: () => void) {
 export function FloatingArchitectureStudio({
   isOpen,
   tier,
+  stageLabel,
   currentStep,
   onClose,
 }: FloatingArchitectureStudioProps) {
   const [minimized, setMinimized] = useState(false);
-  const config = TIER_CONFIG[tier];
+  const config = resolveDisplayConfig(TIER_CONFIG[tier], stageLabel);
   const elapsed = useElapsedSeconds(isOpen);
   const progress = simulatedProgress(isOpen, elapsed);
   const resetMinimized = useCallback(() => setMinimized(false), []);

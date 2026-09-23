@@ -158,12 +158,12 @@ function createStageOperation(overrides: Partial<ProductExperienceStageOperation
     cancel_requested_at: null,
     cancel_url: "/api/v1/sessions/session-uxa5/stage-operations/operation-1/cancel",
     completed_at: null,
-    created_at: "2026-08-16T10:00:00Z",
+    created_at: "2099-08-16T10:00:00Z",
     current_step: "proposal",
     detail: "Generando propuesta de arquitectura.",
     error_message: "",
-    expires_at: "2026-08-16T10:30:00Z",
-    heartbeat_at: "2026-08-16T10:00:00Z",
+    expires_at: "2099-08-16T10:30:00Z",
+    heartbeat_at: "2099-08-16T10:00:00Z",
     id: "operation-1",
     idempotency_key: "design-once",
     is_stale: false,
@@ -180,7 +180,7 @@ function createStageOperation(overrides: Partial<ProductExperienceStageOperation
       { detail: "", key: "persist", label: "Publicacion del artefacto", status: "pending" },
     ],
     technical_detail: "",
-    updated_at: "2026-08-16T10:00:00Z",
+    updated_at: "2099-08-16T10:00:00Z",
     workspace_id: "workspace-1",
     ...overrides,
   };
@@ -386,6 +386,48 @@ describe("ProjectWorkspaceShell UXA5", () => {
     expect(within(contextRegion).queryByText("Guia del momento")).not.toBeInTheDocument();
     expect(within(contextRegion).queryByText("Que sigue")).not.toBeInTheDocument();
     expect(contextRegion).not.toHaveClass("lg:sticky");
+  });
+
+  it("does not keep a legacy needs-review badge when operational attention is clear", () => {
+    const route = createRoute();
+    route.snapshot.data!.session.status = "needs_review";
+    route.attention.data = {
+      ...route.attention.data!,
+      actionable_count: 0,
+      blocking_count: 0,
+      total_count: 0,
+    };
+    route.operation.data!.overview = {
+      ...route.operation.data!.overview!,
+      journey_state_machine: {
+        contract_version: "journey-state-machine.v1",
+        current: {
+          blocking: false,
+          detail: "El ACP se encuentra en empaquetado final y export.",
+          href: "/projects/session-uxa5/acp",
+          label: "Package",
+          product_key: "acp",
+          progress_percent: 100,
+          stage_key: "package",
+          state_key: "package",
+          substate: "completed",
+        },
+        session_id: "session-uxa5",
+        source_contracts: ["commercial-access.v2", "product-build-status.v1"],
+        workspace_id: "workspace-1",
+      },
+    };
+
+    const { container } = renderWithLanguage(
+      <ProjectWorkspaceShell activeProduct="acp" activeRoute={route} activeStage="validate" sessionId="session-uxa5">
+        <section aria-label="Contenido ACP" />
+      </ProjectWorkspaceShell>,
+    );
+
+    const topbarStatus = container.querySelector(".uxa-project-kicker");
+    expect(topbarStatus).not.toBeNull();
+    expect(within(topbarStatus as HTMLElement).getByText("Listo")).toBeInTheDocument();
+    expect(within(topbarStatus as HTMLElement).queryByText("Requiere revision")).not.toBeInTheDocument();
   });
 
   it("opens the current guide in a drawer and returns focus when it closes", async () => {

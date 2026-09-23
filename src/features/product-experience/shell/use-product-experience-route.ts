@@ -201,9 +201,10 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
   const stableRoute = useMemo(
     () => ({
       currentStage: route.currentStage,
+      operationStage: route.operationStage,
       sessionId: route.sessionId,
     }),
-    [route.currentStage, route.sessionId],
+    [route.currentStage, route.operationStage, route.sessionId],
   );
 
   const refreshRoute = useCallback(

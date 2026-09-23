@@ -83,6 +83,14 @@ function operationKey(route: ProductRouteState) {
   return `operation:${route.sessionId}`;
 }
 
+function operationStageFilter(route: ProductRouteState) {
+  if (route.operationStage === null) {
+    return undefined;
+  }
+
+  return (route.operationStage ?? route.currentStage) || undefined;
+}
+
 function snapshotKey(sessionId: string) {
   return `snapshot:${sessionId}`;
 }
@@ -386,7 +394,7 @@ export function createProductExperienceServerState({
         const [overview, activity, stageOperation] = await Promise.all([
           api.getProductOverview(route.sessionId, { signal }),
           api.getActivity(route.sessionId, DEFAULT_ACTIVITY_LIMIT, { signal }),
-          api.getCurrentStageOperation(route.sessionId, { stage_key: route.currentStage || undefined }, { signal }),
+          api.getCurrentStageOperation(route.sessionId, { stage_key: operationStageFilter(route) }, { signal }),
         ]);
         return { activity, overview, stageOperation };
       });

@@ -381,6 +381,7 @@ export function LeanStageScreen({ actionArea, contract, isProcessing = false, cu
       <FloatingArchitectureStudio
         currentStep={currentStep}
         isOpen={isProcessing}
+        stageLabel={contract.stage.title}
         tier="blueprint"
       />
     </div>

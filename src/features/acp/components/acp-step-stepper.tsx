@@ -12,12 +12,14 @@ export type AcpStepStepperProps = {
   completedSteps: AcpWorkflowStep[];
   onSelectStep: (step: AcpWorkflowStep) => void;
   canNavigateTo: (step: AcpWorkflowStep) => boolean;
+  blockingOpenQuestionsCount?: number;
   openQuestionsCount?: number;
   resolutionState?: "idle" | "loading" | "ready" | "error";
 };
 
 export function AcpStepStepper({
   activeStep,
+  blockingOpenQuestionsCount = 0,
   completedSteps,
   onSelectStep,
   canNavigateTo,
@@ -48,11 +50,17 @@ export function AcpStepStepper({
               es: "Preguntas no cargadas",
               pt: "Perguntas nao carregadas",
             })
+          : blockingOpenQuestionsCount > 0
+          ? byLanguage(language, {
+              en: `${blockingOpenQuestionsCount} blocking questions`,
+              es: `${blockingOpenQuestionsCount} preguntas bloqueantes`,
+              pt: `${blockingOpenQuestionsCount} perguntas bloqueantes`,
+            })
           : openQuestionsCount > 0
           ? byLanguage(language, {
-              en: `${openQuestionsCount} open questions`,
-              es: `${openQuestionsCount} preguntas abiertas`,
-              pt: `${openQuestionsCount} perguntas abertas`,
+              en: `${openQuestionsCount} non-blocking questions`,
+              es: `${openQuestionsCount} preguntas no bloqueantes`,
+              pt: `${openQuestionsCount} perguntas nao bloqueantes`,
             })
           : byLanguage(language, {
               en: "Questions resolved",

@@ -23,6 +23,16 @@ const HOP_BY_HOP_HEADERS = new Set([
   "upgrade",
 ]);
 
+const NETWORK_RETRY_DELAY_MS = 250;
+
+function canRetryProxyRequest(method: string) {
+  return method === "GET" || method === "HEAD";
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function proxyRequest(
   request: Request,
   {
@@ -54,14 +64,27 @@ async function proxyRequest(
     const body =
       request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
 
-    const response = await fetch(targetUrl.toString(), {
-      body: body && body.byteLength > 0 ? body : undefined,
-      cache: "no-store",
-      headers,
-      method: request.method,
-      redirect: "manual",
-      signal: controller.signal,
-    });
+    const fetchBackend = () =>
+      fetch(targetUrl.toString(), {
+        body: body && body.byteLength > 0 ? body : undefined,
+        cache: "no-store",
+        headers,
+        method: request.method,
+        redirect: "manual",
+        signal: controller.signal,
+      });
+
+    let response: Response;
+    try {
+      response = await fetchBackend();
+    } catch (error) {
+      const isAbortError = error instanceof DOMException && error.name === "AbortError";
+      if (isAbortError || !canRetryProxyRequest(request.method)) {
+        throw error;
+      }
+      await wait(NETWORK_RETRY_DELAY_MS);
+      response = await fetchBackend();
+    }
 
     const responseHeaders = new Headers(response.headers);
     HOP_BY_HOP_HEADERS.forEach((header) => responseHeaders.delete(header));

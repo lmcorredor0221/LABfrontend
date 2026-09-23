@@ -433,6 +433,32 @@ describe("product experience server state", () => {
     expect(store.getState().active?.snapshot.data?.session.id).toBe("session-a");
   });
 
+  it("loads the current operation scoped by stage routes by default", async () => {
+    const api = createApi();
+    const store = createProductExperienceServerState({ api });
+
+    await store.loadRoute({ currentStage: "design", sessionId: "session-a" });
+
+    expect(api.getCurrentStageOperation).toHaveBeenCalledWith(
+      "session-a",
+      { stage_key: "design" },
+      expect.any(Object),
+    );
+  });
+
+  it("loads the current operation without a stage filter for product routes", async () => {
+    const api = createApi();
+    const store = createProductExperienceServerState({ api });
+
+    await store.loadRoute({ currentStage: "estimate", operationStage: null, sessionId: "session-a" });
+
+    expect(api.getCurrentStageOperation).toHaveBeenCalledWith(
+      "session-a",
+      { stage_key: undefined },
+      expect.any(Object),
+    );
+  });
+
   it("reuses in-flight background requests across forced route refreshes", async () => {
     const route = { currentStage: "tools", sessionId: "session-a" };
     const operation = createOperation(route.sessionId);

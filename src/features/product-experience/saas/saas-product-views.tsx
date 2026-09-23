@@ -77,7 +77,15 @@ import { AcpValidationStage } from "@/features/acp/components/acp-validation-sta
 import { AcpReconciliationStage } from "@/features/acp/components/acp-reconciliation-stage";
 import { AcpPackageStage } from "@/features/acp/components/acp-package-stage";
 import { productExperienceStore } from "@/features/product-experience/shell/use-product-experience-route";
-import { FloatingArchitectureStudio } from "@/features/product-experience/components/floating-architecture-studio";
+import {
+  FloatingArchitectureStudio,
+  type FloatingArchitectureStudioTier,
+} from "@/features/product-experience/components/floating-architecture-studio";
+import {
+  buildProductOperationEnvelope,
+  isOperationActive,
+  type ProductOperationEnvelope,
+} from "@/features/product-experience/operations/operation-model";
 
 type CheckoutMarketCode = "co";
 type AcpLoadStatus = "idle" | "loading" | "ready" | "error";
@@ -150,6 +158,35 @@ const BLUEPRINT_FREE_VALIDATED_ITEMS = [
     },
   },
 ] as const;
+
+function shouldShowFloatingStudioForOperation(operation: ProductOperationEnvelope | null) {
+  return operation?.status === "queued" || operation?.status === "running";
+}
+
+function ProductOperationFloatingStudio({
+  activeRoute,
+  currentStep,
+  forceOpen = false,
+  stageLabel,
+  tier,
+}: {
+  activeRoute: ProductExperienceRouteSnapshot | null;
+  currentStep?: string;
+  forceOpen?: boolean;
+  stageLabel?: string;
+  tier: FloatingArchitectureStudioTier;
+}) {
+  const operation = buildProductOperationEnvelope({ activeRoute });
+
+  return (
+    <FloatingArchitectureStudio
+      currentStep={currentStep || operation?.currentStep}
+      isOpen={forceOpen || shouldShowFloatingStudioForOperation(operation)}
+      stageLabel={stageLabel || operation?.stage}
+      tier={tier}
+    />
+  );
+}
 const CHECKOUT_MARKETS: Array<{
   code: CheckoutMarketCode;
   label: Record<SupportedLanguage, string>;
@@ -345,18 +382,33 @@ function isCheckoutAvailableAccessConflict(error: unknown, productKey: "blueprin
   return message.includes("checkout") && message.includes(productKey);
 }
 
+function isSelfServiceCheckoutState(checkoutState?: string | null) {
+  return checkoutState === "available" || checkoutState === "pending" || checkoutState === "failed";
+}
+
 async function executeAccessRequestWithCheckoutFallback({
   sessionId,
   productKey,
   packageCode,
+  checkoutState,
 }: {
   sessionId: string;
   productKey: "blueprint_pro" | "acp";
   packageCode?: string;
+  checkoutState?: string | null;
 }) {
   try {
+    const response = await executeAccessRequest({ sessionId, productKey });
+    if (response.status !== "approved" && isSelfServiceCheckoutState(checkoutState)) {
+      await executeProductCheckout({
+        sessionId,
+        packageCode,
+        productKey,
+      });
+      return { response, type: "checkout" as const };
+    }
     return {
-      response: await executeAccessRequest({ sessionId, productKey }),
+      response,
       type: "access_request" as const,
     };
   } catch (error) {
@@ -993,6 +1045,15 @@ function canRenderBuildTracker(status: ProductBuildStatus | null | undefined) {
   return Boolean(status) && status?.entitlement?.purchase_required !== true;
 }
 
+function isProductBuildActive(status: ProductBuildStatus | null | undefined) {
+  return Boolean(
+    status?.processing_queue?.active ||
+      status?.lifecycle === "queued" ||
+      status?.lifecycle === "preparing" ||
+      status?.lifecycle === "running",
+  );
+}
+
 function isExecutiveOverviewSection(section: ProductExperienceProductSection): section is ExecutiveOverviewProductSection {
   return section === "blueprint_overview" || section === "blueprint_pro_overview" || section === "acp_overview";
 }
@@ -1488,6 +1549,7 @@ function BlueprintCommercialArtifactPanel({
 }
 
 function BlueprintProCompactTrackingPanel({
+  checkoutState,
   downloadGate,
   effortMetrics,
   onCheckout,
@@ -1496,6 +1558,7 @@ function BlueprintProCompactTrackingPanel({
   sessionId,
   unlocked,
 }: {
+  checkoutState?: string | null;
   downloadGate: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
   effortMetrics?: ProjectEffortMetrics;
   onCheckout?: () => void;
@@ -1513,6 +1576,7 @@ function BlueprintProCompactTrackingPanel({
     trmCop: trm.trm_cop,
     formatPrice,
   });
+  const checkoutAvailable = isSelfServiceCheckoutState(checkoutState);
   const status = productBuild.data;
   const queue = status?.processing_queue ?? null;
   const deliverables = (status?.deliverables ?? []).filter(
@@ -1808,21 +1872,43 @@ function BlueprintProCompactTrackingPanel({
               </p>
               <div className="mt-3 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-white p-3 space-y-1.5 shadow-xs">
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-[var(--uxa-color-ink-muted)]">{byLanguage(language, { en: "Investment:", es: "Inversión:", pt: "Investimento:" })}</span>
-                  <strong className="text-[var(--uxa-color-ink)]">{proPricing.combinedCtaLabel}</strong>
+                  <span className="text-[var(--uxa-color-ink-muted)]">
+                    {checkoutAvailable
+                      ? byLanguage(language, { en: "Investment:", es: "Inversion:", pt: "Investimento:" })
+                      : byLanguage(language, { en: "Access:", es: "Acceso:", pt: "Acesso:" })}
+                  </span>
+                  <strong className="text-[var(--uxa-color-ink)]">
+                    {checkoutAvailable
+                      ? proPricing.combinedCtaLabel
+                      : byLanguage(language, {
+                          en: "Workspace activation",
+                          es: "Activacion del workspace",
+                          pt: "Ativacao do workspace",
+                        })}
+                  </strong>
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
                   <span className="text-[var(--uxa-color-ink-muted)]">{byLanguage(language, { en: "Delivery:", es: "Entrega:", pt: "Entrega:" })}</span>
                   <span className="font-bold text-[var(--uxa-color-brand)]">{byLanguage(language, { en: "Instant in workspace", es: "Inmediata en workspace", pt: "Imediata no workspace" })}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-[var(--uxa-color-ink-muted)]">{byLanguage(language, { en: "Payment:", es: "Pago:", pt: "Pagamento:" })}</span>
+                  <span className="text-[var(--uxa-color-ink-muted)]">
+                    {checkoutAvailable
+                      ? byLanguage(language, { en: "Payment:", es: "Pago:", pt: "Pagamento:" })
+                      : byLanguage(language, { en: "Validation:", es: "Validacion:", pt: "Validacao:" })}
+                  </span>
                   <span className="text-[var(--uxa-color-ink-soft)]">
-                    {byLanguage(language, {
-                      en: "One-time payment",
-                      es: "Pago único",
-                      pt: "Pagamento único",
-                    })}
+                    {checkoutAvailable
+                      ? byLanguage(language, {
+                          en: "One-time payment",
+                          es: "Pago unico",
+                          pt: "Pagamento unico",
+                        })
+                      : byLanguage(language, {
+                          en: "Free quota or approval",
+                          es: "Cupo gratis o aprobacion",
+                          pt: "Cota gratuita ou aprovacao",
+                        })}
                   </span>
                 </div>
               </div>
@@ -1839,21 +1925,33 @@ function BlueprintProCompactTrackingPanel({
                   <Zap className="h-3.5 w-3.5" />
                   <span>
                     {purchasing
-                      ? byLanguage(language, { en: "Connecting...", es: "Conectando...", pt: "Conectando..." })
-                      : byLanguage(language, {
-                          en: `⚡ Complete my design — ${proPricing.combinedCtaLabel}`,
-                          es: `⚡ Completar mi diseño — ${proPricing.combinedCtaLabel}`,
-                          pt: `⚡ Completar meu desenho — ${proPricing.combinedCtaLabel}`,
-                        })}
+                      ? byLanguage(language, { en: "Activating...", es: "Activando...", pt: "Ativando..." })
+                      : checkoutAvailable
+                        ? byLanguage(language, {
+                            en: `⚡ Complete my design — ${proPricing.combinedCtaLabel}`,
+                            es: `⚡ Completar mi diseno — ${proPricing.combinedCtaLabel}`,
+                            pt: `⚡ Completar meu desenho — ${proPricing.combinedCtaLabel}`,
+                          })
+                        : byLanguage(language, {
+                            en: "Activate Blueprint Pro",
+                            es: "Activar Blueprint Pro",
+                            pt: "Ativar Blueprint Pro",
+                          })}
                   </span>
                 </button>
               ) : null}
               <p className="text-center text-[10px] text-[var(--uxa-color-ink-muted)]">
-                {byLanguage(language, {
-                  en: `${proPricing.primaryLabel} · One-time payment · Instant activation`,
-                  es: `${proPricing.primaryLabel} · Pago único · Activación inmediata`,
-                  pt: `${proPricing.primaryLabel} · Pagamento único · Ativação imediata`,
-                })}
+                {checkoutAvailable
+                  ? byLanguage(language, {
+                      en: `${proPricing.primaryLabel} · One-time payment · Instant activation`,
+                      es: `${proPricing.primaryLabel} · Pago unico · Activacion inmediata`,
+                      pt: `${proPricing.primaryLabel} · Pagamento unico · Ativacao imediata`,
+                    })
+                  : byLanguage(language, {
+                      en: "LAB validates free quota first; manual approval is used only if automatic activation cannot close.",
+                      es: "LAB valida primero el cupo gratis; solo usa aprobacion manual si la activacion automatica no puede cerrar.",
+                      pt: "LAB valida primeiro a cota gratuita; so usa aprovacao manual se a ativacao automatica nao puder fechar.",
+                    })}
               </p>
               <a className="uxa-button uxa-button--secondary w-full text-center text-[11px]" href={`/projects/${sessionId}/acp`}>
                 {byLanguage(language, { en: "03 · PREPARE (ACP)", es: "03 · PREPARA (ACP)", pt: "03 · PREPARA (ACP)" })}
@@ -1900,6 +1998,7 @@ function BlueprintProCompactTrackingPanel({
 
 function BlueprintPostUpgradeWorkbench({
   artifactCards,
+  checkoutState,
   downloadGate,
   effortMetrics,
   onCheckout,
@@ -1910,6 +2009,7 @@ function BlueprintPostUpgradeWorkbench({
   unlocked,
 }: {
   artifactCards: ReturnType<typeof buildProductSaasViewModel>["artifactCards"];
+  checkoutState?: string | null;
   downloadGate?: ReturnType<typeof buildProductSaasViewModel>["blueprintDownload"];
   effortMetrics?: ProjectEffortMetrics;
   onCheckout?: () => void;
@@ -2056,6 +2156,7 @@ function BlueprintPostUpgradeWorkbench({
               >
                 {tierScope === "blueprint_pro" && productBuild && downloadGate ? (
                   <BlueprintProCompactTrackingPanel
+                    checkoutState={checkoutState}
                     downloadGate={downloadGate}
                     effortMetrics={effortMetrics}
                     onCheckout={onCheckout}
@@ -2496,10 +2597,12 @@ function BlueprintFreeAgentOrchestrationHero({
 }
 
 function BlueprintFreePostUpgradeExperience({
+  activeRoute,
   language,
   sessionId,
   viewModel,
 }: {
+  activeRoute: ProductExperienceRouteSnapshot | null;
   language: SupportedLanguage;
   sessionId: string;
   viewModel: ReturnType<typeof buildProductSaasViewModel>;
@@ -2546,7 +2649,6 @@ function BlueprintFreePostUpgradeExperience({
           title: byLanguage(language, { en: "Estimated value", es: "Valor estimado", pt: "Valor estimado" }),
         },
       ];
-  const comparison = viewModel.blueprintComparison;
   const status = productBuild.data;
   const queue = status?.processing_queue ?? null;
   const deliverables = (status?.deliverables ?? []).filter(
@@ -2692,45 +2794,64 @@ function BlueprintFreePostUpgradeExperience({
   const [purchasingPro, setPurchasingPro] = useState(false);
   const [proCheckoutNotice, setProCheckoutNotice] = useState<InlineNotice | null>(null);
   const { market: checkoutMarket } = useCheckoutMarketSelection();
+  const operation = buildProductOperationEnvelope({ activeRoute });
+  const productBuildInProgress = Boolean(
+    queue?.active ||
+      status?.lifecycle === "queued" ||
+      status?.lifecycle === "preparing" ||
+      status?.lifecycle === "running" ||
+      productBuild.isLoading,
+  );
+  const operationBlocksPremium =
+    isOperationActive(operation) ||
+    operation?.status === "failed";
+  const blueprintFreeBlocksPremium =
+    productBuildInProgress ||
+    failedCount > 0 ||
+    productBuild.isError ||
+    operationBlocksPremium;
+  const canPromoteToBlueprintPro = !blueprintFreeBlocksPremium;
+  const blueprintFreeBlockedReason = productBuildInProgress || operation?.status === "queued" || operation?.status === "running"
+    ? byLanguage(language, {
+        en: "LAB is still preparing Blueprint Free. Pro activation will be available when the free result is ready.",
+        es: "LAB aun esta preparando Blueprint Free. La activacion de Pro se habilitara cuando el resultado gratis quede listo.",
+        pt: "LAB ainda esta preparando o Blueprint Free. A ativacao Pro sera habilitada quando o resultado gratuito estiver pronto.",
+      })
+    : byLanguage(language, {
+        en: "Review the Blueprint Free technical status before moving to premium products.",
+        es: "Revisa el estado tecnico de Blueprint Free antes de pasar a productos premium.",
+        pt: "Revise o estado tecnico do Blueprint Free antes de passar para produtos premium.",
+      });
+  const blockedPrimaryHref = `/projects/${sessionId}/work/estimate`;
+  const checkoutAvailableForPro = isSelfServiceCheckoutState(viewModel.access?.checkout_state);
 
   async function handleUnlockPro() {
-    if (purchasingPro) return;
+    if (purchasingPro || !canPromoteToBlueprintPro) return;
     setPurchasingPro(true);
     setProCheckoutNotice(null);
     try {
-      if (
-        viewModel.access?.checkout_state === "available" ||
-        viewModel.access?.checkout_state === "pending" ||
-        viewModel.access?.checkout_state === "failed"
-      ) {
-        await executeProductCheckout({
-          sessionId,
-          packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
-          productKey: "blueprint_pro",
-        });
-      } else {
-        const accessResult = await executeAccessRequestWithCheckoutFallback({
-          sessionId,
-          packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
-          productKey: "blueprint_pro",
-        });
-        if (accessResult.type === "checkout") {
-          return;
-        }
-        if (accessResult.response && accessResult.response.status === "approved") {
-          productExperienceStore.invalidateSession(sessionId);
-          window.location.assign(`/projects/${sessionId}/blueprint/pro`);
-          return;
-        }
-        router.push(`/projects/${sessionId}/blueprint/pro`);
+      const accessResult = await executeAccessRequestWithCheckoutFallback({
+        sessionId,
+        checkoutState: viewModel.access?.checkout_state,
+        packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
+        productKey: "blueprint_pro",
+      });
+      if (accessResult.type === "checkout") {
+        return;
       }
+      if (accessResult.response && accessResult.response.status === "approved") {
+        productExperienceStore.invalidateSession(sessionId);
+        window.location.assign(`/projects/${sessionId}/blueprint/pro`);
+        return;
+      }
+      router.push(`/projects/${sessionId}/blueprint/pro`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al iniciar checkout";
       setProCheckoutNotice({
         message: byLanguage(language, {
-          en: `Could not initiate payment: ${message}`,
-          es: `No se pudo iniciar el pago: ${message}`,
-          pt: `Não foi possível iniciar o pagamento: ${message}`,
+          en: `Could not start activation: ${message}`,
+          es: `No se pudo iniciar la activacion: ${message}`,
+          pt: `Nao foi possivel iniciar a ativacao: ${message}`,
         }),
         tone: "danger",
       });
@@ -3245,29 +3366,49 @@ function BlueprintFreePostUpgradeExperience({
                         <button
                           className={cn(
                             "w-full uxa-button uxa-button--primary py-3 text-[13px] font-black shadow-md flex items-center justify-center gap-2",
-                            purchasingPro && "opacity-60 cursor-not-allowed",
+                            (purchasingPro || !canPromoteToBlueprintPro) && "opacity-60 cursor-not-allowed",
                           )}
-                          disabled={purchasingPro}
+                          disabled={purchasingPro || !canPromoteToBlueprintPro}
                           onClick={() => void handleUnlockPro()}
                           type="button"
                         >
                           <Zap className="h-4 w-4" />
                           <span>
                             {purchasingPro
-                              ? byLanguage(language, { en: "Connecting to checkout...", es: "Conectando al checkout...", pt: "Conectando ao checkout..." })
-                              : byLanguage(language, {
-                                  en: `⚡ Complete my design (Blueprint Pro) — ${proPricing.combinedCtaLabel}`,
-                                  es: `⚡ Completar mi diseño (Blueprint Pro) — ${proPricing.combinedCtaLabel}`,
-                                  pt: `⚡ Completar meu desenho (Blueprint Pro) — ${proPricing.combinedCtaLabel}`,
-                                })}
+                              ? byLanguage(language, { en: "Activating access...", es: "Activando acceso...", pt: "Ativando acesso..." })
+                              : !canPromoteToBlueprintPro
+                                ? byLanguage(language, {
+                                    en: "Finish Blueprint Free before Pro",
+                                    es: "Termina Blueprint Free antes de Pro",
+                                    pt: "Finalize o Blueprint Free antes do Pro",
+                                  })
+                              : checkoutAvailableForPro
+                                ? byLanguage(language, {
+                                    en: `Complete my design (Blueprint Pro) — ${proPricing.combinedCtaLabel}`,
+                                    es: `Completar mi diseno (Blueprint Pro) — ${proPricing.combinedCtaLabel}`,
+                                    pt: `Completar meu desenho (Blueprint Pro) — ${proPricing.combinedCtaLabel}`,
+                                  })
+                                : byLanguage(language, {
+                                    en: "Activate Blueprint Pro",
+                                    es: "Activar Blueprint Pro",
+                                    pt: "Ativar Blueprint Pro",
+                                  })}
                           </span>
                         </button>
                         <p className="text-center text-[11px] text-[var(--uxa-color-ink-muted)]">
-                          {byLanguage(language, {
-                            en: "One-time payment · Instant activation",
-                            es: "Pago único · Activación inmediata",
-                            pt: "Pagamento único · Ativação imediata",
-                          })}
+                          {canPromoteToBlueprintPro
+                            ? checkoutAvailableForPro
+                              ? byLanguage(language, {
+                                  en: "One-time payment · Instant activation",
+                                  es: "Pago unico · Activacion inmediata",
+                                  pt: "Pagamento unico · Ativacao imediata",
+                                })
+                              : byLanguage(language, {
+                                  en: "LAB checks free workspace quota before using manual approval.",
+                                  es: "LAB valida el cupo gratis del workspace antes de usar aprobacion manual.",
+                                  pt: "LAB valida a cota gratuita do workspace antes de usar aprovacao manual.",
+                                })
+                            : blueprintFreeBlockedReason}
                         </p>
                       </div>
                     </div>
@@ -3327,15 +3468,43 @@ function BlueprintFreePostUpgradeExperience({
             })}
           </span>
         </button>
-        <a className="uxa-button uxa-button--primary" href={`/projects/${sessionId}/blueprint/pro`}>
-          <span>
-            {byLanguage(language, {
-              en: `⚡ Complete my design — ${proPricing.combinedCtaLabel}`,
-              es: `⚡ Completar mi diseño — ${proPricing.combinedCtaLabel}`,
-              pt: `⚡ Completar meu desenho — ${proPricing.combinedCtaLabel}`,
-            })}
-          </span>
-        </a>
+        {canPromoteToBlueprintPro ? (
+          <a className="uxa-button uxa-button--primary" href={`/projects/${sessionId}/blueprint/pro`}>
+            <span>
+              {checkoutAvailableForPro
+                ? byLanguage(language, {
+                    en: `Upgrade to Blueprint Pro — ${proPricing.combinedCtaLabel}`,
+                    es: `Mejorar a Blueprint Pro — ${proPricing.combinedCtaLabel}`,
+                    pt: `Melhorar para Blueprint Pro — ${proPricing.combinedCtaLabel}`,
+                  })
+                : byLanguage(language, {
+                    en: "Activate Blueprint Pro",
+                    es: "Activar Blueprint Pro",
+                    pt: "Ativar Blueprint Pro",
+                  })}
+            </span>
+          </a>
+        ) : productBuildInProgress || operation?.status === "queued" || operation?.status === "running" ? (
+          <button className="uxa-button uxa-button--primary opacity-60 cursor-not-allowed" disabled type="button">
+            <span>
+              {byLanguage(language, {
+                en: "Preparing Blueprint Free",
+                es: "Preparando Blueprint Free",
+                pt: "Preparando Blueprint Free",
+              })}
+            </span>
+          </button>
+        ) : (
+          <a className="uxa-button uxa-button--primary" href={blockedPrimaryHref}>
+            <span>
+              {byLanguage(language, {
+                en: "Review Blueprint Free status",
+                es: "Revisar estado de Blueprint Free",
+                pt: "Revisar estado do Blueprint Free",
+              })}
+            </span>
+          </a>
+        )}
       </UxaContextualActionDock>
     </div>
   );
@@ -3371,7 +3540,7 @@ function BlueprintProAccessGate({
     trmCop: trm.trm_cop,
     formatPrice,
   });
-  const canSelfActivate = checkoutState === "available" || checkoutState === "pending";
+  const canSelfActivate = isSelfServiceCheckoutState(checkoutState);
   const title = !unlocked
     ? requestSent
       ? byLanguage(language, {
@@ -3466,12 +3635,18 @@ function BlueprintProAccessGate({
                 <Zap className="h-4 w-4" />
                 <span>
                   {purchasing
-                    ? byLanguage(language, { en: "Connecting...", es: "Conectando...", pt: "Conectando..." })
-                    : byLanguage(language, {
-                        en: `⚡ Complete my design — ${proPricing.combinedCtaLabel}`,
-                        es: `⚡ Completar mi diseño — ${proPricing.combinedCtaLabel}`,
-                        pt: `⚡ Completar meu desenho — ${proPricing.combinedCtaLabel}`,
-                      })}
+                    ? byLanguage(language, { en: "Activating...", es: "Activando...", pt: "Ativando..." })
+                    : canSelfActivate
+                      ? byLanguage(language, {
+                          en: `Complete my design — ${proPricing.combinedCtaLabel}`,
+                          es: `Completar mi diseno — ${proPricing.combinedCtaLabel}`,
+                          pt: `Completar meu desenho — ${proPricing.combinedCtaLabel}`,
+                        })
+                      : byLanguage(language, {
+                          en: "Activate Blueprint Pro",
+                          es: "Activar Blueprint Pro",
+                          pt: "Ativar Blueprint Pro",
+                        })}
                 </span>
               </button>
             ) : null}
@@ -3558,6 +3733,7 @@ function BlueprintProPostUpgradeExperience({
 
       <BlueprintPostUpgradeWorkbench
         artifactCards={viewModel.artifactCards}
+        checkoutState={checkoutState}
         downloadGate={downloadGate}
         effortMetrics={viewModel.effortMetrics}
         onCheckout={onCheckout}
@@ -3595,11 +3771,15 @@ function BlueprintProductPage({
   });
 
   return (
-    <BlueprintFreePostUpgradeExperience
-      language={language}
-      sessionId={sessionId}
-      viewModel={viewModel}
-    />
+    <>
+      <BlueprintFreePostUpgradeExperience
+        activeRoute={activeRoute}
+        language={language}
+        sessionId={sessionId}
+        viewModel={viewModel}
+      />
+      <ProductOperationFloatingStudio activeRoute={activeRoute} tier="blueprint" />
+    </>
   );
 }
 
@@ -3652,41 +3832,39 @@ function BlueprintProPage({
     polling: true,
     staleWhileRevalidating: true,
   });
+  const productBuildActive = isProductBuildActive(productBuild.data);
+  const productBuildCurrentStep =
+    productBuild.data?.current_activity?.label ||
+    productBuild.data?.processing_queue?.summary ||
+    undefined;
 
   async function handleBlueprintProCheckout() {
     if (purchasing) return;
     setPurchasing(true);
     setCheckoutNotice(null);
     try {
-      if (canCheckout) {
-        await executeProductCheckout({
-          sessionId,
-          packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
-          productKey: "blueprint_pro",
-        });
-      } else {
-        const accessResult = await executeAccessRequestWithCheckoutFallback({
-          sessionId,
-          packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
-          productKey: "blueprint_pro",
-        });
-        if (accessResult.type === "checkout") {
-          return;
-        }
-        if (accessResult.response && accessResult.response.status === "approved") {
-          productExperienceStore.invalidateSession(sessionId);
-          window.location.assign(`/projects/${sessionId}/blueprint/pro`);
-          return;
-        }
-        setRequestSentProduct("blueprint_pro");
+      const accessResult = await executeAccessRequestWithCheckoutFallback({
+        sessionId,
+        checkoutState: viewModel.access?.checkout_state,
+        packageCode: checkoutMarketPackageCode("blueprint_pro", checkoutMarket),
+        productKey: "blueprint_pro",
+      });
+      if (accessResult.type === "checkout") {
+        return;
       }
+      if (accessResult.response && accessResult.response.status === "approved") {
+        productExperienceStore.invalidateSession(sessionId);
+        window.location.assign(`/projects/${sessionId}/blueprint/pro`);
+        return;
+      }
+      setRequestSentProduct("blueprint_pro");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al iniciar checkout";
       setCheckoutNotice({
         message: byLanguage(language, {
-          en: `Could not initiate payment: ${message}`,
-          es: `No se pudo iniciar el pago: ${message}`,
-          pt: `Não foi possível iniciar o pagamento: ${message}`,
+          en: `Could not start activation: ${message}`,
+          es: `No se pudo iniciar la activacion: ${message}`,
+          pt: `Nao foi possivel iniciar a ativacao: ${message}`,
         }),
         tone: "danger",
       });
@@ -3848,35 +4026,28 @@ function BlueprintProPage({
                   setPurchasing(true);
                   setCheckoutNotice(null);
                   try {
-                    if (canCheckout) {
-                      await executeProductCheckout({
-                        sessionId,
-                        packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
-                        productKey: "acp",
-                      });
-                    } else {
-                      const accessResult = await executeAccessRequestWithCheckoutFallback({
-                        sessionId,
-                        packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
-                        productKey: "acp",
-                      });
-                      if (accessResult.type === "checkout") {
-                        return;
-                      }
-                      if (accessResult.response && accessResult.response.status === "approved") {
-                        productExperienceStore.invalidateSession(sessionId);
-                        window.location.assign(`/projects/${sessionId}/acp`);
-                        return;
-                      }
-                      setRequestSentProduct("acp");
+                    const accessResult = await executeAccessRequestWithCheckoutFallback({
+                      sessionId,
+                      checkoutState: viewModel.access?.checkout_state,
+                      packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
+                      productKey: "acp",
+                    });
+                    if (accessResult.type === "checkout") {
+                      return;
                     }
+                    if (accessResult.response && accessResult.response.status === "approved") {
+                      productExperienceStore.invalidateSession(sessionId);
+                      window.location.assign(`/projects/${sessionId}/acp`);
+                      return;
+                    }
+                    setRequestSentProduct("acp");
                   } catch (err) {
                     const message = err instanceof Error ? err.message : "Error al iniciar checkout";
                     setCheckoutNotice({
                       message: byLanguage(language, {
-                        en: `Could not initiate payment: ${message}`,
-                        es: `No se pudo iniciar el pago: ${message}`,
-                        pt: `Não foi possível iniciar o pagamento: ${message}`,
+                        en: `Could not start activation: ${message}`,
+                        es: `No se pudo iniciar la activacion: ${message}`,
+                        pt: `Nao foi possivel iniciar a ativacao: ${message}`,
                       }),
                       tone: "danger",
                     });
@@ -3928,9 +4099,9 @@ function BlueprintProPage({
             <span>
               {purchasing
                 ? byLanguage(language, {
-                    en: "Processing...",
-                    es: "Procesando...",
-                    pt: "Processando...",
+                    en: "Activating...",
+                    es: "Activando...",
+                    pt: "Ativando...",
                   })
                 : blueprintProRequestSent
                 ? byLanguage(language, {
@@ -3940,22 +4111,28 @@ function BlueprintProPage({
                   })
                 : canCheckout
                 ? byLanguage(language, {
-                    en: `⚡ Complete my design — ${proPricing.combinedCtaLabel}`,
-                    es: `⚡ Completar mi diseño — ${proPricing.combinedCtaLabel}`,
-                    pt: `⚡ Completar meu desenho — ${proPricing.combinedCtaLabel}`,
+                    en: `Complete my design — ${proPricing.combinedCtaLabel}`,
+                    es: `Completar mi diseno — ${proPricing.combinedCtaLabel}`,
+                    pt: `Completar meu desenho — ${proPricing.combinedCtaLabel}`,
                   })
                 : byLanguage(language, {
-                    en: "Request access",
-                    es: "Solicitar acceso",
-                    pt: "Solicitar acceso",
+                    en: "Activate Blueprint Pro",
+                    es: "Activar Blueprint Pro",
+                    pt: "Ativar Blueprint Pro",
                   })}
             </span>
           </button>
         )}
       </UxaContextualActionDock>
-      {/* Floating overlay — does not modify any existing content */}
-      <FloatingArchitectureStudio
-        isOpen={productBuild.isFetching}
+      <ProductOperationFloatingStudio
+        activeRoute={activeRoute}
+        currentStep={purchasing ? byLanguage(language, {
+          en: "Validating access and workspace quota",
+          es: "Validando acceso y cupo del workspace",
+          pt: "Validando acesso e cota do workspace",
+        }) : productBuildCurrentStep}
+        forceOpen={purchasing || productBuild.isFetching || productBuildActive}
+        stageLabel={purchasing || productBuildActive ? "Blueprint Pro" : undefined}
         tier="blueprint_pro"
       />
     </div>
@@ -4087,12 +4264,13 @@ function AcpProductPage({
   const openQuestions = questions.filter(
     (q) => q.status === "open" || (!q.status && !q.answer_text),
   );
+  const blockingOpenQuestions = openQuestions.filter((q) => q.blocking);
   const answeredQuestions = questions.filter(
     (q) => q.status === "answered" || q.status === "resolved",
   );
   const deferredQuestions = questions.filter((q) => q.status === "deferred");
   const isQuestionDataReady = questionLoadStatus === "ready";
-  const isResolutionDone = isQuestionDataReady && openQuestions.length === 0;
+  const isResolutionDone = isQuestionDataReady && blockingOpenQuestions.length === 0;
   const completedAcpPhaseKeys = new Set(
     (workspace?.phases ?? [])
       .filter((phase) => phase.status === "completed" || phase.status === "completed_with_observations")
@@ -4318,28 +4496,21 @@ function AcpProductPage({
               if (purchasing) return;
               setPurchasing(true);
               try {
-                if (canCheckout) {
-                  await executeProductCheckout({
-                    sessionId,
-                    packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
-                    productKey: "acp",
-                  });
-                } else {
-                  const accessResult = await executeAccessRequestWithCheckoutFallback({
-                    sessionId,
-                    packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
-                    productKey: "acp",
-                  });
-                  if (accessResult.type === "checkout") {
-                    return;
-                  }
-                  if (accessResult.response && accessResult.response.status === "approved") {
-                    productExperienceStore.invalidateSession(sessionId);
-                    window.location.assign(`/projects/${sessionId}/acp`);
-                    return;
-                  }
-                  setRequestSent(true);
+                const accessResult = await executeAccessRequestWithCheckoutFallback({
+                  sessionId,
+                  checkoutState: viewModel.access?.checkout_state,
+                  packageCode: checkoutMarketPackageCode("acp", checkoutMarket),
+                  productKey: "acp",
+                });
+                if (accessResult.type === "checkout") {
+                  return;
                 }
+                if (accessResult.response && accessResult.response.status === "approved") {
+                  productExperienceStore.invalidateSession(sessionId);
+                  window.location.assign(`/projects/${sessionId}/acp`);
+                  return;
+                }
+                setRequestSent(true);
               } finally {
                 setPurchasing(false);
               }
@@ -4436,6 +4607,7 @@ function AcpProductPage({
           }
         }}
         canNavigateTo={canNavigateTo}
+        blockingOpenQuestionsCount={blockingOpenQuestions.length}
         openQuestionsCount={openQuestions.length}
         resolutionState={questionLoadStatus}
       />
@@ -4670,9 +4842,9 @@ function AcpProductPage({
           </UxaButton>
         )}
       </UxaContextualActionDock>
-      {/* Floating overlay — does not modify any existing content */}
-      <FloatingArchitectureStudio
-        isOpen={loading}
+      <ProductOperationFloatingStudio
+        activeRoute={activeRoute}
+        forceOpen={loading}
         tier="acp"
       />
     </div>

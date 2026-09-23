@@ -486,6 +486,7 @@ export function createSessionsApi(client = apiClient) {
     createAccessRequest(sessionId: string, payload: AccessRequestCreateRequest) {
       return client.post<AccessRequestResponse>(`/api/v1/sessions/${sessionId}/access-requests`, {
         body: payload,
+        timeoutMs: LONG_RUNNING_STAGE_TIMEOUT_MS,
       });
     },
     resolveAccessRequest(requestId: string, payload: AccessRequestResolveRequest) {

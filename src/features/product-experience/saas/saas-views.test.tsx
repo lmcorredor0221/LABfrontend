@@ -18,7 +18,7 @@ import type {
 } from "@/features/product-experience/core/server-state";
 import type { ProductStageActions } from "@/features/product-experience/shell/use-product-experience-route";
 import type { AttentionResponseV2 } from "@/features/attention/attention-contracts";
-import type { SessionCommercialAccess, SessionSnapshot } from "@/features/sessions/types";
+import type { AccessRequestResponse, SessionCommercialAccess, SessionSnapshot } from "@/features/sessions/types";
 
 const mockPush = vi.fn();
 const mockUseSearchParams = vi.fn(() => new URLSearchParams());
@@ -108,6 +108,26 @@ function resource<T>(data: T) {
     status: "ready" as const,
     updatedAt: Date.now(),
     version: "v1",
+  };
+}
+
+function createAccessRequestResponse(overrides: Partial<AccessRequestResponse> = {}): AccessRequestResponse {
+  const productKey = overrides.product_key ?? "blueprint_pro";
+  return {
+    capability: overrides.capability ?? (productKey === "acp" ? "acp.build" : "blueprint.download"),
+    created_at: "2026-08-03T10:00:00Z",
+    id: "access-request-1",
+    product_key: productKey,
+    reason: "Access request",
+    requester_user_id: "user-1",
+    resolution_note: "",
+    resolved_at: null,
+    session_id: "session-uxa11",
+    status: "pending",
+    target_tier: productKey === "acp" ? "acp" : "blueprint_pro",
+    updated_at: "2026-08-03T10:00:00Z",
+    workspace_id: "workspace-1",
+    ...overrides,
   };
 }
 
@@ -1016,6 +1036,7 @@ beforeEach(() => {
   vi.mocked(premiumEnrichmentApi.resolveItem).mockReset();
   mockSessionsApi.completeSandboxCheckout.mockReset();
   mockSessionsApi.createAccessRequest.mockReset();
+  mockSessionsApi.createAccessRequest.mockResolvedValue(createAccessRequestResponse());
   mockSessionsApi.createCheckoutSession.mockReset();
   mockSessionsApi.createExportJob.mockReset();
   mockSessionsApi.downloadExportJob.mockReset();
@@ -1135,6 +1156,37 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.queryByText("PROYECTO / PRODUCTO")).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /Resumen Blueprint/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Diagramas de Blueprint Free" })).not.toBeInTheDocument();
+  });
+
+  it("shows the floating processing studio on Blueprint Free while a stage operation is running", () => {
+    const route = createRoute("blueprint");
+    route.operation.data!.stageOperation = createStageOperation({
+      action: "recommend_memory",
+      current_step: "memory_profile",
+      detail: "Definiendo memoria, conocimiento y contexto.",
+      expires_at: "2099-01-01T00:00:00Z",
+      stage_key: "memory",
+      status: "running",
+    });
+
+    renderWithLanguage(<ProductSaasView activeRoute={route} section="blueprint" />);
+
+    expect(screen.getByRole("dialog", { name: "Procesando Memoria" })).toBeInTheDocument();
+    expect(screen.getByText("Perfil de memoria")).toBeInTheDocument();
+    expect(screen.getByText("Procesando en backend")).toBeInTheDocument();
+  });
+
+  it("allows Blueprint Pro promotion from Blueprint Free while review is pending", () => {
+    const route = createRoute("blueprint");
+    route.snapshot.data!.session.status = "needs_review";
+
+    renderWithLanguage(<ProductSaasView activeRoute={route} section="blueprint" />);
+
+    expect(screen.getByRole("link", { name: /Mejorar a Blueprint Pro|Completar mi diseño/i })).toHaveAttribute(
+      "href",
+      "/projects/session-uxa11/blueprint/pro",
+    );
+    expect(screen.queryByRole("link", { name: "Resolver pendientes de Blueprint Free" })).not.toBeInTheDocument();
   });
 
   it("opens Blueprint Free tracking from the result_tab deep link with the live build tracker", () => {
@@ -1314,7 +1366,7 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("radio", { name: "co" })).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByRole("radio", { name: "mx" })).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "ar" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: /Completar mi diseño|Adquirir Blueprint Pro/i })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /Completar mi dise(?:ñ|n)o|Adquirir Blueprint Pro/i })[0]);
 
     await waitFor(() =>
       expect(mockSessionsApi.createCheckoutSession).toHaveBeenCalledWith(
@@ -1326,7 +1378,13 @@ describe("UXA11 SaaS product views", () => {
       ),
     );
     expect(mockSessionsApi.completeSandboxCheckout).not.toHaveBeenCalled();
-    expect(mockSessionsApi.createAccessRequest).not.toHaveBeenCalled();
+    expect(mockSessionsApi.createAccessRequest).toHaveBeenCalledWith(
+      "session-uxa11",
+      expect.objectContaining({
+        capability: "blueprint_pro",
+        session_id: "session-uxa11",
+      }),
+    );
   });
 
   it("falls back to Colombia checkout when Blueprint Pro access request is rejected because checkout is available", async () => {
@@ -1363,7 +1421,7 @@ describe("UXA11 SaaS product views", () => {
 
     renderWithLanguage(<ProductSaasView activeRoute={lockedRoute} section="blueprint_pro" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Solicitar acceso" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Activar Blueprint Pro" })[0]);
 
     await waitFor(() =>
       expect(mockSessionsApi.createCheckoutSession).toHaveBeenCalledWith(
@@ -1387,7 +1445,7 @@ describe("UXA11 SaaS product views", () => {
       <ProductSaasView activeRoute={lockedRoute} section="blueprint_pro" />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Solicitar acceso" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Activar Blueprint Pro" })[0]);
 
     await waitFor(() => expect(mockSessionsApi.createAccessRequest).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("button", { name: "Solicitud enviada" })).toBeInTheDocument();
@@ -1534,6 +1592,12 @@ describe("UXA11 SaaS product views", () => {
 
   it("offers ACP acquisition from Blueprint Pro when Blueprint Pro is active but ACP is not", async () => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams("market=ar"));
+    mockSessionsApi.createAccessRequest.mockResolvedValueOnce(createAccessRequestResponse({
+      capability: "acp",
+      id: "access-request-acp-1",
+      product_key: "acp",
+      target_tier: "acp",
+    }));
     mockSessionsApi.createCheckoutSession.mockResolvedValueOnce({
       checkout_ref: "rapyd-checkout-acp-1",
       checkout_url: "",
@@ -1566,6 +1630,13 @@ describe("UXA11 SaaS product views", () => {
           session_id: "session-uxa11",
         }),
       ),
+    );
+    expect(mockSessionsApi.createAccessRequest).toHaveBeenCalledWith(
+      "session-uxa11",
+      expect.objectContaining({
+        capability: "acp",
+        session_id: "session-uxa11",
+      }),
     );
   });
 
@@ -1717,6 +1788,25 @@ describe("UXA11 SaaS product views", () => {
     expect(await screen.findByText(/No se pudo cargar la zona de preguntas ACP/i)).toBeInTheDocument();
     expect(screen.queryByText(/Gate superado/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Continuar a Validación/i })).toBeDisabled();
+  });
+
+  it("keeps non-blocking ACP questions visible without locking Validation", async () => {
+    const nonBlockingQuestion = createAcpQuestions()[1];
+    mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspace());
+    mockSessionsApi.getAcpQuestions.mockResolvedValueOnce([nonBlockingQuestion]);
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    expect(await screen.findByText(/No quedan preguntas bloqueantes/i)).toBeInTheDocument();
+    expect(screen.getByText("¿Qué fuentes consultará?")).toBeInTheDocument();
+    const continueButton = screen
+      .getAllByRole("button", { name: /Continuar a Validaci/i })
+      .find((button) => !button.hasAttribute("disabled"));
+    expect(continueButton).toBeDefined();
+
+    fireEvent.click(continueButton!);
+
+    expect(await screen.findByRole("button", { name: /Generar pruebas ACP y continuar/i })).toBeInTheDocument();
   });
 
   it("keeps artifact reconciliation locked until ACP validation phases are complete", async () => {

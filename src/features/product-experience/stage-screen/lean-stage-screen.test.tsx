@@ -15,6 +15,99 @@ function renderStageScreen(contract: LeanStageScreenContract) {
 }
 
 describe("LeanStageScreen", () => {
+  it("uses the current stage label in the processing overlay", () => {
+    render(
+      <LanguageProvider>
+        <LeanStageScreen
+          actionArea={<button type="button">Ejecutar</button>}
+          contract={{
+            attentionItems: [],
+            linkedResults: [],
+            metric: {
+              label: "Completitud funcional",
+              value: "43%",
+            },
+            nextStep: "Continuar con la siguiente etapa.",
+            primaryAction: {
+              description: "Generar definicion.",
+              label: "Generar Definicion",
+              tone: "brand",
+            },
+            stage: {
+              description: "Convierte discovery en canvas y requerimientos.",
+              objective: "Definir alcance funcional.",
+              statusLabel: "En curso",
+              statusTone: "brand",
+              title: "Definir",
+            },
+            tabs: [
+              {
+                children: <p>Contenido de la tarea</p>,
+                description: "Trabajo principal de la etapa.",
+                key: "task",
+                label: "Tarea",
+              },
+            ],
+          }}
+          isProcessing
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.getByRole("dialog", { name: "Procesando Definir" })).toBeInTheDocument();
+    expect(screen.getByText("Operacion tecnica dentro de Definir")).toBeInTheDocument();
+    expect(screen.getByText("Canvas de solucion")).toBeInTheDocument();
+    expect(screen.queryByText("Procesando Blueprint")).not.toBeInTheDocument();
+  });
+
+  it("maps long design stage titles to design operation milestones", () => {
+    render(
+      <LanguageProvider>
+        <LeanStageScreen
+          actionArea={<button type="button">Ejecutar</button>}
+          contract={{
+            attentionItems: [],
+            linkedResults: [],
+            metric: {
+              label: "Completitud funcional",
+              value: "19%",
+            },
+            nextStep: "Continuar con herramientas.",
+            primaryAction: {
+              description: "Generar diseno.",
+              label: "Generar Diseno",
+              tone: "brand",
+            },
+            stage: {
+              description: "Selecciona arquitectura y comportamiento del agente.",
+              objective: "Definir arquitectura operativa.",
+              statusLabel: "En curso",
+              statusTone: "brand",
+              title: "Disenar: arquitectura y comportamiento",
+            },
+            tabs: [
+              {
+                children: <p>Contenido de diseno</p>,
+                description: "Trabajo principal de la etapa.",
+                key: "task",
+                label: "Tarea",
+              },
+            ],
+          }}
+          isProcessing
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.getByRole("dialog", { name: "Procesando Disenar" })).toBeInTheDocument();
+    expect(screen.getByText("Operacion tecnica dentro de Disenar")).toBeInTheDocument();
+    expect(screen.getByText("Propuesta de arquitectura")).toBeInTheDocument();
+    expect(screen.getByText("Revision critica")).toBeInTheDocument();
+    expect(screen.getByText("Consolidacion")).toBeInTheDocument();
+    expect(screen.getByText("Publicacion del artefacto")).toBeInTheDocument();
+    expect(screen.queryByText("Contexto de Disenar: arquitectura y comportamiento")).not.toBeInTheDocument();
+  });
+
   it("hides the low-value stage metric from the hero", () => {
     renderStageScreen({
       attentionItems: [],
