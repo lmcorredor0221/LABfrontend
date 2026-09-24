@@ -38,6 +38,7 @@ export function InitiativeEvaluator({ onStartProject, className }: InitiativeEva
 
   const examples = [
     {
+      id: "invoice-review",
       icon: "📄",
       label: t("scanner.chip1", "Tenemos 6 personas revisando facturas..."),
       text: byLanguage(language, {
@@ -47,6 +48,7 @@ export function InitiativeEvaluator({ onStartProject, className }: InitiativeEva
       }),
     },
     {
+      id: "customer-support",
       icon: "💬",
       label: t("scanner.chip2", "Quiero automatizar soporte de clientes..."),
       text: byLanguage(language, {
@@ -56,6 +58,7 @@ export function InitiativeEvaluator({ onStartProject, className }: InitiativeEva
       }),
     },
     {
+      id: "policy-review",
       icon: "📑",
       label: t("scanner.chip3", "Necesitamos analizar documentos y solicitar aprobación..."),
       text: byLanguage(language, {
@@ -65,6 +68,7 @@ export function InitiativeEvaluator({ onStartProject, className }: InitiativeEva
       }),
     },
     {
+      id: "business-portal",
       icon: "🖥️",
       label: byLanguage(language, {
         es: "Usar un portal interno con reglas y aprobaciones...",
@@ -93,11 +97,16 @@ export function InitiativeEvaluator({ onStartProject, className }: InitiativeEva
 
     setLoading(true);
     setError(null);
+    const matchedExample = examples.find((item) => item.text.trim() === text.trim());
+    const inputType = matchedExample ? "example" : "custom";
 
     try {
       const evaluation = await evaluateInitiativeApi({
         initiative_text: text,
         language: language as "es" | "en" | "pt",
+        input_type: inputType,
+        example_id: matchedExample?.id ?? "",
+        source: "landing_validator",
       });
       setResult(evaluation);
     } catch (err) {
@@ -158,9 +167,9 @@ export function InitiativeEvaluator({ onStartProject, className }: InitiativeEva
               {t("scanner.quickExamplesTitle", "Ejemplos rápidos para probar:")}
             </p>
             <div className="flex flex-wrap gap-2">
-              {examples.map((item, idx) => (
+              {examples.map((item) => (
                 <button
-                  key={idx}
+                  key={item.id}
                   type="button"
                   onClick={() => setText(item.text)}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] hover:bg-blue-50/50 shadow-2xs transition"

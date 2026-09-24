@@ -92,6 +92,13 @@ describe("InitiativeEvaluator Component", () => {
 
     await waitFor(() => {
       expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input_type: "custom",
+          example_id: "",
+          source: "landing_validator",
+        }),
+      );
       expect(screen.getByText("Candidato Óptimo para Construcción de Agente IA")).toBeInTheDocument();
       expect(screen.getByText(/88/)).toBeInTheDocument();
       expect(screen.getByText("Iniciar Blueprint de esta Solución")).toBeInTheDocument();

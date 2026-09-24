@@ -110,7 +110,8 @@ export function ValidateIdeaSection({
       return;
     }
 
-    const inputType = examplePrompts.some((item) => item.text === promptText) ? "example" : "custom";
+    const matchedExample = examplePrompts.find((item) => item.text.trim() === promptText.trim());
+    const inputType = matchedExample ? "example" : "custom";
     if (!hasTrackedValidatorStart.current) {
       hasTrackedValidatorStart.current = trackValidatorStarted({
         input_type: inputType,
@@ -130,6 +131,9 @@ export function ValidateIdeaSection({
       const evaluation = await evaluateInitiativeApi({
         initiative_text: promptText,
         language: language as "es" | "en" | "pt",
+        input_type: inputType,
+        example_id: matchedExample ? String(matchedExample.id) : "",
+        source: "landing_validator",
       });
       setEvalResult(evaluation);
       trackIdeaEvaluated({

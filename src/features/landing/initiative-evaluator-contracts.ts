@@ -35,6 +35,9 @@ export type InitiativeEvaluationRequest = {
   language?: "es" | "en" | "pt";
   business_context?: string;
   expected_users?: string;
+  input_type?: "custom" | "example";
+  example_id?: string;
+  source?: string;
 };
 
 export type InitiativeEvaluationResponse = {
@@ -65,6 +68,8 @@ export type InitiativeEvaluationResponse = {
     latency_ms?: number;
   };
   evaluation_id: string;
+  is_repeat?: boolean;
+  repeat_count?: number;
 };
 
 export async function evaluateInitiativeApi(
@@ -78,6 +83,9 @@ export async function evaluateInitiativeApi(
         language: request.language || "es",
         business_context: request.business_context,
         expected_users: request.expected_users,
+        input_type: request.input_type || "custom",
+        example_id: request.example_id || "",
+        source: request.source || "landing_validator",
       },
       redirectOnUnauthorized: false,
     },

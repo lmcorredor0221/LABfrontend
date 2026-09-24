@@ -119,7 +119,7 @@ describe("LabLandingPage Component", () => {
       evaluation_id: "eval_landing_123",
     };
 
-    vi.spyOn(contracts, "evaluateInitiativeApi").mockResolvedValueOnce(mockResponse);
+    const apiSpy = vi.spyOn(contracts, "evaluateInitiativeApi").mockResolvedValueOnce(mockResponse);
 
     renderWithProviders();
 
@@ -137,5 +137,12 @@ describe("LabLandingPage Component", () => {
       expect(screen.getByText("¡Sí, la IA puede automatizar esto!")).toBeInTheDocument();
       expect(screen.getByText(/Crear mi proyecto con este diagnóstico/i)).toBeInTheDocument();
     });
+    expect(apiSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input_type: "example",
+        example_id: "1",
+        source: "landing_validator",
+      }),
+    );
   });
 });
