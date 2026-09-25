@@ -1045,13 +1045,80 @@ function canRenderBuildTracker(status: ProductBuildStatus | null | undefined) {
   return Boolean(status) && status?.entitlement?.purchase_required !== true;
 }
 
-function isProductBuildActive(status: ProductBuildStatus | null | undefined) {
-  return Boolean(
-    status?.processing_queue?.active ||
-      status?.lifecycle === "queued" ||
-      status?.lifecycle === "preparing" ||
-      status?.lifecycle === "running",
+function isProductBuildLifecycleActive(status: ProductBuildStatus | null | undefined) {
+  return (
+    status?.lifecycle === "queued" ||
+    status?.lifecycle === "preparing" ||
+    status?.lifecycle === "running"
   );
+}
+
+function isProductBuildQueueEffectivelyActive(status: ProductBuildStatus | null | undefined) {
+  return Boolean(status?.processing_queue?.active && isProductBuildLifecycleActive(status));
+}
+
+function hasProductBuildRetryAction(status: ProductBuildStatus | null | undefined) {
+  return Boolean(
+    status?.last_error?.retry_action_key === "retry_failed" ||
+      status?.actions?.some((action) => (
+        action.action_key === "retry_failed" &&
+        action.state !== "hidden" &&
+        action.state !== "disabled" &&
+        action.state !== "blocked"
+      )),
+  );
+}
+
+function isProductBuildActive(status: ProductBuildStatus | null | undefined) {
+  return Boolean(isProductBuildQueueEffectivelyActive(status) || isProductBuildLifecycleActive(status));
+}
+
+function productBuildRouteSyncKey(status: ProductBuildStatus | null | undefined) {
+  if (!status) return "";
+  const queue = status.processing_queue;
+  const activity = status.current_activity;
+  const error = status.last_error;
+  return [
+    status.product_key,
+    status.lifecycle,
+    status.progress?.percent ?? "",
+    queue?.status ?? "",
+    queue?.active ? "active" : "idle",
+    queue?.pending_count ?? "",
+    queue?.processing_count ?? "",
+    queue?.completed_count ?? "",
+    queue?.failed_count ?? "",
+    queue?.updated_at ?? "",
+    activity?.status ?? "",
+    activity?.updated_at ?? "",
+    error?.code ?? "",
+    error?.retry_action_key ?? "",
+  ].join("|");
+}
+
+function useSyncRouteWithProductBuild(
+  activeRoute: ProductExperienceRouteSnapshot | null,
+  status: ProductBuildStatus | null | undefined,
+) {
+  const syncKey = productBuildRouteSyncKey(status);
+  const currentStage = activeRoute?.route.currentStage;
+  const operationStage = activeRoute?.route.operationStage ?? null;
+  const sessionId = activeRoute?.route.sessionId;
+
+  useEffect(() => {
+    if (!sessionId || !currentStage || !syncKey) return;
+    productExperienceStore.invalidateSession(sessionId, { attention: false });
+    void productExperienceStore
+      .loadRoute(
+        {
+          currentStage,
+          operationStage,
+          sessionId,
+        },
+        { force: true },
+      )
+      .catch(() => {});
+  }, [currentStage, operationStage, sessionId, syncKey]);
 }
 
 function isExecutiveOverviewSection(section: ProductExperienceProductSection): section is ExecutiveOverviewProductSection {
@@ -1091,6 +1158,7 @@ function BlueprintExecutiveOverviewPage({
     polling: true,
     staleWhileRevalidating: true,
   });
+  useSyncRouteWithProductBuild(activeRoute, productBuild.data);
   const overview = useMemo(
     () =>
       buildExecutiveOverviewModel({
@@ -1260,11 +1328,7 @@ function BlueprintBuildInspector({
     status?.deliverables?.length ??
     completedCount + pendingCount + processingCount + failedCount;
   const progress = Math.max(0, Math.min(100, Math.round(status?.progress.percent ?? (totalCount ? (completedCount / totalCount) * 100 : 100))));
-  const isRunning =
-    queue?.active ||
-    status?.lifecycle === "queued" ||
-    status?.lifecycle === "preparing" ||
-    status?.lifecycle === "running";
+  const isRunning = isProductBuildActive(status);
   const shouldOpen = Boolean(productBuild.isError || isRunning || failedCount > 0 || (!compactWhenStable && pendingCount > 0));
   const [isOpen, setIsOpen] = useState(shouldOpen || !compactWhenStable);
 
@@ -1598,12 +1662,10 @@ function BlueprintProCompactTrackingPanel({
     queue?.total_count ??
     status?.progress.total_units ??
     deliverables.length;
-  const isRunning = Boolean(
-    queue?.active ||
-      status?.lifecycle === "queued" ||
-      status?.lifecycle === "preparing" ||
-      status?.lifecycle === "running",
-  );
+  const isRunning = isProductBuildActive(status);
+  const queueActive = isProductBuildQueueEffectivelyActive(status);
+  const retryActionAvailable = hasProductBuildRetryAction(status);
+  const needsRetry = Boolean(status?.lifecycle === "requires_attention" || status?.last_error?.recoverable || retryActionAvailable);
   const progress = Math.max(
     0,
     Math.min(
@@ -1618,11 +1680,11 @@ function BlueprintProCompactTrackingPanel({
     ),
   );
   const isCompletedWithoutFailures = status?.lifecycle === "completed" && failedCount === 0;
-  const canRetryQueue = Boolean(failedCount > 0 && !queue?.active && !productBuild.isFetching);
-  const canProcessQueue = Boolean(pendingCount > 0 && !isCompletedWithoutFailures && !queue?.active && !productBuild.isFetching);
+  const canRetryQueue = Boolean((retryActionAvailable || failedCount > 0 || needsRetry) && !queueActive && !productBuild.isFetching);
+  const canProcessQueue = Boolean(pendingCount > 0 && !isCompletedWithoutFailures && !queueActive && !productBuild.isFetching);
   const statusTone: UxaTone = productBuild.isError
     ? "danger"
-    : failedCount
+    : failedCount || needsRetry
       ? "danger"
       : isRunning
         ? "info"
@@ -1631,7 +1693,7 @@ function BlueprintProCompactTrackingPanel({
           : "warning";
   const statusLabel = productBuild.isError
     ? byLanguage(language, { en: "Status unavailable", es: "Estado no disponible", pt: "Estado indisponivel" })
-    : failedCount
+    : failedCount || needsRetry
       ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
       : isRunning
         ? byLanguage(language, { en: "Generation running", es: "Generacion en curso", pt: "Geracao em andamento" })
@@ -1649,8 +1711,11 @@ function BlueprintProCompactTrackingPanel({
     const active = items.filter((item) => item.state === "queued" || item.state === "generating").length;
     const pending = items.filter((item) => item.state === "pending" || item.state === "stale").length;
     const total = items.length;
+    const needsReview = Boolean(failed || (needsRetry && active > 0));
     const tone: UxaTone = failed
       ? "danger"
+      : needsReview
+        ? "danger"
       : active || (isRunning && !total)
         ? "info"
         : pending || (!total && !downloadGate.allowed)
@@ -1668,6 +1733,7 @@ function BlueprintProCompactTrackingPanel({
       completed,
       failed,
       key,
+      needsReview,
       pending,
       progressLabel: total ? `${completed}/${total}` : fallbackLabel,
       tone,
@@ -1717,7 +1783,7 @@ function BlueprintProCompactTrackingPanel({
 
   const queueCards = [
     {
-      detail: diagramGroup.failed
+      detail: diagramGroup.needsReview
         ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
         : diagramGroup.active || (isRunning && !diagramGroup.total)
           ? byLanguage(language, { en: "Generating diagram", es: "Generando diagrama", pt: "Gerando diagrama" })
@@ -1727,7 +1793,7 @@ function BlueprintProCompactTrackingPanel({
       title: byLanguage(language, { en: "Agent architecture", es: "Arquitectura de agentes", pt: "Arquitetura de agentes" }),
     },
     {
-      detail: artifactGroup.failed
+      detail: artifactGroup.needsReview
         ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
         : artifactGroup.active
           ? byLanguage(language, { en: "Updating artifact", es: "Actualizando artefacto", pt: "Atualizando artefato" })
@@ -1737,7 +1803,7 @@ function BlueprintProCompactTrackingPanel({
       title: "Security guardrails",
     },
     {
-      detail: documentGroup.failed
+      detail: documentGroup.needsReview
         ? byLanguage(language, { en: "Needs review", es: "Requiere revision", pt: "Requer revisao" })
         : downloadGate.allowed
           ? byLanguage(language, { en: "Ready to download", es: "Listo para descargar", pt: "Pronto para download" })
@@ -2627,6 +2693,7 @@ function BlueprintFreePostUpgradeExperience({
     polling: true,
     staleWhileRevalidating: true,
   });
+  useSyncRouteWithProductBuild(activeRoute, productBuild.data);
   const activeTab =
     localSelection?.source === requestedTab
       ? localSelection.tab
@@ -2811,7 +2878,7 @@ function BlueprintFreePostUpgradeExperience({
     productBuild.isError ||
     operationBlocksPremium;
   const canPromoteToBlueprintPro = !blueprintFreeBlocksPremium;
-  const blueprintFreeBlockedReason = productBuildInProgress || operation?.status === "queued" || operation?.status === "running"
+  const blueprintFreeBlockedReason = blueprintFreeBlocksPremium && (productBuildInProgress || operation?.status === "queued" || operation?.status === "running" || status?.lifecycle === "partial")
     ? byLanguage(language, {
         en: "LAB is still preparing Blueprint Free. Pro activation will be available when the free result is ready.",
         es: "LAB aun esta preparando Blueprint Free. La activacion de Pro se habilitara cuando el resultado gratis quede listo.",
@@ -3802,16 +3869,12 @@ function BlueprintProPage({
     language,
     section: "blueprint_pro",
   });
-  const unlocked =
+  const routeUnlocked =
     hasTier(viewModel.accessTier, "blueprint_pro") ||
     viewModel.canDownloadBlueprint;
-  const canOpenAcp =
+  const routeCanOpenAcp =
     hasTier(viewModel.accessTier, "acp") ||
     Boolean(viewModel.access?.can_build_acp);
-  const canAcquireAcp = unlocked && !canOpenAcp;
-  const blueprintProProgress =
-    viewModel.products.find((product) => product.key === "blueprint_pro")?.progress ??
-    (unlocked ? 75 : 20);
   const premiumAssetCount = viewModel.artifactCards.filter(
     (artifact) => resolveArtifactTier(artifact) === "blueprint_pro",
   ).length;
@@ -3822,8 +3885,6 @@ function BlueprintProPage({
 
   const [purchasing, setPurchasing] = useState(false);
   const [requestSentProduct, setRequestSentProduct] = useState<"blueprint_pro" | "acp" | null>(null);
-  const blueprintProRequestSent = requestSentProduct === "blueprint_pro" && !unlocked;
-  const acpRequestSent = requestSentProduct === "acp" && !canOpenAcp;
   const [downloading, setDownloading] = useState(false);
   const [downloadNotice, setDownloadNotice] = useState<InlineNotice | null>(null);
   const [checkoutNotice, setCheckoutNotice] = useState<InlineNotice | null>(null);
@@ -3832,6 +3893,26 @@ function BlueprintProPage({
     polling: true,
     staleWhileRevalidating: true,
   });
+  useSyncRouteWithProductBuild(activeRoute, productBuild.data);
+  const productBuildEntitlement = productBuild.data?.entitlement ?? null;
+  const productBuildAccessAllowed =
+    productBuildEntitlement?.purchase_required === false &&
+    productBuildEntitlement.access_state === "allowed";
+  const unlocked =
+    routeUnlocked ||
+    Boolean(productBuildAccessAllowed && hasTier(productBuildEntitlement?.tier ?? "blueprint", "blueprint_pro"));
+  const canOpenAcp =
+    routeCanOpenAcp ||
+    Boolean(productBuildAccessAllowed && hasTier(productBuildEntitlement?.tier ?? "blueprint", "acp"));
+  const isRequiresAttention = productBuild.data?.lifecycle === "requires_attention";
+  const isCompleted = productBuild.data?.lifecycle === "completed" || viewModel.canDownloadBlueprint;
+  const canAcquireAcp = unlocked && isCompleted && !canOpenAcp;
+  const blueprintProProgress =
+    productBuild.data?.progress.percent ??
+    viewModel.products.find((product) => product.key === "blueprint_pro")?.progress ??
+    (unlocked ? 75 : 20);
+  const blueprintProRequestSent = requestSentProduct === "blueprint_pro" && !unlocked;
+  const acpRequestSent = requestSentProduct === "acp" && !canOpenAcp;
   const productBuildActive = isProductBuildActive(productBuild.data);
   const productBuildCurrentStep =
     productBuild.data?.current_activity?.label ||
@@ -4000,7 +4081,36 @@ function BlueprintProPage({
         ) : null}
         {unlocked ? (
           <>
-            {canOpenAcp ? (
+            {isRequiresAttention ? (
+              <button
+                className="uxa-button uxa-button--primary"
+                disabled={productBuild.isFetching}
+                onClick={() => void productBuild.executeCommand("retry_failed", { allow_llm: true })}
+                type="button"
+              >
+                <span>
+                  {byLanguage(language, {
+                    en: "Retry queue",
+                    es: "Reintentar cola",
+                    pt: "Tentar fila novamente",
+                  })}
+                </span>
+              </button>
+            ) : productBuildActive && !isCompleted ? (
+              <button
+                className="uxa-button uxa-button--primary opacity-60 cursor-not-allowed"
+                disabled
+                type="button"
+              >
+                <span>
+                  {byLanguage(language, {
+                    en: "Building Blueprint Pro...",
+                    es: "Construyendo Blueprint Pro...",
+                    pt: "Construindo Blueprint Pro...",
+                  })}
+                </span>
+              </button>
+            ) : canOpenAcp ? (
               <a
                 className="uxa-button uxa-button--primary"
                 href={`/projects/${sessionId}/acp`}
@@ -4131,7 +4241,7 @@ function BlueprintProPage({
           es: "Validando acceso y cupo del workspace",
           pt: "Validando acesso e cota do workspace",
         }) : productBuildCurrentStep}
-        forceOpen={purchasing || productBuild.isFetching || productBuildActive}
+        forceOpen={purchasing || (productBuildActive && !isRequiresAttention)}
         stageLabel={purchasing || productBuildActive ? "Blueprint Pro" : undefined}
         tier="blueprint_pro"
       />

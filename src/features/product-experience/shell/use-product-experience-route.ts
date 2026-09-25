@@ -612,6 +612,10 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
 
   const retryOperation = useCallback(
     async (operationId: string): Promise<ProductExperienceStageOperation> => {
+      if (operationId.startsWith("attention:") || operationId.startsWith("activity:")) {
+        await refreshRoute({ force: true });
+        return { id: operationId, action: "retry", status: "completed", steps: [] } as unknown as ProductExperienceStageOperation;
+      }
       const result = await productExperienceStore.retryStageOperation(operationId);
       const backendOperation = operationFromStageOperationRecord(result);
       setStageAction({
@@ -628,6 +632,10 @@ export function useProductExperienceRoute(route: ProductRouteState, enabled = tr
 
   const cancelOperation = useCallback(
     async (operationId: string): Promise<ProductExperienceStageOperation> => {
+      if (operationId.startsWith("attention:") || operationId.startsWith("activity:")) {
+        await refreshRoute({ force: true });
+        return { id: operationId, action: "cancel", status: "completed", steps: [] } as unknown as ProductExperienceStageOperation;
+      }
       const result = await productExperienceStore.cancelStageOperation(operationId);
       const backendOperation = operationFromStageOperationRecord(result);
       setStageAction({

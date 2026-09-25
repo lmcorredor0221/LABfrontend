@@ -49,6 +49,10 @@ const mockUseProductBuildStatus = vi.hoisted(() => vi.fn<() => UseProductBuildSt
   status: "empty",
   updatedAt: null,
 })));
+const mockProductExperienceStore = vi.hoisted(() => ({
+  invalidateSession: vi.fn(),
+  loadRoute: vi.fn(async () => undefined),
+}));
 
 function createProductBuildStatusMock(
   overrides: Partial<UseProductBuildStatusResult> = {},
@@ -94,6 +98,10 @@ vi.mock("@/features/deliverables/infrastructure/deliverable-catalog-api", () => 
 
 vi.mock("@/features/product-experience/saas/use-product-build-status", () => ({
   useProductBuildStatus: mockUseProductBuildStatus,
+}));
+
+vi.mock("@/features/product-experience/shell/use-product-experience-route", () => ({
+  productExperienceStore: mockProductExperienceStore,
 }));
 
 vi.mock("@/features/sessions/session-api", () => ({
@@ -1029,6 +1037,9 @@ beforeEach(() => {
   mockUseSearchParams.mockReturnValue(new URLSearchParams());
   mockUseProductBuildStatus.mockReset();
   mockUseProductBuildStatus.mockReturnValue(createProductBuildStatusMock());
+  mockProductExperienceStore.invalidateSession.mockReset();
+  mockProductExperienceStore.loadRoute.mockReset();
+  mockProductExperienceStore.loadRoute.mockResolvedValue(undefined);
   vi.mocked(premiumEnrichmentApi.deferToAcp).mockReset();
   vi.mocked(premiumEnrichmentApi.dismissItem).mockReset();
   vi.mocked(premiumEnrichmentApi.getWorkspace).mockReset();
@@ -1216,6 +1227,60 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByText(/Generando entregables de Blueprint/i)).toBeInTheDocument();
   });
 
+  it("syncs the shell route when a product build status changes", async () => {
+    mockUseProductBuildStatus.mockReturnValue(createProductBuildStatusMock({
+      data: {
+        contract_version: "product-build-status.v1",
+        current_activity: {
+          activity_key: "build",
+          detail: "Generando entregables.",
+          label: "Generando Blueprint",
+          started_at: "2026-09-24T10:00:00Z",
+          status: "running",
+          step_key: "deliverables",
+          updated_at: "2026-09-24T10:01:00Z",
+        },
+        entitlement: {
+          purchase_required: false,
+        },
+        generated_at: "2026-09-24T10:01:02Z",
+        last_error: null,
+        lifecycle: "running",
+        processing_queue: {
+          active: true,
+          completed_count: 3,
+          failed_count: 0,
+          pending_count: 2,
+          processing_count: 1,
+          status: "running",
+          updated_at: "2026-09-24T10:01:00Z",
+        },
+        product_key: "blueprint_basic",
+        progress: {
+          percent: 60,
+        },
+      } as never,
+      isEmpty: false,
+      isFinal: false,
+      status: "success",
+      updatedAt: Date.now(),
+    }));
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint" />);
+
+    await waitFor(() => {
+      expect(mockProductExperienceStore.invalidateSession).toHaveBeenCalledWith("session-uxa11", { attention: false });
+    });
+    expect(mockProductExperienceStore.loadRoute).toHaveBeenCalledWith(
+      {
+        currentStage: "estimate",
+        operationStage: null,
+        sessionId: "session-uxa11",
+      },
+      { force: true },
+    );
+  });
+
   it("opens the Blueprint Free diagram center from the result_tab deep link", () => {
     mockUseSearchParams.mockReturnValue(new URLSearchParams("result_tab=diagrams"));
 
@@ -1331,6 +1396,91 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.queryByText(/31\/52/i)).not.toBeInTheDocument();
     expect(screen.queryByText("36/36")).not.toBeInTheDocument();
     expect(screen.queryByText("52 total")).not.toBeInTheDocument();
+  });
+
+  it("shows a retry action when Blueprint Pro requires attention even if the queue is still flagged active", () => {
+    const executeCommand = vi.fn(async () => null);
+    mockUseProductBuildStatus.mockReturnValue(createProductBuildStatusMock({
+      data: {
+        actions: [
+          {
+            action_key: "retry_failed",
+            href: "",
+            label: "Reintentar pendientes",
+            primary: true,
+            reason: "La cola anterior quedo interrumpida.",
+            state: "recommended",
+          },
+        ],
+        deliverables: [
+          {
+            deliverable_key: "diagram.runtime_flow",
+            deliverable_type: "diagram",
+            href: "/projects/session-uxa11/blueprint/pro",
+            job_id: "job-pro-1",
+            product_surface: "blueprint_pro",
+            required: true,
+            stage_key: "design",
+            state: "error",
+            title: "Runtime Flow",
+            updated_at: "2026-09-24T10:05:00Z",
+          },
+        ],
+        entitlement: {
+          access_state: "allowed",
+          checkout_href: "",
+          is_purchased: true,
+          purchase_required: false,
+          tier: "blueprint_pro",
+          upgrade_label: "Blueprint Pro",
+        },
+        last_error: {
+          code: "processing_queue_possibly_interrupted",
+          message: "La cola se interrumpio y necesita reintento.",
+          recoverable: true,
+          retry_action_key: "retry_failed",
+          technical_message: "processing_queue.active=true but lifecycle requires_attention",
+          title: "Cola interrumpida",
+          trace_refs: ["queue-pro-1"],
+        },
+        lifecycle: "requires_attention",
+        processing_queue: {
+          active: true,
+          completed_at: "",
+          completed_count: 2,
+          completed_items: [],
+          current_deliverable_key: "diagram.runtime_flow",
+          failed_count: 1,
+          failed_items: [],
+          mode: "retry_failed",
+          pending_count: 0,
+          processing_count: 1,
+          queue_id: "queue-pro-1",
+          retried_count: 0,
+          started_at: "2026-09-24T10:00:00Z",
+          status: "running",
+          summary: "Recuperacion de Blueprint Pro pendiente.",
+          total_count: 3,
+          updated_at: "2026-09-24T10:05:00Z",
+        },
+        product_key: "blueprint_pro",
+        progress: {
+          percent: 12,
+          total_units: 3,
+        },
+      } as never,
+      executeCommand,
+      isEmpty: false,
+      status: "success",
+      updatedAt: Date.now(),
+    }));
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint")} section="blueprint_pro" />);
+
+    expect(screen.getAllByText("Requiere revision").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Generacion en curso")).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Reintentar cola" })[0]);
+    expect(executeCommand).toHaveBeenCalledWith("retry_failed", { allow_llm: true });
   });
 
   it("keeps Blueprint Pro in the access gate until the premium entitlement is active", () => {

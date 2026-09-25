@@ -126,6 +126,91 @@ describe("operation model UXA10", () => {
     expect(operation?.source).toBe("attention");
     expect(operation?.status).toBe("waiting");
     expect(operation?.attentionHref).toBe("/projects/session-uxa10/attention");
+    expect(operation?.canRetry).toBe(false);
+  });
+
+  it("does not enable stage-operation retry on Attention items backed by product build steps", () => {
+    const route = createToolsRouteFixture({ stage: "estimate" });
+    const item = createRuntimeAttentionItem({
+      action: {
+        can_resolve_inline: false,
+        href: "/projects/session-uxa10/blueprint?deliverable=diagram.data_lineage_map",
+        kind: "retry",
+        label: "Reintentar",
+      },
+      key: "runtime_error:estimate:product_build_step:step-1",
+      source: "product_build_step",
+      source_ref: {
+        entity_id: "step-uuid-1",
+        field_path: "deliverable:diagram.data_lineage_map",
+      },
+      type: "runtime_error",
+    });
+    const activeRoute = {
+      ...route,
+      attention: {
+        ...route.attention,
+        data: route.attention.data
+          ? {
+              ...route.attention.data,
+              blocking_count: 1,
+              items: [item],
+              primary_item: item,
+              total_count: 1,
+            }
+          : route.attention.data,
+      },
+    };
+
+    const operation = buildProductOperationEnvelope({ activeRoute, actionState: null });
+
+    expect(operation?.source).toBe("attention");
+    expect(operation?.status).toBe("failed");
+    expect(operation?.canRetry).toBe(false);
+    expect(operation?.id).toBe("attention:runtime_error:estimate:product_build_step:step-1");
+    expect(operation?.attentionHref).toBe("/projects/session-uxa10/blueprint?deliverable=diagram.data_lineage_map");
+    expect(operation?.attentionLabel).toBe("Reintentar");
+  });
+
+  it("enables stage-operation retry with the underlying operation UUID when backed by runtime_operation", () => {
+    const route = createToolsRouteFixture({ stage: "memory" });
+    const item = createRuntimeAttentionItem({
+      action: {
+        can_resolve_inline: false,
+        href: "/projects/session-uxa10/work/memory",
+        kind: "retry",
+        label: "Reintentar",
+      },
+      key: "runtime_error:memory:stage_operation:op-123",
+      source: "runtime_operation",
+      source_ref: {
+        entity_id: "op-uuid-real-456",
+        field_path: "state",
+      },
+      type: "runtime_error",
+    });
+    const activeRoute = {
+      ...route,
+      attention: {
+        ...route.attention,
+        data: route.attention.data
+          ? {
+              ...route.attention.data,
+              blocking_count: 1,
+              items: [item],
+              primary_item: item,
+              total_count: 1,
+            }
+          : route.attention.data,
+      },
+    };
+
+    const operation = buildProductOperationEnvelope({ activeRoute, actionState: null });
+
+    expect(operation?.source).toBe("attention");
+    expect(operation?.status).toBe("failed");
+    expect(operation?.canRetry).toBe(true);
+    expect(operation?.id).toBe("op-uuid-real-456");
   });
 
   it("surfaces timeout cause and recovery action on failed local operations", () => {
