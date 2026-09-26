@@ -188,7 +188,23 @@ export function triggerAuthenticatedDownload(blob: Blob, fileName: string) {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  window.URL.revokeObjectURL(url);
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+}
+
+export function triggerExportJobDownload(job: ExportJobResponse) {
+  if (typeof window === "undefined" || !job.download_url) {
+    return false;
+  }
+
+  const anchor = document.createElement("a");
+  anchor.href = job.download_url;
+  anchor.download = job.file_name || `${job.artifact_kind}.bin`;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  return true;
 }
 
 export async function downloadReadyExportJob({
@@ -199,6 +215,10 @@ export async function downloadReadyExportJob({
   job: ExportJobResponse;
 }) {
   if (job.status !== "ready") {
+    return;
+  }
+
+  if (triggerExportJobDownload(job)) {
     return;
   }
 

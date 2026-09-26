@@ -1971,6 +1971,16 @@ describe("UXA11 SaaS product views", () => {
     expect(mockSessionsApi.runAcpWorkspacePhase).not.toHaveBeenCalled();
   });
 
+  it("opens the next pending ACP step by default after validation completes", async () => {
+    mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspaceReadyForReconciliation());
+    mockSessionsApi.getAcpQuestions.mockResolvedValueOnce([]);
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    expect(await screen.findByRole("button", { name: /Actualizar artefactos/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Generar pruebas ACP y continuar/i })).not.toBeInTheDocument();
+  });
+
   it("reprocesses ACP deliverables through the workspace phase instead of legacy generation", async () => {
     mockUseSearchParams.mockReturnValueOnce(new URLSearchParams({ step: "complete" }));
     mockSessionsApi.getAcpWorkspace.mockResolvedValue(createAcpWorkspaceReadyForReconciliation());

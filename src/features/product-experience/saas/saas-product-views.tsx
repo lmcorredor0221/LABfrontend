@@ -177,12 +177,13 @@ function ProductOperationFloatingStudio({
   tier: FloatingArchitectureStudioTier;
 }) {
   const operation = buildProductOperationEnvelope({ activeRoute });
+  const activeOperation = shouldShowFloatingStudioForOperation(operation) ? operation : null;
 
   return (
     <FloatingArchitectureStudio
-      currentStep={currentStep || operation?.currentStep}
-      isOpen={forceOpen || shouldShowFloatingStudioForOperation(operation)}
-      stageLabel={stageLabel || operation?.stage}
+      currentStep={currentStep || activeOperation?.currentStep}
+      isOpen={forceOpen || Boolean(activeOperation)}
+      stageLabel={stageLabel || activeOperation?.stage}
       tier={tier}
     />
   );
@@ -4298,6 +4299,7 @@ function AcpProductPage({
       ? stepParam
       : "resolve";
   const [currentStep, setCurrentStep] = useState<AcpWorkflowStep>(initialStep);
+  const [manualStepSelection, setManualStepSelection] = useState(Boolean(stepParam));
   const [questions, setQuestions] = useState<ConstructionQuestionViewEntry[]>([]);
   const [workspace, setWorkspace] = useState<ACPWorkspaceResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -4418,7 +4420,13 @@ function AcpProductPage({
       : !isReconciliationDone
         ? "complete"
         : "package";
-  const displayedStep = currentStep === "resolve" || canNavigateTo(currentStep) ? currentStep : nextAcpStep;
+  const requestedStep = currentStep === "resolve" || canNavigateTo(currentStep) ? currentStep : nextAcpStep;
+  const defaultAcpStep: AcpWorkflowStep = isValidationDone
+    ? (isReconciliationDone ? "package" : "complete")
+    : questions.length > 0
+      ? "resolve"
+      : nextAcpStep;
+  const displayedStep = manualStepSelection ? requestedStep : defaultAcpStep;
   const acpPrimaryAction:
     | { disabled?: boolean; href?: string; label: string; nextStep?: AcpWorkflowStep }
     = displayedStep === "resolve"
@@ -4713,6 +4721,7 @@ function AcpProductPage({
         completedSteps={completedSteps}
         onSelectStep={(step) => {
           if (canNavigateTo(step)) {
+            setManualStepSelection(true);
             setCurrentStep(step);
           }
         }}
@@ -4812,7 +4821,10 @@ function AcpProductPage({
               sessionId={sessionId}
               questions={questions}
               onQuestionsUpdated={reloadData}
-              onProceedToValidation={() => setCurrentStep("validate")}
+              onProceedToValidation={() => {
+                setManualStepSelection(true);
+                setCurrentStep("validate");
+              }}
             />
           ) : (
             <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
@@ -4879,7 +4891,10 @@ function AcpProductPage({
             activeRoute={activeRoute}
             sessionId={sessionId}
             onReload={reloadData}
-            onProceedToReconciliation={() => setCurrentStep("complete")}
+            onProceedToReconciliation={() => {
+              setManualStepSelection(true);
+              setCurrentStep("complete");
+            }}
           />
         )}
         {displayedStep === "complete" && (
@@ -4887,7 +4902,10 @@ function AcpProductPage({
             sessionId={sessionId}
             workspace={workspace}
             onReload={reloadData}
-            onProceedToPackage={() => setCurrentStep("package")}
+            onProceedToPackage={() => {
+              setManualStepSelection(true);
+              setCurrentStep("package");
+            }}
           />
         )}
         {displayedStep === "package" && (
@@ -4943,6 +4961,7 @@ function AcpProductPage({
             disabled={acpPrimaryAction.disabled}
             onClick={() => {
               if (acpPrimaryAction.nextStep && canNavigateTo(acpPrimaryAction.nextStep)) {
+                setManualStepSelection(true);
                 setCurrentStep(acpPrimaryAction.nextStep);
               }
             }}
