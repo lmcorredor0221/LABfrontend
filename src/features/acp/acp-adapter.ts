@@ -218,10 +218,6 @@ export async function downloadReadyExportJob({
     return;
   }
 
-  if (triggerExportJobDownload(job)) {
-    return;
-  }
-
   const blob = await sessionsApi.downloadExportJob(sessionId, job.id);
   triggerAuthenticatedDownload(blob, job.file_name || `${job.artifact_kind}.bin`);
 }

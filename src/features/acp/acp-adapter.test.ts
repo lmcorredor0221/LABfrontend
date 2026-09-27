@@ -1,11 +1,20 @@
 import {
   buildConstructionQuestionPayload,
   createQuestionDraft,
+  downloadReadyExportJob,
   getBlockingQuestions,
   getConstructionQuestionErrors,
   getExportBlockedReason,
-  triggerExportJobDownload,
 } from "@/features/acp/acp-adapter";
+import { sessionsApi } from "@/features/sessions/session-api";
+
+vi.mock("@/features/sessions/session-api", () => ({
+  sessionsApi: {
+    downloadExportJob: vi.fn(),
+  },
+}));
+
+const mockSessionsApi = vi.mocked(sessionsApi);
 
 describe("acp adapter", () => {
   it("requires a non-empty continuity answer", () => {
@@ -133,39 +142,66 @@ describe("acp adapter", () => {
     expect(getExportBlockedReason(exportablePreview, delegatedBlockingQuestion)).toBeNull();
   });
 
-  it("starts ACP export from a ready job download URL", () => {
-    let clickedHref = "";
+  it("downloads a ready ACP export through the authenticated API", async () => {
     let clickedDownload = "";
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-      clickedHref = this.getAttribute("href") ?? "";
       clickedDownload = this.download;
     });
+    const originalCreateObjectUrl = URL.createObjectURL;
+    const originalRevokeObjectUrl = URL.revokeObjectURL;
+    const createObjectUrl = vi.fn(() => "blob:acp-export");
+    const revokeObjectUrl = vi.fn();
 
-    expect(
-      triggerExportJobDownload({
-        artifact_kind: "acp_portable_zip",
-        checksum_sha256: "checksum",
-        completed_at: "2026-09-26T20:00:00Z",
-        content_type: "application/zip",
-        created_at: "2026-09-26T20:00:00Z",
-        download_url: "/api/v1/sessions/session-1/exports/jobs/job-1/download",
-        error_message: "",
-        expires_at: "2026-09-27T20:00:00Z",
-        file_name: "agent-acp.zip",
-        id: "job-1",
-        metadata: {},
-        product_key: "acp",
-        profile: "acp-portable",
-        session_id: "session-1",
-        size_bytes: 1024,
-        status: "ready",
-        updated_at: "2026-09-26T20:00:00Z",
-        workspace_id: "workspace-1",
-      }),
-    ).toBe(true);
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectUrl,
+    });
 
-    expect(clickedHref).toBe("/api/v1/sessions/session-1/exports/jobs/job-1/download");
-    expect(clickedDownload).toBe("agent-acp.zip");
-    clickSpy.mockRestore();
+    mockSessionsApi.downloadExportJob.mockResolvedValueOnce(new Blob(["acp"], { type: "application/zip" }));
+
+    try {
+      await downloadReadyExportJob({
+        sessionId: "session-1",
+        job: {
+          artifact_kind: "acp_portable_zip",
+          checksum_sha256: "checksum",
+          completed_at: "2026-09-26T20:00:00Z",
+          content_type: "application/zip",
+          created_at: "2026-09-26T20:00:00Z",
+          download_url: "/api/v1/sessions/session-1/exports/jobs/job-1/download",
+          error_message: "",
+          expires_at: "2026-09-27T20:00:00Z",
+          file_name: "agent-acp.zip",
+          id: "job-1",
+          metadata: {},
+          product_key: "acp",
+          profile: "acp-portable",
+          session_id: "session-1",
+          size_bytes: 1024,
+          status: "ready",
+          updated_at: "2026-09-26T20:00:00Z",
+          workspace_id: "workspace-1",
+        },
+      });
+
+      expect(mockSessionsApi.downloadExportJob).toHaveBeenCalledWith("session-1", "job-1");
+      expect(createObjectUrl).toHaveBeenCalledTimes(1);
+      expect(clickedDownload).toBe("agent-acp.zip");
+      expect(revokeObjectUrl).not.toHaveBeenCalled();
+    } finally {
+      clickSpy.mockRestore();
+      Object.defineProperty(URL, "createObjectURL", {
+        configurable: true,
+        value: originalCreateObjectUrl,
+      });
+      Object.defineProperty(URL, "revokeObjectURL", {
+        configurable: true,
+        value: originalRevokeObjectUrl,
+      });
+    }
   });
 });
