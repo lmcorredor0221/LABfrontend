@@ -38,6 +38,7 @@ import {
   UxaStageRail,
   UxaSurface,
   type UxaStageRailItem,
+  type UxaTone,
 } from "@/features/product-experience/design-system";
 import type { ProductExperienceRouteSnapshot } from "@/features/product-experience/core/server-state";
 import { ProductOperationPanel } from "@/features/product-experience/operations/operation-panel";
@@ -338,6 +339,7 @@ function ProjectTopbar({
   const projectTitle = overview?.project_title ?? snapshot?.session.title ?? t("projects.defaultTitle", "Proyecto");
   const status = snapshot?.session.status ?? "draft";
   const hasActiveAttention = (attention?.blocking_count ?? 0) > 0 || (attention?.actionable_count ?? 0) > 0;
+  const attentionDisplay = getAttentionDisplayOverride(language, attention);
   const effectiveStatus =
     status === "needs_review" &&
     !hasActiveAttention &&
@@ -346,10 +348,10 @@ function ProjectTopbar({
       ? "ready"
       : status;
   const productLabel = journeyDisplay?.productLabel ?? definition.product;
-  const stageLabel = journeyDisplay?.label ?? definition.title;
-  const stageDetail = journeyDisplay?.detail ?? definition.subtitle;
-  const substateLabel = journeyDisplay?.substateLabel ?? null;
-  const substateTone = journeyDisplay?.substateTone ?? "info";
+  const stageLabel = attentionDisplay?.stageLabel ?? journeyDisplay?.label ?? definition.title;
+  const stageDetail = attentionDisplay?.stageDetail ?? journeyDisplay?.detail ?? definition.subtitle;
+  const substateLabel = attentionDisplay?.substateLabel ?? journeyDisplay?.substateLabel ?? null;
+  const substateTone = attentionDisplay?.substateTone ?? journeyDisplay?.substateTone ?? "info";
 
   return (
     <header className="uxa-project-topbar border-b border-[var(--border-default)] bg-white px-4 py-3">
@@ -555,6 +557,45 @@ function getActionTone(state?: JourneyActionState) {
   }
 }
 
+function getAttentionDisplayOverride(
+  language: "es" | "en" | "pt",
+  attention?: { actionable_count?: number | null; blocking_count?: number | null } | null,
+): {
+  stageDetail?: string;
+  stageLabel?: string;
+  substateLabel: string;
+  substateTone: UxaTone;
+} | null {
+  const blockingCount = attention?.blocking_count ?? 0;
+  if (blockingCount > 0) {
+    return {
+      stageDetail: byLanguage(language, {
+        en: "There are blockers that must be reviewed before moving forward.",
+        es: "Hay bloqueos que deben revisarse antes de continuar.",
+        pt: "Ha bloqueios que precisam ser revisados antes de continuar.",
+      }),
+      stageLabel: byLanguage(language, { en: "Resolve blockers", es: "Resolver bloqueos", pt: "Resolver bloqueios" }),
+      substateLabel: byLanguage(language, { en: "Blocks", es: "Bloquea", pt: "Bloqueia" }),
+      substateTone: "danger",
+    };
+  }
+
+  const actionableCount = attention?.actionable_count ?? 0;
+  if (actionableCount > 0) {
+    return {
+      stageDetail: byLanguage(language, {
+        en: "There are pending questions or decisions waiting for your input.",
+        es: "Hay preguntas o decisiones pendientes esperando tu input.",
+        pt: "Ha perguntas ou decisoes pendentes aguardando sua resposta.",
+      }),
+      substateLabel: byLanguage(language, { en: "Pending", es: "Pendiente", pt: "Pendente" }),
+      substateTone: "warning",
+    };
+  }
+
+  return null;
+}
+
 function getActionStateLabel(
   language: "es" | "en" | "pt",
   state?: JourneyActionState,
@@ -632,14 +673,15 @@ function JourneyContextPanel({
   const currentJourney = getJourneyStateMachineCurrent(overview?.journey_state_machine ?? null);
   const journeyDisplay = getJourneyStateMachineDisplay(language, overview?.journey_state_machine ?? null);
   const projectTitle = overview?.project_title ?? snapshot?.session.title ?? t("projects.defaultTitle", "Proyecto");
-  const productLabel = journeyDisplay?.productLabel ?? definition.product;
-  const stageLabel = journeyDisplay?.label ?? definition.title;
-  const stageDetail = journeyDisplay?.detail ?? definition.subtitle;
-  const substateLabel = journeyDisplay?.substateLabel ?? byLanguage(language, { en: "Ready", es: "Listo", pt: "Pronto" });
-  const substateTone = journeyDisplay?.substateTone ?? "info";
-  const progress = Math.max(0, Math.min(100, Math.round(currentJourney?.progress_percent ?? 0)));
   const actionableCount = attention?.actionable_count ?? 0;
   const blockingCount = attention?.blocking_count ?? 0;
+  const attentionDisplay = getAttentionDisplayOverride(language, attention);
+  const productLabel = journeyDisplay?.productLabel ?? definition.product;
+  const stageLabel = attentionDisplay?.stageLabel ?? journeyDisplay?.label ?? definition.title;
+  const stageDetail = attentionDisplay?.stageDetail ?? journeyDisplay?.detail ?? definition.subtitle;
+  const substateLabel = attentionDisplay?.substateLabel ?? journeyDisplay?.substateLabel ?? byLanguage(language, { en: "Ready", es: "Listo", pt: "Pronto" });
+  const substateTone = attentionDisplay?.substateTone ?? journeyDisplay?.substateTone ?? "info";
+  const progress = Math.max(0, Math.min(100, Math.round(currentJourney?.progress_percent ?? 0)));
   const exports = overview?.exports ?? [];
   const readyExports = exports.filter((item) => item.status === "ready").length;
   const runningExports = exports.filter((item) => item.status === "running").length;

@@ -676,6 +676,21 @@ function normalizeProductTier(value: unknown): ProductTierScope | null {
   return null;
 }
 
+function hasOverviewCapability(
+  activeRoute: ProductExperienceRouteSnapshot | null,
+  capability: string,
+) {
+  return Boolean(
+    activeRoute?.operation.data?.overview?.access.capabilities?.some(
+      (item) => item.capability === capability && item.allowed,
+    ),
+  );
+}
+
+function getOverviewAccessTier(activeRoute: ProductExperienceRouteSnapshot | null): CommercialTier | null {
+  return activeRoute?.operation.data?.overview?.access.tier ?? null;
+}
+
 function isTierIncluded(requiredTier: unknown, tierScope: ProductTierScope) {
   const normalized = normalizeProductTier(requiredTier) ?? "blueprint";
   return PRODUCT_TIER_RANK[normalized] <= PRODUCT_TIER_RANK[tierScope];
@@ -4261,14 +4276,21 @@ function AcpProductPage({
   const searchParams = useSearchParams();
   const sessionId = activeRoute?.route.sessionId ?? "";
   const viewModel = buildProductSaasViewModel({ activeRoute, language, section: "acp" });
+  const overviewAccessTier = getOverviewAccessTier(activeRoute);
   const canBuild =
     hasTier(viewModel.accessTier, "acp") ||
-    Boolean(viewModel.access?.can_build_acp);
+    Boolean(viewModel.access?.can_build_acp) ||
+    hasTier(overviewAccessTier ?? "blueprint", "acp") ||
+    hasOverviewCapability(activeRoute, "acp.build");
   const canCheckout =
     viewModel.access?.checkout_state === "available" ||
     viewModel.access?.checkout_state === "pending" ||
-    viewModel.access?.checkout_state === "failed";
-  const hasBlueprintProCredit = hasTier(viewModel.accessTier, "blueprint_pro") && !hasTier(viewModel.accessTier, "acp");
+    viewModel.access?.checkout_state === "failed" ||
+    activeRoute?.operation.data?.overview?.access.checkout_state === "available" ||
+    activeRoute?.operation.data?.overview?.access.checkout_state === "pending" ||
+    activeRoute?.operation.data?.overview?.access.checkout_state === "failed";
+  const effectiveAccessTier = overviewAccessTier ?? viewModel.accessTier;
+  const hasBlueprintProCredit = hasTier(effectiveAccessTier, "blueprint_pro") && !hasTier(effectiveAccessTier, "acp");
   const acpUpgradeUsd = Math.max(basePrices.acp_premium_usd - basePrices.blueprint_pro_usd, 0);
   const blueprintProPricing = getProductPricingDisplay({
     currency,
@@ -4995,6 +5017,12 @@ function ArtifactsProductPage({
     language,
     section: "artifacts",
   });
+  const overviewAccessTier = getOverviewAccessTier(activeRoute);
+  const canOpenAcp =
+    hasTier(viewModel.accessTier, "acp") ||
+    Boolean(viewModel.access?.can_build_acp) ||
+    hasTier(overviewAccessTier ?? "blueprint", "acp") ||
+    hasOverviewCapability(activeRoute, "acp.build");
 
   const [catalog, setCatalog] = useState<DeliverableCatalogResponse | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
@@ -5510,9 +5538,9 @@ function ArtifactsProductPage({
         <a className="uxa-button uxa-button--primary" href={`/projects/${sessionId}/acp`}>
           <span>
             {byLanguage(language, {
-              en: hasTier(viewModel.accessTier, "acp") || viewModel.access?.can_build_acp ? "Open ACP" : "Request ACP",
-              es: hasTier(viewModel.accessTier, "acp") || viewModel.access?.can_build_acp ? "Abrir ACP" : "Solicitar ACP",
-              pt: hasTier(viewModel.accessTier, "acp") || viewModel.access?.can_build_acp ? "Abrir ACP" : "Solicitar ACP",
+              en: canOpenAcp ? "Open ACP" : "Request ACP",
+              es: canOpenAcp ? "Abrir ACP" : "Solicitar ACP",
+              pt: canOpenAcp ? "Abrir ACP" : "Solicitar ACP",
             })}
           </span>
         </a>

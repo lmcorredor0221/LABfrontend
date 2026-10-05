@@ -54,6 +54,7 @@ export type ProductJourneyProductSummary = {
   progress_percent: number;
   available_deliverable_count: number;
   total_deliverable_count: number;
+  final_export_ready?: boolean;
   blocking_attention_count: number;
   warning_attention_count: number;
   technical_error_count: number;
