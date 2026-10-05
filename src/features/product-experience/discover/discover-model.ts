@@ -73,6 +73,20 @@ export function parseDiscoveryAnalysisArtifact(artifact?: JourneyStageArtifactEn
   return artifact.proposal_payload as DiscoveryAnalysisArtifact;
 }
 
+function resolveDiscoverReviewArtifact(snapshot: ProductExperienceRouteSnapshot["snapshot"]["data"] | null): JourneyStageArtifactEntry | null {
+  const latestArtifact = snapshot?.journey_latest_artifacts?.discover ?? null;
+  const generatedAnalysisArtifact =
+    snapshot?.journey_artifacts?.find(
+      (artifact) =>
+        artifact.stage_key === "discover" &&
+        artifact.artifact_kind === "discovery_analysis_artifact" &&
+        artifact.state !== "rejected" &&
+        parseDiscoveryAnalysisArtifact(artifact),
+    ) ?? null;
+
+  return generatedAnalysisArtifact ?? latestArtifact;
+}
+
 export function getDiscoverReviewDecisions(artifact?: JourneyStageArtifactEntry | null): DiscoverReviewDecisionMap {
   const raw = artifact && isRecord(artifact.user_patch) ? artifact.user_patch.review_decisions : null;
 
@@ -99,7 +113,7 @@ export function getDiscoverStageStatus(
   } = {},
 ): DiscoverStageStatus {
   const snapshotResource = activeRoute?.snapshot;
-  const latestArtifact = activeRoute?.snapshot.data?.journey_latest_artifacts?.discover ?? null;
+  const latestArtifact = resolveDiscoverReviewArtifact(activeRoute?.snapshot.data ?? null);
   const discovery = activeRoute?.snapshot.data?.discovery ?? null;
 
   if (!snapshotResource || snapshotResource.status === "loading" || snapshotResource.status === "idle") {
@@ -146,7 +160,7 @@ export function buildDiscoverViewModel(
   } = {},
 ): DiscoverViewModel {
   const snapshot = activeRoute?.snapshot.data ?? null;
-  const latestArtifact = snapshot?.journey_latest_artifacts?.discover ?? null;
+  const latestArtifact = resolveDiscoverReviewArtifact(snapshot);
   const analysisArtifact = parseDiscoveryAnalysisArtifact(latestArtifact);
   const candidateDiscovery =
     latestArtifact?.proposal_payload &&
