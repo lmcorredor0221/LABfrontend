@@ -97,7 +97,7 @@ describe("DiscoverStageView UXA7", () => {
     );
 
     expect(screen.getByRole("heading", { name: /Descubrir: problema y contexto/i })).toBeInTheDocument();
-    expect(screen.getByLabelText("Descripcion del problema")).toBeInTheDocument();
+    expect(screen.getByLabelText("Brief libre")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Guardar y analizar" }));
 
@@ -125,6 +125,7 @@ describe("DiscoverStageView UXA7", () => {
       },
     });
     fireEvent.click(screen.getByRole("button", { name: "Convertir en ficha" }));
+    fireEvent.click(screen.getByText("Revisar detalles"));
 
     expect((screen.getByLabelText("Descripcion del problema") as HTMLTextAreaElement).value).toContain("equipo de ventas");
     expect((screen.getByLabelText("Resultado deseado") as HTMLTextAreaElement).value).toContain("automatizar");
@@ -168,7 +169,7 @@ describe("DiscoverStageView UXA7", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Avanzado" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abrir formulario avanzado" }));
 
     expect(screen.getByText("2. Impacto operativo")).toBeInTheDocument();
     expect(screen.getByLabelText("Tiempo actual invertido")).toBeInTheDocument();

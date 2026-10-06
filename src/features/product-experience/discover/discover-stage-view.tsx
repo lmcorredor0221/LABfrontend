@@ -16,7 +16,6 @@ import {
 import {
   buildDiscoveryInput,
   applyGuidedAnswerToDiscoveryFormValues,
-  buildDiscoveryContractCards,
   createDiscoveryFormValues,
   DISCOVERY_COST_OPTIONS,
   DISCOVERY_TIME_SPENT_OPTIONS,
@@ -422,29 +421,37 @@ function DiscoverGuidedCapture({
 }) {
   const { language } = useLanguage();
   const copy = useCallback((en: string, es: string, pt: string) => byLanguage(language, { en, es, pt }), [language]);
-  const cards = buildDiscoveryContractCards(formValues);
   const nextQuestion = nextMissingField ? getGuidedDiscoveryQuestion(nextMissingField) : null;
+  const missingCount = getDiscoveryInputMissingFields(buildDiscoveryInput(formValues)).length;
+  const completedCount = Math.max(0, getGuidedDiscoveryQuestions().length - missingCount);
+  const hasStructuredContent = [
+    formValues.problemStatement,
+    formValues.currentUser,
+    formValues.currentProcess,
+    formValues.desiredOutcome,
+    formValues.currentTimeSpent,
+    formValues.currentCost,
+    formValues.frequentErrors,
+    formValues.automationOpportunities,
+    formValues.v1Scope,
+    formValues.outOfScope,
+    formValues.northStarMetric,
+    formValues.nonDelegableDecisions,
+  ].some((value) => String(value || "").trim());
 
   return (
     <section className="space-y-4" aria-label={copy("Guided Discovery capture", "Captura guiada de Discover", "Captura guiada do Discover")}>
       <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <UxaBadge tone="info">{copy("Guided capture", "Captura guiada", "Captura guiada")}</UxaBadge>
+            <UxaBadge tone="info">{copy("Guided", "Guiado", "Guiado")}</UxaBadge>
             <h3 className="mt-3 text-[20px] font-black">{copy("Tell me what you want to automate", "Cuentame que quieres automatizar", "Conte-me o que voce quer automatizar")}</h3>
-            <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-              {copy(
-                "Start with a free brief. LAB turns it into an editable contract card and keeps doubts visible.",
-                "Empieza con un brief libre. LAB lo convierte en una ficha editable y mantiene visibles las dudas.",
-                "Comece com um brief livre. LAB o transforma em uma ficha editavel e mantem as duvidas visiveis.",
-              )}
-            </p>
           </div>
           <UxaButton onClick={() => onModeChange("advanced")} size="sm" variant="secondary">
             {copy("Open advanced form", "Abrir formulario avanzado", "Abrir formulario avancado")}
           </UxaButton>
         </div>
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.6fr)]">
+        <div className="mt-4 space-y-3">
           <UxaTextareaField
             label={copy("Free brief", "Brief libre", "Brief livre")}
             onChange={(event) => onBriefInput(event.target.value)}
@@ -453,71 +460,46 @@ function DiscoverGuidedCapture({
               "Ejemplo: Hoy el equipo de soporte recibe solicitudes repetitivas por correo y quiere un agente que clasifique, sugiera respuestas y conserve aprobaciones con un responsable humano.",
               "Exemplo: Hoje a equipe de suporte recebe solicitacoes repetitivas por e-mail e quer um agente que classifique, sugira respostas e mantenha aprovacoes com um responsavel humano.",
             )}
-            rows={6}
+            rows={5}
             value={briefText}
           />
-          <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] p-4">
-            <p className="text-[12px] font-black">{copy("Extraction status", "Estado de extraccion", "Estado da extracao")}</p>
-            <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-              {autoFilledCount
-                ? copy(
-                    `${autoFilledCount} field(s) filled from the brief.`,
-                    `${autoFilledCount} campo(s) completado(s) desde el brief.`,
-                    `${autoFilledCount} campo(s) preenchido(s) a partir do brief.`,
-                  )
-                : copy(
-                    "No fields have been extracted yet.",
-                    "Aun no se han extraido campos.",
-                    "Ainda nao foram extraidos campos.",
-                  )}
-            </p>
-            <UxaButton className="mt-4 w-full" disabled={!briefText.trim()} onClick={onApplyBrief} variant="primary">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {hasStructuredContent ? (
+              <p className="text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                {copy(
+                  `${completedCount} of ${getGuidedDiscoveryQuestions().length} fields ready.`,
+                  `${completedCount} de ${getGuidedDiscoveryQuestions().length} campos listos.`,
+                  `${completedCount} de ${getGuidedDiscoveryQuestions().length} campos prontos.`,
+                )}
+              </p>
+            ) : (
+              <p className="text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                {copy(
+                  "Write a short brief to start. You can save early and complete the rest step by step.",
+                  "Escribe un brief corto para empezar. Puedes guardar pronto y completar lo demas paso a paso.",
+                  "Escreva um brief curto para comecar. Voce pode salvar cedo e completar o resto passo a passo.",
+                )}
+              </p>
+            )}
+            <UxaButton disabled={!briefText.trim()} onClick={onApplyBrief} variant="primary">
               {copy("Convert to card", "Convertir en ficha", "Converter em ficha")}
             </UxaButton>
           </div>
         </div>
       </UxaSurface>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {cards.map((card) => (
-          <UxaSurface className="p-4" key={card.key}>
-            <UxaBadge tone={card.status === "complete" ? "success" : card.status === "partial" ? "warning" : "neutral"}>
-              {card.status === "complete"
-                ? copy("Complete", "Completo", "Completo")
-                : card.status === "partial"
-                  ? copy("Partial", "Parcial", "Parcial")
-                  : copy("Missing", "Pendiente", "Pendente")}
-            </UxaBadge>
-            <h4 className="mt-3 text-[15px] font-black">{card.title}</h4>
-            <p className="mt-2 min-h-12 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">{card.summary}</p>
-          </UxaSurface>
-        ))}
-      </div>
-
-      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
-          <div>
-            <UxaBadge tone={nextQuestion ? "warning" : "success"}>
-              {nextQuestion ? copy("Next question", "Siguiente pregunta", "Proxima pergunta") : copy("Ready", "Listo", "Pronto")}
-            </UxaBadge>
-            <h3 className="mt-3 text-[20px] font-black">
-              {nextQuestion ? nextQuestion.prompt : copy("The minimum discovery contract is complete", "El contrato minimo de discovery esta completo", "O contrato minimo de discovery esta completo")}
-            </h3>
-            <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-              {nextQuestion
-                ? copy(
-                    "Answer one missing item at a time. The advanced form remains available for bulk editing.",
-                    "Responde un faltante a la vez. El formulario avanzado sigue disponible para edicion masiva.",
-                    "Responda uma pendencia por vez. O formulario avancado continua disponivel para edicao em massa.",
-                  )
-                : copy(
-                    "You can save, analyze, or fine tune details in advanced mode.",
-                    "Puedes guardar, analizar o ajustar detalles en modo avanzado.",
-                    "Voce pode salvar, analisar ou ajustar detalhes no modo avancado.",
-                  )}
-            </p>
-          </div>
-          {nextQuestion ? (
+      {hasStructuredContent ? (
+        <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
+            <div>
+              <UxaBadge tone={nextQuestion ? "warning" : "success"}>
+                {nextQuestion ? copy("Next", "Siguiente", "Proxima") : copy("Ready", "Listo", "Pronto")}
+              </UxaBadge>
+              <h3 className="mt-3 text-[18px] font-black">
+                {nextQuestion ? nextQuestion.prompt : copy("Ready to analyze", "Listo para analizar", "Pronto para analisar")}
+              </h3>
+            </div>
+            {nextQuestion ? (
             <div className="space-y-3">
               {nextQuestion.inputKind === "select" && nextQuestion.formKey === "currentTimeSpent" ? (
                 <SelectField
@@ -552,50 +534,62 @@ function DiscoverGuidedCapture({
                 />
               )}
             </div>
-          ) : null}
-        </div>
-      </UxaSurface>
-
-      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
-        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <UxaBadge tone="brand">{copy("Editable card", "Ficha editable", "Ficha editavel")}</UxaBadge>
-            <h3 className="mt-3 text-[20px] font-black">{copy("Contract preview", "Vista previa del contrato", "Previa do contrato")}</h3>
+            ) : null}
           </div>
-          <UxaButton onClick={() => onModeChange("advanced")} size="sm" variant="secondary">
-            {copy("Edit all fields", "Editar todos los campos", "Editar todos os campos")}
-          </UxaButton>
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <UxaTextareaField
-            error={errors.problemStatement}
-            label={copy("Problem description", "Descripcion del problema", "Descricao do problema")}
-            onChange={(event) => onUpdateField("problemStatement", event.target.value)}
-            rows={4}
-            value={formValues.problemStatement}
-          />
-          <UxaTextField
-            error={errors.currentUser}
-            label={copy("Who performs it today", "Quien ejecuta hoy", "Quem executa hoje")}
-            onChange={(event) => onUpdateField("currentUser", event.target.value)}
-            value={formValues.currentUser}
-          />
-          <UxaTextareaField
-            error={errors.currentProcess}
-            label={copy("Current task or process", "Tarea o proceso actual", "Tarefa ou processo atual")}
-            onChange={(event) => onUpdateField("currentProcess", event.target.value)}
-            rows={3}
-            value={formValues.currentProcess}
-          />
-          <UxaTextareaField
-            error={errors.desiredOutcome}
-            label={copy("Desired outcome", "Resultado deseado", "Resultado desejado")}
-            onChange={(event) => onUpdateField("desiredOutcome", event.target.value)}
-            rows={3}
-            value={formValues.desiredOutcome}
-          />
-        </div>
-      </UxaSurface>
+        </UxaSurface>
+      ) : null}
+
+      {hasStructuredContent ? (
+        <details className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-white p-4 shadow-[var(--uxa-shadow-soft)]">
+          <summary className="cursor-pointer list-none">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <UxaBadge tone="brand">{copy("Editable card", "Ficha editable", "Ficha editavel")}</UxaBadge>
+                <h3 className="mt-2 text-[16px] font-black">{copy("Review details", "Revisar detalles", "Revisar detalhes")}</h3>
+              </div>
+              <p className="text-[12px] font-semibold text-[var(--uxa-color-ink-soft)]">
+                {missingCount
+                  ? copy(`${missingCount} missing`, `${missingCount} pendientes`, `${missingCount} pendentes`)
+                  : copy("Complete", "Completa", "Completa")}
+              </p>
+            </div>
+          </summary>
+          <div className="mt-4 flex justify-end">
+            <UxaButton onClick={() => onModeChange("advanced")} size="sm" variant="secondary">
+              {copy("Edit all fields", "Editar todos los campos", "Editar todos os campos")}
+            </UxaButton>
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <UxaTextareaField
+              error={errors.problemStatement}
+              label={copy("Problem description", "Descripcion del problema", "Descricao do problema")}
+              onChange={(event) => onUpdateField("problemStatement", event.target.value)}
+              rows={3}
+              value={formValues.problemStatement}
+            />
+            <UxaTextField
+              error={errors.currentUser}
+              label={copy("Who performs it today", "Quien ejecuta hoy", "Quem executa hoje")}
+              onChange={(event) => onUpdateField("currentUser", event.target.value)}
+              value={formValues.currentUser}
+            />
+              <UxaTextareaField
+                error={errors.currentProcess}
+              label={copy("Current task or process", "Tarea o proceso actual", "Tarefa ou processo atual")}
+              onChange={(event) => onUpdateField("currentProcess", event.target.value)}
+              rows={3}
+              value={formValues.currentProcess}
+            />
+            <UxaTextareaField
+              error={errors.desiredOutcome}
+              label={copy("Desired outcome", "Resultado deseado", "Resultado desejado")}
+              onChange={(event) => onUpdateField("desiredOutcome", event.target.value)}
+              rows={3}
+              value={formValues.desiredOutcome}
+            />
+          </div>
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -1492,20 +1486,6 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
         label: t("discover.tab.task.label", "Current task"),
         children: (
           <div className="space-y-4">
-            <UxaSurface className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <UxaBadge tone="neutral">{copy("Capture mode", "Modo de captura", "Modo de captura")}</UxaBadge>
-                <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
-                  {copy(
-                    "Use guided capture for a low-friction start or advanced mode for bulk editing.",
-                    "Usa captura guiada para empezar sin friccion o modo avanzado para edicion masiva.",
-                    "Use captura guiada para comecar sem atrito ou modo avancado para edicao em massa.",
-                  )}
-                </p>
-              </div>
-              <DiscoverCaptureModeSwitch mode={captureMode} onChange={setCaptureMode} />
-            </UxaSurface>
-
             {captureMode === "guided" ? (
               <DiscoverGuidedCapture
                 autoFilledCount={autoFilledFields.length}
@@ -1521,6 +1501,19 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
               />
             ) : (
               <section className="space-y-4" aria-label={copy("Discovery capture", "Captura de discovery", "Captura de discovery")}>
+                <UxaSurface className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <UxaBadge tone="neutral">{copy("Advanced mode", "Modo avanzado", "Modo avancado")}</UxaBadge>
+                    <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                      {copy(
+                        "Edit every field directly.",
+                        "Edita todos los campos directamente.",
+                        "Edite todos os campos diretamente.",
+                      )}
+                    </p>
+                  </div>
+                  <DiscoverCaptureModeSwitch mode={captureMode} onChange={setCaptureMode} />
+                </UxaSurface>
                 <FieldGroup
                   description={copy(
                     "Define the real problem, who experiences it, and what outcome is expected.",
