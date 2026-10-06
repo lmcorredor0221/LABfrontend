@@ -108,6 +108,72 @@ describe("DiscoverStageView UXA7", () => {
     }));
   });
 
+  it("extracts a guided brief into the editable card and saves a partial draft without analysis", async () => {
+    const actions = createActions();
+    renderWithLanguage(
+      <DiscoverStageView
+        actionState={{ status: "idle" }}
+        actions={actions}
+        activeRoute={createDiscoverRouteFixture({ artifact: null, discovery: null })}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Brief libre"), {
+      target: {
+        value:
+          "Hoy el equipo de ventas registra leads manualmente y pierde seguimiento. Quiero automatizar recordatorios y clasificacion para mejorar conversion.",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Convertir en ficha" }));
+
+    expect((screen.getByLabelText("Descripcion del problema") as HTMLTextAreaElement).value).toContain("equipo de ventas");
+    expect((screen.getByLabelText("Resultado deseado") as HTMLTextAreaElement).value).toContain("automatizar");
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar borrador" }));
+
+    await waitFor(() => expect(actions.normalizeDiscovery).toHaveBeenCalledTimes(1));
+    expect(actions.analyzeDiscovery).not.toHaveBeenCalled();
+    expect(actions.normalizeDiscovery).toHaveBeenCalledWith(expect.objectContaining({
+      problem_statement: expect.stringContaining("equipo de ventas"),
+    }));
+  });
+
+  it("keeps analysis validation strict while guided draft saving stays lightweight", async () => {
+    const actions = createActions();
+    renderWithLanguage(
+      <DiscoverStageView
+        actionState={{ status: "idle" }}
+        actions={actions}
+        activeRoute={createDiscoverRouteFixture({ artifact: null, discovery: null })}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Brief libre"), {
+      target: { value: "Quiero automatizar seguimiento de ventas." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Convertir en ficha" }));
+    fireEvent.click(screen.getByRole("button", { name: "Guardar y analizar" }));
+
+    await waitFor(() => expect(screen.getAllByText("Completa los campos obligatorios antes de continuar.").length).toBeGreaterThan(0));
+    expect(actions.analyzeDiscovery).not.toHaveBeenCalled();
+  });
+
+  it("can switch from guided capture to the advanced form for bulk editing", () => {
+    const actions = createActions();
+    renderWithLanguage(
+      <DiscoverStageView
+        actionState={{ status: "idle" }}
+        actions={actions}
+        activeRoute={createDiscoverRouteFixture({ artifact: null })}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Avanzado" }));
+
+    expect(screen.getByText("2. Impacto operativo")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tiempo actual invertido")).toBeInTheDocument();
+  });
+
   it("disables save and analyze while the persistent analysis starts", async () => {
     const pending = new Promise<ProductExperienceStageOperation>(() => undefined);
     const actions = createActions();

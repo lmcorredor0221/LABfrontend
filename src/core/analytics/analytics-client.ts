@@ -57,3 +57,23 @@ export function trackProjectCreated(params: SafeAnalyticsParams) {
 export function trackBeginCheckout(params: SafeAnalyticsParams) {
   return pushAnalyticsEvent("begin_checkout", params);
 }
+
+export function trackDiscoverFirstInput(params: SafeAnalyticsParams) {
+  return pushAnalyticsEvent("discover_first_input", params);
+}
+
+export function trackDiscoverBriefExtracted(params: SafeAnalyticsParams) {
+  return pushAnalyticsEvent("discover_brief_extracted", params);
+}
+
+export function trackDiscoverFieldCorrected(params: SafeAnalyticsParams) {
+  return pushAnalyticsEvent("discover_field_corrected", params);
+}
+
+export function trackDiscoverDraftSaved(params: SafeAnalyticsParams) {
+  return pushAnalyticsEvent("discover_draft_saved", params);
+}
+
+export function trackDiscoverAnalysisStarted(params: SafeAnalyticsParams) {
+  return pushAnalyticsEvent("discover_analysis_started", params);
+}

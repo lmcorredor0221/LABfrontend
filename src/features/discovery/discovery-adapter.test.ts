@@ -1,8 +1,12 @@
 import {
   buildDiscoveryInput,
+  applyGuidedAnswerToDiscoveryFormValues,
+  buildDiscoveryContractCards,
   createDiscoveryFormValues,
+  extractDiscoveryFormValuesFromBrief,
   getDiscoveryFieldErrors,
   getDiscoveryInputMissingFields,
+  getNextDiscoveryMissingField,
   mapAutonomySliderToLevel,
 } from "@/features/discovery/discovery-adapter";
 
@@ -78,5 +82,62 @@ describe("discovery payload adapter", () => {
     expect(fieldErrors.northStarMetric).toBeDefined();
     expect(missingFields).toContain("operational_baseline.current_cost");
     expect(missingFields).toContain("mvp_definition.north_star_metric");
+  });
+
+  it("extracts a conservative editable ficha from a free brief", () => {
+    const result = extractDiscoveryFormValuesFromBrief(
+      "Hoy el equipo de soporte recibe tickets manuales y responde tarde. Quiero automatizar la clasificacion para reducir tiempos.",
+    );
+
+    expect(result.values.problemStatement).toContain("equipo de soporte");
+    expect(result.values.currentProcess).toContain("tickets manuales");
+    expect(result.values.desiredOutcome).toContain("automatizar");
+    expect(result.values.currentUser).toContain("equipo de soporte");
+    expect(result.values.automationOpportunities).toContain("automatizar");
+    expect(result.autoFilledFields).toContain("problemStatement");
+  });
+
+  it("returns the next guided missing field and applies the answer", () => {
+    const initial = extractDiscoveryFormValuesFromBrief("Quiero automatizar seguimiento de ventas.").values;
+    const nextMissingField = getNextDiscoveryMissingField(initial);
+
+    expect(nextMissingField).toBe("current_user");
+
+    const updated = applyGuidedAnswerToDiscoveryFormValues(initial, nextMissingField, "Equipo comercial");
+
+    expect(updated.currentUser).toBe("Equipo comercial");
+    expect(getNextDiscoveryMissingField(updated)).toBe("current_process");
+  });
+
+  it("builds compact contract cards from the same DiscoveryInput requirements", () => {
+    const formValues = createDiscoveryFormValues({
+      autonomy_level: "medium",
+      case_type: "copiloto",
+      constraints: [],
+      current_process: "Atiende tickets manualmente",
+      current_user: "Equipo de soporte",
+      desired_outcome: "Reducir tiempos",
+      mvp_definition: {
+        non_delegable_decisions: [],
+        north_star_metric: "",
+        out_of_scope: [],
+        v1_scope: ["Clasificar tickets"],
+      },
+      operational_baseline: {
+        automation_opportunities: ["Clasificar automaticamente"],
+        current_cost: "",
+        current_time_spent: "",
+        frequent_errors: ["Respuestas inconsistentes"],
+      },
+      problem_statement: "Tickets repetitivos sin prioridad clara.",
+      value_statement: "",
+    });
+
+    const cards = buildDiscoveryContractCards(formValues);
+
+    expect(cards).toHaveLength(3);
+    expect(cards.find((card) => card.key === "context")?.status).toBe("complete");
+    expect(cards.find((card) => card.key === "impact")?.status).toBe("partial");
+    expect(cards.find((card) => card.key === "mvp")?.status).toBe("partial");
   });
 });

@@ -1,5 +1,5 @@
 import { getMarketingContext } from "@/core/analytics/attribution";
-import { pushAnalyticsEvent } from "@/core/analytics/analytics-client";
+import { pushAnalyticsEvent, trackDiscoverBriefExtracted } from "@/core/analytics/analytics-client";
 import { saveConsentChoice } from "@/core/analytics/consent-store";
 import { sanitizePathname, sanitizeUrl } from "@/core/analytics/sanitize";
 
@@ -64,6 +64,27 @@ describe("marketing analytics helpers", () => {
       funnel_stage: "validate",
       language: "es",
       product_key: "blueprint",
+    });
+  });
+
+  it("sends only safe Discovery guided-capture metrics", () => {
+    vi.stubEnv("NEXT_PUBLIC_ANALYTICS_ENABLED", "true");
+    saveConsentChoice({ analytics: true, advertising: false });
+
+    trackDiscoverBriefExtracted({
+      auto_filled_fields_count: 3,
+      capture_mode: "guided",
+      language: "es",
+      missing_fields_count: 7,
+      prompt_text: "contenido sensible del usuario",
+    });
+
+    expect(window.dataLayer?.at(-1)).toEqual({
+      auto_filled_fields_count: 3,
+      capture_mode: "guided",
+      event: "discover_brief_extracted",
+      language: "es",
+      missing_fields_count: 7,
     });
   });
 

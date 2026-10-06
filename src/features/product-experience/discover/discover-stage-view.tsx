@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -15,13 +15,21 @@ import {
 } from "lucide-react";
 import {
   buildDiscoveryInput,
+  applyGuidedAnswerToDiscoveryFormValues,
+  buildDiscoveryContractCards,
   createDiscoveryFormValues,
   DISCOVERY_COST_OPTIONS,
   DISCOVERY_TIME_SPENT_OPTIONS,
+  extractDiscoveryFormValuesFromBrief,
   formatDiscoveryMissingField,
+  getGuidedDiscoveryQuestion,
+  getGuidedDiscoveryQuestions,
   getDiscoveryFieldErrors,
+  getDiscoveryInputMissingFields,
+  getNextDiscoveryMissingField,
   type DiscoveryFormErrors,
   type DiscoveryFormValues,
+  type DiscoveryCaptureMode,
 } from "@/features/discovery/discovery-adapter";
 import {
   UxaBadge,
@@ -57,6 +65,13 @@ import type {
 } from "@/features/sessions/session-contracts";
 import { useLanguage } from "@/core/i18n/language-context";
 import type { TranslationKey } from "@/core/i18n/locales/es";
+import {
+  trackDiscoverAnalysisStarted,
+  trackDiscoverBriefExtracted,
+  trackDiscoverDraftSaved,
+  trackDiscoverFieldCorrected,
+  trackDiscoverFirstInput,
+} from "@/core/analytics/analytics-client";
 import { cn } from "@/lib/utils";
 
 type DiscoverStageViewProps = {
@@ -348,6 +363,240 @@ function AutonomyField({
       />
       <p className="uxa-help-text">{t("discover.autonomy.label", "Nivel actual")}: {label}</p>
     </label>
+  );
+}
+
+function DiscoverCaptureModeSwitch({
+  mode,
+  onChange,
+}: {
+  mode: DiscoveryCaptureMode;
+  onChange: (mode: DiscoveryCaptureMode) => void;
+}) {
+  const { language } = useLanguage();
+  const copy = useCallback((en: string, es: string, pt: string) => byLanguage(language, { en, es, pt }), [language]);
+  const options: Array<{ label: string; mode: DiscoveryCaptureMode }> = [
+    { label: copy("Guided", "Guiado", "Guiado"), mode: "guided" },
+    { label: copy("Advanced", "Avanzado", "Avancado"), mode: "advanced" },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={copy("Discovery capture mode", "Modo de captura de Discover", "Modo de captura do Discover")}>
+      {options.map((option) => (
+        <UxaButton
+          aria-pressed={mode === option.mode}
+          key={option.mode}
+          onClick={() => onChange(option.mode)}
+          size="sm"
+          variant={mode === option.mode ? "primary" : "secondary"}
+        >
+          {option.label}
+        </UxaButton>
+      ))}
+    </div>
+  );
+}
+
+function DiscoverGuidedCapture({
+  autoFilledCount,
+  briefText,
+  errors,
+  formValues,
+  nextMissingField,
+  onApplyBrief,
+  onBriefInput,
+  onGuidedAnswer,
+  onModeChange,
+  onUpdateField,
+}: {
+  autoFilledCount: number;
+  briefText: string;
+  errors: DiscoveryFormErrors;
+  formValues: DiscoveryFormValues;
+  nextMissingField: string | null;
+  onApplyBrief: () => void;
+  onBriefInput: (value: string) => void;
+  onGuidedAnswer: (fieldPath: string, answer: string) => void;
+  onModeChange: (mode: DiscoveryCaptureMode) => void;
+  onUpdateField: <K extends keyof DiscoveryFormValues>(key: K, value: DiscoveryFormValues[K]) => void;
+}) {
+  const { language } = useLanguage();
+  const copy = useCallback((en: string, es: string, pt: string) => byLanguage(language, { en, es, pt }), [language]);
+  const cards = buildDiscoveryContractCards(formValues);
+  const nextQuestion = nextMissingField ? getGuidedDiscoveryQuestion(nextMissingField) : null;
+
+  return (
+    <section className="space-y-4" aria-label={copy("Guided Discovery capture", "Captura guiada de Discover", "Captura guiada do Discover")}>
+      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <UxaBadge tone="info">{copy("Guided capture", "Captura guiada", "Captura guiada")}</UxaBadge>
+            <h3 className="mt-3 text-[20px] font-black">{copy("Tell me what you want to automate", "Cuentame que quieres automatizar", "Conte-me o que voce quer automatizar")}</h3>
+            <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {copy(
+                "Start with a free brief. LAB turns it into an editable contract card and keeps doubts visible.",
+                "Empieza con un brief libre. LAB lo convierte en una ficha editable y mantiene visibles las dudas.",
+                "Comece com um brief livre. LAB o transforma em uma ficha editavel e mantem as duvidas visiveis.",
+              )}
+            </p>
+          </div>
+          <UxaButton onClick={() => onModeChange("advanced")} size="sm" variant="secondary">
+            {copy("Open advanced form", "Abrir formulario avanzado", "Abrir formulario avancado")}
+          </UxaButton>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.6fr)]">
+          <UxaTextareaField
+            label={copy("Free brief", "Brief libre", "Brief livre")}
+            onChange={(event) => onBriefInput(event.target.value)}
+            placeholder={copy(
+              "Example: Today the support team receives repetitive requests by email and wants an agent to classify, suggest responses, and keep approvals with a human owner.",
+              "Ejemplo: Hoy el equipo de soporte recibe solicitudes repetitivas por correo y quiere un agente que clasifique, sugiera respuestas y conserve aprobaciones con un responsable humano.",
+              "Exemplo: Hoje a equipe de suporte recebe solicitacoes repetitivas por e-mail e quer um agente que classifique, sugira respostas e mantenha aprovacoes com um responsavel humano.",
+            )}
+            rows={6}
+            value={briefText}
+          />
+          <div className="rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] p-4">
+            <p className="text-[12px] font-black">{copy("Extraction status", "Estado de extraccion", "Estado da extracao")}</p>
+            <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {autoFilledCount
+                ? copy(
+                    `${autoFilledCount} field(s) filled from the brief.`,
+                    `${autoFilledCount} campo(s) completado(s) desde el brief.`,
+                    `${autoFilledCount} campo(s) preenchido(s) a partir do brief.`,
+                  )
+                : copy(
+                    "No fields have been extracted yet.",
+                    "Aun no se han extraido campos.",
+                    "Ainda nao foram extraidos campos.",
+                  )}
+            </p>
+            <UxaButton className="mt-4 w-full" disabled={!briefText.trim()} onClick={onApplyBrief} variant="primary">
+              {copy("Convert to card", "Convertir en ficha", "Converter em ficha")}
+            </UxaButton>
+          </div>
+        </div>
+      </UxaSurface>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {cards.map((card) => (
+          <UxaSurface className="p-4" key={card.key}>
+            <UxaBadge tone={card.status === "complete" ? "success" : card.status === "partial" ? "warning" : "neutral"}>
+              {card.status === "complete"
+                ? copy("Complete", "Completo", "Completo")
+                : card.status === "partial"
+                  ? copy("Partial", "Parcial", "Parcial")
+                  : copy("Missing", "Pendiente", "Pendente")}
+            </UxaBadge>
+            <h4 className="mt-3 text-[15px] font-black">{card.title}</h4>
+            <p className="mt-2 min-h-12 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">{card.summary}</p>
+          </UxaSurface>
+        ))}
+      </div>
+
+      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.55fr)]">
+          <div>
+            <UxaBadge tone={nextQuestion ? "warning" : "success"}>
+              {nextQuestion ? copy("Next question", "Siguiente pregunta", "Proxima pergunta") : copy("Ready", "Listo", "Pronto")}
+            </UxaBadge>
+            <h3 className="mt-3 text-[20px] font-black">
+              {nextQuestion ? nextQuestion.prompt : copy("The minimum discovery contract is complete", "El contrato minimo de discovery esta completo", "O contrato minimo de discovery esta completo")}
+            </h3>
+            <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+              {nextQuestion
+                ? copy(
+                    "Answer one missing item at a time. The advanced form remains available for bulk editing.",
+                    "Responde un faltante a la vez. El formulario avanzado sigue disponible para edicion masiva.",
+                    "Responda uma pendencia por vez. O formulario avancado continua disponivel para edicao em massa.",
+                  )
+                : copy(
+                    "You can save, analyze, or fine tune details in advanced mode.",
+                    "Puedes guardar, analizar o ajustar detalles en modo avanzado.",
+                    "Voce pode salvar, analisar ou ajustar detalhes no modo avancado.",
+                  )}
+            </p>
+          </div>
+          {nextQuestion ? (
+            <div className="space-y-3">
+              {nextQuestion.inputKind === "select" && nextQuestion.formKey === "currentTimeSpent" ? (
+                <SelectField
+                  error={errors.currentTimeSpent}
+                  label={nextQuestion.label}
+                  onChange={(value) => onGuidedAnswer(nextQuestion.fieldPath, value)}
+                  options={DISCOVERY_TIME_SPENT_OPTIONS}
+                  value={String(formValues[nextQuestion.formKey] || "")}
+                />
+              ) : nextQuestion.inputKind === "select" && nextQuestion.formKey === "currentCost" ? (
+                <SelectField
+                  error={errors.currentCost}
+                  label={nextQuestion.label}
+                  onChange={(value) => onGuidedAnswer(nextQuestion.fieldPath, value)}
+                  options={DISCOVERY_COST_OPTIONS}
+                  value={String(formValues[nextQuestion.formKey] || "")}
+                />
+              ) : nextQuestion.inputKind === "text" ? (
+                <UxaTextField
+                  error={errors[nextQuestion.formKey]}
+                  label={nextQuestion.label}
+                  onChange={(event) => onGuidedAnswer(nextQuestion.fieldPath, event.target.value)}
+                  value={String(formValues[nextQuestion.formKey] || "")}
+                />
+              ) : (
+                <UxaTextareaField
+                  error={errors[nextQuestion.formKey]}
+                  label={nextQuestion.label}
+                  onChange={(event) => onGuidedAnswer(nextQuestion.fieldPath, event.target.value)}
+                  rows={4}
+                  value={String(formValues[nextQuestion.formKey] || "")}
+                />
+              )}
+            </div>
+          ) : null}
+        </div>
+      </UxaSurface>
+
+      <UxaSurface className="p-[var(--uxa-panel-padding-lg)]">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <UxaBadge tone="brand">{copy("Editable card", "Ficha editable", "Ficha editavel")}</UxaBadge>
+            <h3 className="mt-3 text-[20px] font-black">{copy("Contract preview", "Vista previa del contrato", "Previa do contrato")}</h3>
+          </div>
+          <UxaButton onClick={() => onModeChange("advanced")} size="sm" variant="secondary">
+            {copy("Edit all fields", "Editar todos los campos", "Editar todos os campos")}
+          </UxaButton>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <UxaTextareaField
+            error={errors.problemStatement}
+            label={copy("Problem description", "Descripcion del problema", "Descricao do problema")}
+            onChange={(event) => onUpdateField("problemStatement", event.target.value)}
+            rows={4}
+            value={formValues.problemStatement}
+          />
+          <UxaTextField
+            error={errors.currentUser}
+            label={copy("Who performs it today", "Quien ejecuta hoy", "Quem executa hoje")}
+            onChange={(event) => onUpdateField("currentUser", event.target.value)}
+            value={formValues.currentUser}
+          />
+          <UxaTextareaField
+            error={errors.currentProcess}
+            label={copy("Current task or process", "Tarea o proceso actual", "Tarefa ou processo atual")}
+            onChange={(event) => onUpdateField("currentProcess", event.target.value)}
+            rows={3}
+            value={formValues.currentProcess}
+          />
+          <UxaTextareaField
+            error={errors.desiredOutcome}
+            label={copy("Desired outcome", "Resultado deseado", "Resultado desejado")}
+            onChange={(event) => onUpdateField("desiredOutcome", event.target.value)}
+            rows={3}
+            value={formValues.desiredOutcome}
+          />
+        </div>
+      </UxaSurface>
+    </section>
   );
 }
 
@@ -692,7 +941,13 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<DiscoveryFormErrors>({});
   const [formValues, setFormValues] = useState<DiscoveryFormValues>(initialValues);
+  const [captureMode, setCaptureMode] = useState<DiscoveryCaptureMode>("guided");
+  const [guidedBriefText, setGuidedBriefText] = useState("");
+  const [autoFilledFields, setAutoFilledFields] = useState<string[]>([]);
+  const [manualCorrections, setManualCorrections] = useState<string[]>([]);
   const [localAction, setLocalAction] = useState<LocalActionState>({ status: "idle" });
+  const mountedAtRef = useRef<number>(Date.now());
+  const firstInputTrackedRef = useRef(false);
   const busy = isSubmitting(actionState, localAction);
   const viewModel = buildDiscoverViewModel(activeRoute, {
     dirty,
@@ -732,6 +987,9 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
   const latestArtifact = viewModel.latestArtifact;
   const analysis = viewModel.analysisArtifact;
   const mergedMessage = localAction.message ?? actionState?.message;
+  const guidedQuestionCount = getGuidedDiscoveryQuestions().length;
+  const completedFieldsCount = Math.max(0, guidedQuestionCount - viewModel.missingFields.length);
+  const nextMissingField = getNextDiscoveryMissingField(formValues);
 
   useEffect(() => {
     if (dirty || busy) {
@@ -779,6 +1037,21 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
   }, [busy, dirty, initialValues, sessionId]);
 
   function updateField<K extends keyof DiscoveryFormValues>(key: K, value: DiscoveryFormValues[K]) {
+    const previous = formValues[key];
+    if (
+      String(previous ?? "").trim() &&
+      String(previous ?? "") !== String(value ?? "") &&
+      !manualCorrections.includes(String(key))
+    ) {
+      const nextCorrections = [...manualCorrections, String(key)];
+      setManualCorrections(nextCorrections);
+      trackDiscoverFieldCorrected({
+        capture_mode: captureMode,
+        field_key: String(key),
+        language,
+        manual_corrections_count: nextCorrections.length,
+      });
+    }
     setFormValues((current) => ({
       ...current,
       [key]: value,
@@ -793,16 +1066,54 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
     }
   }
 
-  function validateForm() {
+  function handleGuidedBriefInput(value: string) {
+    setGuidedBriefText(value);
+    if (!firstInputTrackedRef.current && value.trim()) {
+      firstInputTrackedRef.current = true;
+      trackDiscoverFirstInput({
+        capture_mode: captureMode,
+        language,
+        time_to_first_input_ms: Date.now() - mountedAtRef.current,
+      });
+    }
+  }
+
+  function applyGuidedBrief() {
+    const extracted = extractDiscoveryFormValuesFromBrief(guidedBriefText, formValues);
+    setFormValues(extracted.values);
+    setAutoFilledFields((current) => Array.from(new Set([...current, ...extracted.autoFilledFields])));
+    setDirty(true);
+    trackDiscoverBriefExtracted({
+      auto_filled_fields_count: extracted.autoFilledFields.length,
+      capture_mode: captureMode,
+      language,
+      missing_fields_count: getDiscoveryInputMissingFields(buildDiscoveryInput(extracted.values)).length,
+    });
+  }
+
+  function applyGuidedAnswer(fieldPath: string, answer: string) {
+    const nextValues = applyGuidedAnswerToDiscoveryFormValues(formValues, fieldPath, answer);
+    const question = getGuidedDiscoveryQuestion(fieldPath);
+    setFormValues(nextValues);
+    if (question) {
+      setErrors((current) => ({
+        ...current,
+        [question.formKey]: undefined,
+      }));
+    }
+    setDirty(true);
+  }
+
+  function validateForAnalysis() {
     const nextErrors = getDiscoveryFieldErrors(formValues);
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
       setLocalAction({
         message: copy(
-          "Complete the critical fields before continuing.",
-          "Completa los campos criticos antes de continuar.",
-          "Complete os campos criticos antes de continuar.",
+          "Complete the required fields before continuing.",
+          "Completa los campos obligatorios antes de continuar.",
+          "Complete os campos obrigatorios antes de continuar.",
         ),
         status: "error",
       });
@@ -812,8 +1123,33 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
     return buildDiscoveryInput(formValues);
   }
 
+  function validateForPartialSave() {
+    let values = formValues;
+    if (!values.problemStatement.trim() && guidedBriefText.trim()) {
+      const extracted = extractDiscoveryFormValuesFromBrief(guidedBriefText, values);
+      values = extracted.values;
+      setFormValues(values);
+      setAutoFilledFields((current) => Array.from(new Set([...current, ...extracted.autoFilledFields])));
+    }
+
+    if (!values.problemStatement.trim()) {
+      setLocalAction({
+        message: copy(
+          "Write a brief or problem description before saving.",
+          "Escribe un brief o descripcion del problema antes de guardar.",
+          "Escreva um brief ou descricao do problema antes de salvar.",
+        ),
+        status: "error",
+      });
+      return null;
+    }
+
+    setErrors({});
+    return buildDiscoveryInput(values);
+  }
+
   async function saveDraft() {
-    const payload = validateForm();
+    const payload = validateForPartialSave();
     if (!payload || !actions) {
       return null;
     }
@@ -822,6 +1158,12 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
     try {
       const envelope = await actions.normalizeDiscovery(payload);
       setDirty(false);
+      trackDiscoverDraftSaved({
+        capture_mode: captureMode,
+        completed_fields_count: completedFieldsCount,
+        language,
+        missing_fields_count: viewModel.missingFields.length,
+      });
       setLocalAction({
         message: envelope.status === "ready"
           ? copy("Discovery saved and normalized.", "Discovery guardado y normalizado.", "Discovery salvo e normalizado.")
@@ -840,7 +1182,7 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
   }
 
   async function analyzeDraft() {
-    const payload = validateForm();
+    const payload = validateForAnalysis();
     if (!payload || !actions) {
       return;
     }
@@ -854,6 +1196,12 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
       status: "submitting",
     });
     try {
+      trackDiscoverAnalysisStarted({
+        capture_mode: captureMode,
+        completed_fields_count: completedFieldsCount,
+        language,
+        time_to_analysis_ms: Date.now() - mountedAtRef.current,
+      });
       const operation = await actions.analyzeDiscovery(payload);
       setDirty(false);
       setLocalAction({
@@ -921,7 +1269,7 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
     setLocalAction({ message: copy("Approving Discover.", "Aprobando Discover.", "Aprovando Discover."), status: "submitting" });
     try {
       if (dirty) {
-        const payload = validateForm();
+        const payload = validateForAnalysis();
         if (!payload) {
           return;
         }
@@ -1143,44 +1491,73 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
         key: "task",
         label: t("discover.tab.task.label", "Current task"),
         children: (
-          <section className="space-y-4" aria-label={copy("Discovery capture", "Captura de discovery", "Captura de discovery")}>
-            <FieldGroup
-              description={copy(
-                "Define the real problem, who experiences it, and what outcome is expected.",
-                "Define el problema real, quien lo vive y que resultado espera obtener.",
-                "Defina o problema real, quem o vivencia e qual resultado se espera obter.",
-              )}
-              icon={ClipboardCheck}
-              title={copy("1. Problem context", "1. Contexto del problema", "1. Contexto do problema")}
-            >
-              <UxaTextareaField
-                error={errors.problemStatement}
-                label={copy("Problem description", "Descripcion del problema", "Descricao do problema")}
-                onChange={(event) => updateField("problemStatement", event.target.value)}
-                rows={4}
-                value={formValues.problemStatement}
+          <div className="space-y-4">
+            <UxaSurface className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <UxaBadge tone="neutral">{copy("Capture mode", "Modo de captura", "Modo de captura")}</UxaBadge>
+                <p className="mt-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]">
+                  {copy(
+                    "Use guided capture for a low-friction start or advanced mode for bulk editing.",
+                    "Usa captura guiada para empezar sin friccion o modo avanzado para edicion masiva.",
+                    "Use captura guiada para comecar sem atrito ou modo avancado para edicao em massa.",
+                  )}
+                </p>
+              </div>
+              <DiscoverCaptureModeSwitch mode={captureMode} onChange={setCaptureMode} />
+            </UxaSurface>
+
+            {captureMode === "guided" ? (
+              <DiscoverGuidedCapture
+                autoFilledCount={autoFilledFields.length}
+                briefText={guidedBriefText}
+                errors={errors}
+                formValues={formValues}
+                nextMissingField={nextMissingField}
+                onApplyBrief={applyGuidedBrief}
+                onBriefInput={handleGuidedBriefInput}
+                onGuidedAnswer={applyGuidedAnswer}
+                onModeChange={setCaptureMode}
+                onUpdateField={updateField}
               />
-              <UxaTextField
-                error={errors.currentUser}
-                label={copy("Who performs it today", "Quien ejecuta hoy", "Quem executa hoje")}
-                onChange={(event) => updateField("currentUser", event.target.value)}
-                value={formValues.currentUser}
-              />
-              <UxaTextareaField
-                error={errors.currentProcess}
-                label={copy("Current task or process", "Tarea o proceso actual", "Tarefa ou processo atual")}
-                onChange={(event) => updateField("currentProcess", event.target.value)}
-                rows={4}
-                value={formValues.currentProcess}
-              />
-              <UxaTextareaField
-                error={errors.desiredOutcome}
-                label={copy("Desired outcome", "Resultado deseado", "Resultado desejado")}
-                onChange={(event) => updateField("desiredOutcome", event.target.value)}
-                rows={4}
-                value={formValues.desiredOutcome}
-              />
-            </FieldGroup>
+            ) : (
+              <section className="space-y-4" aria-label={copy("Discovery capture", "Captura de discovery", "Captura de discovery")}>
+                <FieldGroup
+                  description={copy(
+                    "Define the real problem, who experiences it, and what outcome is expected.",
+                    "Define el problema real, quien lo vive y que resultado espera obtener.",
+                    "Defina o problema real, quem o vivencia e qual resultado se espera obter.",
+                  )}
+                  icon={ClipboardCheck}
+                  title={copy("1. Problem context", "1. Contexto del problema", "1. Contexto do problema")}
+                >
+                  <UxaTextareaField
+                    error={errors.problemStatement}
+                    label={copy("Problem description", "Descripcion del problema", "Descricao do problema")}
+                    onChange={(event) => updateField("problemStatement", event.target.value)}
+                    rows={4}
+                    value={formValues.problemStatement}
+                  />
+                  <UxaTextField
+                    error={errors.currentUser}
+                    label={copy("Who performs it today", "Quien ejecuta hoy", "Quem executa hoje")}
+                    onChange={(event) => updateField("currentUser", event.target.value)}
+                    value={formValues.currentUser}
+                  />
+                  <UxaTextareaField
+                    error={errors.currentProcess}
+                    label={copy("Current task or process", "Tarea o proceso actual", "Tarefa ou processo atual")}
+                    onChange={(event) => updateField("currentProcess", event.target.value)}
+                    rows={4}
+                    value={formValues.currentProcess}
+                  />
+                  <UxaTextareaField
+                    error={errors.desiredOutcome}
+                    label={copy("Desired outcome", "Resultado deseado", "Resultado desejado")}
+                    onChange={(event) => updateField("desiredOutcome", event.target.value)}
+                    rows={4}
+                    value={formValues.desiredOutcome}
+                  />
+                </FieldGroup>
 
             <FieldGroup
               description={copy(
@@ -1266,7 +1643,9 @@ export function DiscoverStageView({ actionState, activeRoute, actions }: Discove
                 value={formValues.constraints}
               />
             </FieldGroup>
-          </section>
+              </section>
+            )}
+          </div>
         ),
       },
       {

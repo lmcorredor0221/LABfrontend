@@ -6,7 +6,12 @@ export type AnalyticsEventName =
   | "sign_up"
   | "login"
   | "project_created"
-  | "begin_checkout";
+  | "begin_checkout"
+  | "discover_first_input"
+  | "discover_brief_extracted"
+  | "discover_field_corrected"
+  | "discover_draft_saved"
+  | "discover_analysis_started";
 
 export type ConsentValue = "granted" | "denied";
 
@@ -51,4 +56,9 @@ export const ALLOWED_EVENT_PARAMS: Record<AnalyticsEventName, Set<string>> = {
   login: new Set(["method"]),
   project_created: new Set(["entrypoint", "language"]),
   begin_checkout: new Set(["currency", "value", "product_key", "provider", "checkout_ref"]),
+  discover_first_input: new Set(["capture_mode", "time_to_first_input_ms", "language"]),
+  discover_brief_extracted: new Set(["capture_mode", "auto_filled_fields_count", "missing_fields_count", "language"]),
+  discover_field_corrected: new Set(["capture_mode", "field_key", "manual_corrections_count", "language"]),
+  discover_draft_saved: new Set(["capture_mode", "completed_fields_count", "missing_fields_count", "language"]),
+  discover_analysis_started: new Set(["capture_mode", "completed_fields_count", "time_to_analysis_ms", "language"]),
 };
