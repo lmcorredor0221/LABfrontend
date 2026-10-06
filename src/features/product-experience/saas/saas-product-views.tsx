@@ -569,6 +569,85 @@ function InlineNoticeBanner({
   );
 }
 
+function ProductDownloadWaitPanel({
+  productLabel,
+}: {
+  productLabel: string;
+}) {
+  const { language } = useLanguage();
+  const steps = [
+    byLanguage(language, {
+      en: "Creating a secure export job",
+      es: "Creando un trabajo de exportacion seguro",
+      pt: "Criando uma exportacao segura",
+    }),
+    byLanguage(language, {
+      en: "Packaging the latest approved artifacts",
+      es: "Empaquetando los artefactos aprobados mas recientes",
+      pt: "Empacotando os artefatos aprovados mais recentes",
+    }),
+    byLanguage(language, {
+      en: "Opening the authenticated download",
+      es: "Abriendo la descarga autenticada",
+      pt: "Abrindo o download autenticado",
+    }),
+  ];
+
+  return (
+    <UxaSurface aria-live="polite" className="p-4" role="status">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <UxaBadge tone="info">
+            {byLanguage(language, {
+              en: "Preparing download",
+              es: "Preparando descarga",
+              pt: "Preparando download",
+            })}
+          </UxaBadge>
+          <h3 className="mt-2 text-[16px] font-black text-[var(--uxa-color-ink)]">
+            {byLanguage(language, {
+              en: `${productLabel} is being packaged`,
+              es: `${productLabel} se esta empaquetando`,
+              pt: `${productLabel} esta sendo empacotado`,
+            })}
+          </h3>
+          <p className="mt-1 max-w-3xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+            {byLanguage(language, {
+              en: "This can take a few seconds while LAB reconciles the latest assets and opens the file through the authenticated API.",
+              es: "Esto puede tomar unos segundos mientras LAB concilia los activos mas recientes y abre el archivo desde la API autenticada.",
+              pt: "Isso pode levar alguns segundos enquanto o LAB reconcilia os ativos mais recentes e abre o arquivo pela API autenticada.",
+            })}
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-2 rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] px-3 py-2 text-[12px] font-black text-[var(--uxa-color-ink-soft)]">
+          <Clock3 aria-hidden="true" className="h-4 w-4 animate-spin text-[var(--uxa-color-brand)]" />
+          {byLanguage(language, { en: "Working", es: "Trabajando", pt: "Trabalhando" })}
+        </span>
+      </div>
+      <UxaProcessingStrip
+        className="mt-4"
+        label={byLanguage(language, {
+          en: `${productLabel} download preparation progress`,
+          es: `Progreso de preparacion de descarga de ${productLabel}`,
+          pt: `Progresso de preparacao de download de ${productLabel}`,
+        })}
+        value={66}
+      />
+      <ol className="mt-4 grid gap-2 md:grid-cols-3">
+        {steps.map((step, index) => (
+          <li
+            className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border-soft)] bg-[var(--uxa-color-muted-panel)] px-3 py-2 text-[12px] leading-5 text-[var(--uxa-color-ink-soft)]"
+            key={step}
+          >
+            <span className="font-black text-[var(--uxa-color-brand)]">{index + 1}. </span>
+            {step}
+          </li>
+        ))}
+      </ol>
+    </UxaSurface>
+  );
+}
+
 type ProductSaasViewProps = {
   activeRoute: ProductExperienceRouteSnapshot | null;
   section: ProductExperienceProductSection;
@@ -3987,6 +4066,7 @@ function BlueprintProPage({
         viewModel={viewModel}
       />
       <InlineNoticeBanner notice={downloadNotice || checkoutNotice} />
+      {downloading ? <ProductDownloadWaitPanel productLabel="Blueprint Pro" /> : null}
       <UxaContextualActionDock
         label={byLanguage(language, {
           en: "Blueprint Pro actions",
@@ -4050,6 +4130,18 @@ function BlueprintProPage({
                       pt: "Blueprint Pro",
                     }),
                   );
+                } catch (error) {
+                  setDownloadNotice({
+                    message:
+                      error instanceof Error
+                        ? error.message
+                        : byLanguage(language, {
+                            en: "The Blueprint Pro download could not be prepared.",
+                            es: "No se pudo preparar la descarga de Blueprint Pro.",
+                            pt: "Nao foi possivel preparar o download de Blueprint Pro.",
+                          }),
+                    tone: "danger",
+                  });
                 } finally {
                   setDownloading(false);
                 }

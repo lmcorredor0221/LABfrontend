@@ -13,6 +13,7 @@ import { byLanguage } from "@/features/product-experience/core/localized-copy";
 import { useLanguage } from "@/core/i18n/language-context";
 import {
   UxaBadge,
+  UxaProcessingStrip,
   UxaSurface,
 } from "@/features/product-experience/design-system";
 import { executeAcpZipDownload } from "@/features/acp/acp-adapter";
@@ -24,6 +25,102 @@ export type AcpPackageStageProps = {
   deferredCount: number;
 };
 
+type AcpDownloadStep = "idle" | "building" | "readying" | "downloading";
+
+function AcpDownloadWaitPanel({ step }: { step: AcpDownloadStep }) {
+  const { language } = useLanguage();
+  const steps: Array<{ key: AcpDownloadStep; label: string; value: number }> = [
+    {
+      key: "building",
+      label: byLanguage(language, {
+        en: "Building the ACP package",
+        es: "Construyendo el paquete ACP",
+        pt: "Construindo o pacote ACP",
+      }),
+      value: 33,
+    },
+    {
+      key: "readying",
+      label: byLanguage(language, {
+        en: "Validating download readiness",
+        es: "Validando readiness de descarga",
+        pt: "Validando prontidao do download",
+      }),
+      value: 66,
+    },
+    {
+      key: "downloading",
+      label: byLanguage(language, {
+        en: "Opening the ZIP download",
+        es: "Abriendo la descarga ZIP",
+        pt: "Abrindo o download ZIP",
+      }),
+      value: 90,
+    },
+  ];
+  const currentIndex = Math.max(0, steps.findIndex((item) => item.key === step));
+  const progress = steps[currentIndex]?.value ?? 20;
+
+  return (
+    <div
+      aria-live="polite"
+      className="mt-4 rounded-[var(--uxa-radius-lg)] border border-[var(--uxa-color-border)] bg-[var(--uxa-color-muted-panel)] p-4"
+      role="status"
+    >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-[12px] font-black uppercase text-[var(--uxa-color-brand)]">
+            {byLanguage(language, {
+              en: "Preparing ACP ZIP",
+              es: "Preparando ACP ZIP",
+              pt: "Preparando ACP ZIP",
+            })}
+          </p>
+          <p className="mt-1 max-w-2xl text-[13px] leading-6 text-[var(--uxa-color-ink-soft)]">
+            {byLanguage(language, {
+              en: "LAB is running the final package phases before opening the file. Keep this tab open while the authenticated download starts.",
+              es: "LAB esta ejecutando las fases finales del paquete antes de abrir el archivo. Mantén esta pestaña abierta mientras inicia la descarga autenticada.",
+              pt: "O LAB esta executando as fases finais do pacote antes de abrir o arquivo. Mantenha esta aba aberta enquanto o download autenticado inicia.",
+            })}
+          </p>
+        </div>
+        <span className="rounded-[var(--uxa-radius-md)] border border-[var(--uxa-color-border)] px-3 py-2 text-[12px] font-black text-[var(--uxa-color-ink-soft)]">
+          {steps[currentIndex]?.label}
+        </span>
+      </div>
+      <UxaProcessingStrip
+        className="mt-4"
+        label={byLanguage(language, {
+          en: "ACP ZIP preparation progress",
+          es: "Progreso de preparacion ACP ZIP",
+          pt: "Progresso de preparacao ACP ZIP",
+        })}
+        value={progress}
+      />
+      <ol className="mt-4 grid gap-2 md:grid-cols-3">
+        {steps.map((item, index) => {
+          const active = index === currentIndex;
+          const done = index < currentIndex;
+          return (
+            <li
+              className={cn(
+                "rounded-[var(--uxa-radius-md)] border px-3 py-2 text-[12px] leading-5",
+                active && "border-[var(--uxa-color-brand)] bg-white text-[var(--uxa-color-ink)]",
+                done && "border-[var(--uxa-state-success)] bg-[var(--uxa-state-success-bg)] text-[var(--uxa-color-ink-soft)]",
+                !active && !done && "border-[var(--uxa-color-border-soft)] bg-white/60 text-[var(--uxa-color-ink-muted)]",
+              )}
+              key={item.key}
+            >
+              <span className="font-black">{index + 1}. </span>
+              {item.label}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 export function AcpPackageStage({
   sessionId,
   answeredCount,
@@ -31,26 +128,31 @@ export function AcpPackageStage({
 }: AcpPackageStageProps) {
   const { language } = useLanguage();
   const [downloading, setDownloading] = useState(false);
+  const [downloadStep, setDownloadStep] = useState<AcpDownloadStep>("idle");
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
   async function handleDownload() {
     if (downloading) return;
     setDownloading(true);
+    setDownloadStep("building");
     setDownloadSuccess(false);
     setErrorNotice(null);
     try {
       for (const phaseKey of ["acp_package_build", "acp_download_ready"]) {
+        setDownloadStep(phaseKey === "acp_package_build" ? "building" : "readying");
         await sessionsApi.runAcpWorkspacePhase(sessionId, phaseKey, {
           idempotency_key: `${sessionId}:${phaseKey}:${Date.now()}`,
         });
       }
+      setDownloadStep("downloading");
       await executeAcpZipDownload({ sessionId });
       setDownloadSuccess(true);
     } catch (err) {
       setErrorNotice(err instanceof Error ? err.message : String(err));
     } finally {
       setDownloading(false);
+      setDownloadStep("idle");
     }
   }
 
@@ -149,6 +251,8 @@ export function AcpPackageStage({
             </button>
           </div>
         </div>
+
+        {downloading ? <AcpDownloadWaitPanel step={downloadStep} /> : null}
 
         {downloadSuccess ? (
           <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-[12px] font-bold text-emerald-900">

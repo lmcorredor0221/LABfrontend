@@ -54,6 +54,16 @@ const mockProductExperienceStore = vi.hoisted(() => ({
   loadRoute: vi.fn(async () => undefined),
 }));
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, reject, resolve };
+}
+
 function createProductBuildStatusMock(
   overrides: Partial<UseProductBuildStatusResult> = {},
 ): UseProductBuildStatusResult {
@@ -1673,6 +1683,19 @@ describe("UXA11 SaaS product views", () => {
     }
   });
 
+  it("explains Blueprint Pro download preparation while the export job is pending", async () => {
+    const exportJob = createDeferred<never>();
+    mockSessionsApi.createExportJob.mockReturnValueOnce(exportJob.promise);
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("blueprint_pro")} section="blueprint_pro" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Descargar Blueprint Pro" }));
+
+    expect(await screen.findByText("Blueprint Pro se esta empaquetando")).toBeInTheDocument();
+    expect(screen.getByText(/LAB concilia los activos mas recientes/i)).toBeInTheDocument();
+    expect(screen.getByText("Creando un trabajo de exportacion seguro")).toBeInTheDocument();
+  });
+
   it("hides the Blueprint Pro download CTA when export permission is missing", () => {
     const route = createRoute("blueprint_pro");
     route.snapshot.data!.commercial_access = {
@@ -2058,6 +2081,22 @@ describe("UXA11 SaaS product views", () => {
           .some((button) => button.className.includes("uxa-button--primary")),
       ).toBe(true),
     );
+  });
+
+  it("explains ACP ZIP preparation while package phases are running", async () => {
+    mockUseSearchParams.mockReturnValueOnce(new URLSearchParams({ step: "package" }));
+    mockSessionsApi.getAcpWorkspace.mockResolvedValueOnce(createAcpWorkspaceReadyForPackage());
+    mockSessionsApi.getAcpQuestions.mockResolvedValueOnce([]);
+    mockSessionsApi.runAcpWorkspacePhase.mockImplementationOnce(() => new Promise(() => undefined));
+
+    renderWithLanguage(<ProductSaasView activeRoute={createRoute("acp")} section="acp" />);
+
+    const downloadButton = await screen.findByRole("button", { name: "Descargar ACP ZIP" });
+    fireEvent.click(downloadButton);
+
+    expect(await screen.findByText("Preparando ACP ZIP")).toBeInTheDocument();
+    expect(screen.getByText(/LAB esta ejecutando las fases finales del paquete/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Construyendo el paquete ACP").length).toBeGreaterThan(0);
   });
 
   it("keeps Validate and Package as internal ACP Premium sections", () => {
