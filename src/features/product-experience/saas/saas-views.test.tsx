@@ -4,8 +4,13 @@ import { vi } from "vitest";
 import { ApiError } from "@/core/api/errors";
 import { LanguageProvider } from "@/core/i18n/language-context";
 import { deliverableCatalogApi } from "@/features/deliverables/infrastructure/deliverable-catalog-api";
+import type { DiagramCatalogItem } from "@/features/diagram-center/domain/types";
 import { premiumEnrichmentApi } from "@/features/product-experience/saas/premium-enrichment-api";
-import { ProductSaasView } from "@/features/product-experience/saas/saas-product-views";
+import {
+  ProductSaasView,
+  isDiagramCatalogItemInProductBuild,
+} from "@/features/product-experience/saas/saas-product-views";
+import type { ProductBuildStatus } from "@/features/product-experience/saas/product-build-status";
 import type { UseProductBuildStatusResult } from "@/features/product-experience/saas/use-product-build-status";
 import {
   EstimateStageView,
@@ -1341,6 +1346,52 @@ describe("UXA11 SaaS product views", () => {
     expect(screen.getByRole("tab", { name: /Diagramas/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Diagramas de Blueprint Pro" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Contenido Pro" })).not.toBeInTheDocument();
+  });
+
+  it("scopes Blueprint Pro diagram catalog to Blueprint Free plus the product delivery profile", () => {
+    const status = {
+      deliverables: [
+        {
+          deliverable_key: "diagram.target_capabilities_map",
+          deliverable_type: "diagram",
+        },
+        {
+          deliverable_key: "diagram.agent_orchestration",
+          deliverable_type: "diagram",
+        },
+        {
+          deliverable_key: "blueprint.architecture_spec",
+          deliverable_type: "document",
+        },
+      ],
+    } as ProductBuildStatus;
+    const catalogItem = (key: string) =>
+      ({
+        key,
+        required_tier: "blueprint_pro",
+      }) as DiagramCatalogItem;
+
+    expect(
+      isDiagramCatalogItemInProductBuild(
+        catalogItem("target_capabilities_map"),
+        status,
+        "blueprint_pro",
+      ),
+    ).toBe(true);
+    expect(
+      isDiagramCatalogItemInProductBuild(
+        { ...catalogItem("architecture_overview"), required_tier: "blueprint" },
+        status,
+        "blueprint_pro",
+      ),
+    ).toBe(true);
+    expect(
+      isDiagramCatalogItemInProductBuild(
+        catalogItem("c4_container"),
+        status,
+        "blueprint_pro",
+      ),
+    ).toBe(false);
   });
 
   it("keeps Blueprint Pro tracking quantities scoped to the processing queue", () => {

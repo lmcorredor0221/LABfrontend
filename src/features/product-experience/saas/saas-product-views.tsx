@@ -775,6 +775,33 @@ function isTierIncluded(requiredTier: unknown, tierScope: ProductTierScope) {
   return PRODUCT_TIER_RANK[normalized] <= PRODUCT_TIER_RANK[tierScope];
 }
 
+function diagramDeliverableKey(item: DiagramCatalogItem) {
+  return item.key.startsWith("diagram.") ? item.key : `diagram.${item.key}`;
+}
+
+export function isDiagramCatalogItemInProductBuild(
+  item: DiagramCatalogItem,
+  status: ProductBuildStatus | null | undefined,
+  tierScope: ProductTierScope,
+) {
+  const isBlueprintFreeDiagram = isTierIncluded(item.required_tier, "blueprint");
+  const diagramDeliverableKeys = new Set(
+    (status?.deliverables ?? [])
+      .filter((deliverable) => deliverable.deliverable_type === "diagram")
+      .map((deliverable) => deliverable.deliverable_key),
+  );
+
+  if (tierScope === "blueprint_pro" && isBlueprintFreeDiagram) {
+    return true;
+  }
+
+  if (diagramDeliverableKeys.size > 0) {
+    return diagramDeliverableKeys.has(diagramDeliverableKey(item)) || diagramDeliverableKeys.has(item.key);
+  }
+
+  return isTierIncluded(item.required_tier, tierScope);
+}
+
 function productTierLabel(language: "es" | "en" | "pt", tierScope: ProductTierScope) {
   if (tierScope === "acp") {
     return "ACP";
@@ -2196,8 +2223,8 @@ function BlueprintPostUpgradeWorkbench({
     tierScope === "blueprint" ? "blueprint_basic" : tierScope === "acp" ? "acp" : "blueprint_pro";
   const productLabel = productTierLabel(language, tierScope);
   const diagramCatalogFilter = useMemo(
-    () => (item: DiagramCatalogItem) => isTierIncluded(item.required_tier, tierScope),
-    [tierScope],
+    () => (item: DiagramCatalogItem) => isDiagramCatalogItemInProductBuild(item, productBuild?.data, tierScope),
+    [productBuild?.data, tierScope],
   );
   const currentStage = tierScope === "blueprint" ? "estimate" : "package";
   const status = productBuild?.data ?? null;
